@@ -88,9 +88,9 @@ function segDist(px, pz, ax, az, bx, bz) {
   return Math.hypot(ax + vx * t - px, az + vz * t - pz);
 }
 const BODY_MID = 0.45; // height of the middle of the body in the rig (what a somersault turns about)
-// cricket kit (turkeys hatched on the oval come padded up): what each piece saves it from, once. A helmet
-// takes a peck or a plover's swoop; leg guards take a bite at the legs, a rake or a stomp
-const KIT_SAVES = { peck: 'helmet', swoop: 'helmet', bite: 'pads', swept: 'pads', squash: 'pads' };
+// (cricket kit, on a turkey hatched on the oval, is a second life: the first time it's hurt, whether pecked,
+// swooped on, bitten, raked, stomped on or even swallowed, the kit takes it and comes off, and the turkey
+// lives on without it. It's no help to one that's drowning, though)
 const DROWN_TIME = 6; // seconds a landlubber lasts in deep water before it's a goner
 const RESCUE_TIME = 6; // seconds a whistled turkey gets to paddle back out
 const _v = new THREE.Vector3(), _r = new THREE.Vector3(), _d = new THREE.Vector3(), _w = new THREE.Vector3();
@@ -487,8 +487,7 @@ export class Turkey {
 
   die(cause = 'peck') {
     if (this.dead) return;
-    const kit = KIT_SAVES[cause];
-    if (this.gear?.[kit]) { this.loseGear(kit); return; }
+    if (cause !== 'drown' && (this.gear?.helmet || this.gear?.pads)) { this.loseGear(); return; }
     if (this.game.dev?.invincible) {
       // dev mode: nobody dies, they just get bounced clear
       this.dropEverything();
@@ -510,21 +509,20 @@ export class Turkey {
     g.stats.lost++;
   }
 
-  /** a piece of cricket kit took a blow that would have done for it: off it flies, and the turkey lives on */
-  loseGear(piece) {
+  /** its cricket kit took a blow that would have done for it: off it all flies, and the turkey lives on without it */
+  loseGear() {
     const g = this.game, r = this.rig;
-    this.gear[piece] = false;
-    for (const m of piece === 'helmet' ? [r.helmet] : r.pads ?? []) {
+    this.gear = null;
+    for (const m of [r.helmet, ...(r.pads ?? [])]) {
       if (!m) continue;
       const a = rand(0, TAU);
       g.fx.fling(m, _w.set(Math.cos(a) * rand(0.8, 1.8), rand(3, 4.5), Math.sin(a) * rand(0.8, 1.8)), _s.set(rand(-9, 9), rand(-9, 9), rand(-9, 9)));
     }
-    if (piece === 'helmet') r.helmet = null;
-    else r.pads = null;
+    r.helmet = r.pads = null;
     g.audio.clonk();
     g.fx.sparkle(_v.set(this.pos.x, this.pos.y + 0.6 * this.scale, this.pos.z), 8, [0xffffff, 0xc9ced4, 0xffe066]);
     g.stats.saved++;
-    g.hud.toastOnce(`kit-${piece}`, piece === 'helmet' ? 'Clonk! The helmet took that one' : 'Saved by the leg guards!', 2, 30);
+    g.hud.toastOnce('kit', 'Clonk! Its cricket kit took that one (and came off: the next one counts)', 2.5, 30);
     // (knocked back a step, and a bit dazed)
     this.dropEverything();
     this.workCenter = null;

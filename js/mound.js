@@ -473,7 +473,7 @@ export class Mound {
     if (!gear && w.zoneOf(this.pos.z) === 3 && Math.random() < PADDED) gear = { helmet: true, pads: true };
     if (this.beach) gear = null;
     this.game.turkeys.launchChick(top, tx, tz, this.beach ? 'beach' : 'normal', back?.stage ?? 0, back?.hen, gear);
-    if (gear && !back) g.hud.toastOnce('padded', 'Padded up! Turkeys hatched on the oval come out in helmets and leg guards: a helmet shrugs off a peck or a swoop, the pads a bite or a rake', 6, 600);
+    if (gear && !back) g.hud.toastOnce('padded', 'Padded up! Turkeys hatched on the oval come out in helmets and leg guards: the first time one gets hurt, its kit takes the hit instead', 6, 600);
     const converted = !!back;
     if (!converted) this.game.stats.hatched++;
     this.game.audio.fwoop();
