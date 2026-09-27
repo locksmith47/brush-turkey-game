@@ -237,6 +237,57 @@ function beachGeos(stage, variant) {
   return beachCache[key];
 }
 
+/* ------------------------------------------------------------------ cricket kit (turkeys hatched on the oval) */
+const KIT = { white: 0xf5f5f0, ridge: 0xe2e2da, strap: 0x2a3b6e, navy: 0x1d2b5e, steel: 0xc9ced4, gold: 0xd4a017 };
+// per stage (chicks, then juveniles & adults; neck space): the helmet's dome (its rim sits just above the eyes),
+// the peak, and the grille in front of the face; and the leg guards (leg space: hip at 0, foot at the bottom)
+const HELMET = [
+  { y: 0.215, z: 0.04, r: 0.155, peak: [0.26, 0.1, 0.225], face: 0.268, bars: [0.2, 0.16, 0.12], w: 0.11 },
+  { y: 0.285, z: 0.075, r: 0.098, peak: [0.16, 0.07, 0.19], face: 0.248, bars: [0.272, 0.243, 0.214], w: 0.075 },
+];
+const PADS = [{ top: -0.08, bot: -0.27, w: 0.075, z: 0.03 }, { top: -0.09, bot: -0.31, w: 0.088, z: 0.036 }];
+
+function helmetGeo(k) {
+  const h = HELMET[k], s = h.r / 0.098, bar = 0.006 * s;
+  const p = [
+    // the dome over the top of the head, and down round the back
+    part(new THREE.SphereGeometry(h.r, 18, 8, 0, TAU, 0, Math.PI / 2), KIT.navy, [0, h.y, h.z]),
+    part(new THREE.SphereGeometry(h.r, 12, 4, Math.PI, Math.PI, Math.PI / 2, Math.PI * 0.28), KIT.navy, [0, h.y, h.z]),
+    part(G.torus(h.r, 0.008 * s, 4, 24), KIT.navy, [0, h.y, h.z], [Math.PI / 2, 0, 0]),
+    // the peak, and a little gold badge above it
+    part(G.box(h.peak[0], 0.012 * s, h.peak[1]), KIT.navy, [0, h.y - 0.004 * s, h.peak[2]], [0.2, 0, 0]),
+    part(G.box(0.03 * s, 0.03 * s, 0.01 * s), KIT.gold, [0, h.y + h.r * 0.55, h.z + h.r * 0.84], [-0.6, 0, 0]),
+  ];
+  // the grille: bars across the face, a couple down it, and struts back to the dome either side
+  const top = h.bars[0], bot = h.bars[h.bars.length - 1];
+  for (const y of h.bars) p.push(limb([-h.w, y, h.face - 0.012 * s], [h.w, y, h.face - 0.012 * s], bar, bar, KIT.steel, 5));
+  for (const x of [-h.w * 0.4, h.w * 0.4]) p.push(limb([x, top + 0.01 * s, h.face], [x, bot - 0.008 * s, h.face], bar, bar, KIT.steel, 5));
+  for (const sx of [-1, 1]) {
+    p.push(limb([sx * h.w, top, h.face - 0.012 * s], [sx * h.r * 0.95, h.y - 0.004 * s, h.z + h.r * 0.3], bar, bar, KIT.steel, 5));
+    p.push(limb([sx * h.w, bot, h.face - 0.012 * s], [sx * h.r * 0.95, h.y - 0.004 * s, h.z + h.r * 0.3], bar, bar, KIT.steel, 5));
+  }
+  return merge(p);
+}
+
+function padGeo(k) {
+  const d = PADS[k], len = d.top - d.bot, mid = (d.top + d.bot) / 2, s = d.w / 0.088;
+  const p = [
+    part(G.box(d.w, len, 0.028 * s), KIT.white, [0, mid, d.z]),
+    part(G.cyl(0.02 * s, 0.02 * s, d.w * 0.95, 10), KIT.white, [0, d.top, d.z + 0.004], [0, 0, Math.PI / 2]), // (the knee roll)
+  ];
+  // raised bolsters down the front, and the straps round the back
+  for (const x of [-0.32, 0, 0.32]) p.push(part(G.box(d.w * 0.2, len * 0.92, 0.018 * s), KIT.ridge, [x * d.w, mid - len * 0.03, d.z + 0.017 * s]));
+  for (const y of [d.top - len * 0.25, d.bot + len * 0.22]) p.push(part(G.box(d.w * 1.12, 0.014 * s, 0.07 * s), KIT.strap, [0, y, d.z - 0.022 * s]));
+  return merge(p);
+}
+
+const kitCache = [];
+function kitGeos(stage) {
+  const k = stage === 0 ? 0 : 1;
+  kitCache[k] ??= { helmet: helmetGeo(k), pad: padGeo(k) };
+  return kitCache[k];
+}
+
 const cache = {};
 let DIRT = null;
 function geos(stage, hen = false) {
@@ -258,7 +309,8 @@ function blueGeos(stage) {
 }
 
 /* ------------------------------------------------------------------ rig */
-export function createRig(stage, kind = 'normal', variant = 0, hen = false) {
+/** `gear`: cricket kit it's wearing, if any ({ helmet, pads }) */
+export function createRig(stage, kind = 'normal', variant = 0, hen = false, gear = null) {
   hen = hen && stage === 2; // (chicks and juveniles all look alike)
   const g = geos(stage, hen);
   const feathers = kind === 'beach' ? blueGeos(stage) : { body: g.body, wing: g.wing };
@@ -307,6 +359,15 @@ export function createRig(stage, kind = 'normal', variant = 0, hen = false) {
     head.add(vcMesh(bg.snorkel));
   }
 
+  // padded up for cricket: a helmet on its head, and leg guards strapped on (they swing with the legs)
+  let helmet = null, pads = null;
+  if (gear?.helmet) head.add((helmet = vcMesh(kitGeos(stage).helmet)));
+  if (gear?.pads) {
+    pads = [vcMesh(kitGeos(stage).pad), vcMesh(kitGeos(stage).pad)];
+    legL.add(pads[0]);
+    legR.add(pads[1]);
+  }
+
   root.scale.setScalar(STAGES[stage].scale * (hen ? HEN_SCALE : 1));
-  return { root, bodyPivot, body, neck, head, beak, legL, legR, wingL, wingR, dirt, neckPos: g.neckPos, headTop: g.headTop };
+  return { root, bodyPivot, body, neck, head, beak, legL, legR, wingL, wingR, dirt, helmet, pads, neckPos: g.neckPos, headTop: g.headTop };
 }

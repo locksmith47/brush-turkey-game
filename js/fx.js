@@ -159,6 +159,7 @@ export class FX {
     this.glow = new Pool(scene, new THREE.MeshBasicMaterial({ fog: false }), 400, new THREE.OctahedronGeometry(1, 0));
     this.ripples = new Ripples(scene, 260);
     this.rings = [];
+    this.flung = []; // things knocked flying (a helmet off a turkey's head), tumbling to a stop
     const ringGeo = new THREE.TorusGeometry(1, 0.06, 6, 36);
     ringGeo.rotateX(Math.PI / 2);
     for (let i = 0; i < 16; i++) {
@@ -220,6 +221,12 @@ export class FX {
 
   warnCircle() { return new WarnCircle(this.game.scene); }
 
+  /** knock obj (a mesh, still where it was) flying off at vel, spinning: it bounces, tumbles to a stop and shrinks away */
+  fling(obj, vel, spin, life = 1.6) {
+    this.game.scene.attach(obj);
+    this.flung.push({ obj, vel: vel.clone(), spin: spin.clone(), t: 0, life, scale: obj.scale.x });
+  }
+
   /** a ring spreading out across the water at surface height y */
   ripple(x, y, z, r1 = 1, life = 1, a = 0.35, r0 = r1 * 0.2) {
     this.ripples.spawn(x, y, z, r0, r1, life, a);
@@ -247,6 +254,21 @@ export class FX {
     this.solid.update(dt, gh);
     this.glow.update(dt, gh);
     this.ripples.update(dt);
+    for (let i = this.flung.length - 1; i >= 0; i--) {
+      const f = this.flung[i], o = f.obj;
+      f.t += dt;
+      f.vel.y -= 11 * dt;
+      o.position.addScaledVector(f.vel, dt);
+      const gy = gh(o.position.x, o.position.z) + 0.04;
+      if (o.position.y < gy) {
+        o.position.y = gy;
+        f.vel.set(f.vel.x * 0.55, Math.abs(f.vel.y) * 0.3, f.vel.z * 0.55);
+        f.spin.multiplyScalar(0.55);
+      }
+      o.rotation.x += f.spin.x * dt; o.rotation.y += f.spin.y * dt; o.rotation.z += f.spin.z * dt;
+      o.scale.setScalar(f.scale * Math.min(1, (f.life - f.t) / 0.35));
+      if (f.t >= f.life) { this.game.scene.remove(o); this.flung.splice(i, 1); }
+    }
     for (const r of this.rings) {
       if (!r.m.visible) continue;
       r.life += dt;

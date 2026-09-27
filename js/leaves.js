@@ -10,6 +10,7 @@ export const PALETTES = {
   garden: [0x6f9a3a, 0x86b04a, 0x5a7f2e, 0x9a7a4a, 0xa6b85a, 0x7d8f3a], // green bins: prunings and grass clippings
   rubbish: [0xe84a3a, 0xffd21f, 0x3a6ff0, 0xf2f2f2, 0xff8c1a, 0x7bd34f, 0xa0522d], // red bins: chip packets, pizza boxes, cans
   recycling: [0xc9ced3, 0x2f8f4a, 0x8a5a2a, 0xf2f2f2, 0xd9453b, 0x3a6ff0, 0xb5a27a], // yellow bins: cans, bottles, papers, cardboard
+  cricket: [0xf5f5f0, 0xa8231c, 0x1d2b5e, 0xe3c58a, 0x1f5d2a, 0xefe3c4], // the oval's cricket gear: whites, a red ball, navy, willow, baggy green
 };
 /** palettes that are junk rather than leaves (drawn as boxes and cans, in the litter and in the mound) */
 export const JUNK = new Set(['rubbish', 'recycling']);

@@ -4,6 +4,7 @@ import { Snake } from './snake.js';
 import { Spider } from './spider.js';
 import { Keeper } from './keeper.js';
 import { Crab } from './crab.js';
+import { Plover } from './plover.js';
 
 /* Owns every foe (and every carcass / leaf bag waiting to be hauled). */
 export class Enemies {
@@ -14,9 +15,11 @@ export class Enemies {
     this._v = new THREE.Vector3();
   }
 
-  spawn(kind, x, z) {
+  /** `nest`: for a plover, the [x, z] of the nest it guards */
+  spawn(kind, x, z, nest = null) {
     const g = this.game;
     const e = kind === 'snake' ? new Snake(g, x, z)
+      : kind === 'plover' ? new Plover(g, x, z, nest ?? [x, z])
       : kind === 'spider' ? new Spider(g, x, z)
         : kind === 'keeper' ? new Keeper(g, x, z)
           : kind === 'crab' ? new Crab(g, 'crab', x, z)

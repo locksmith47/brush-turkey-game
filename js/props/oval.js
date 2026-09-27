@@ -28,6 +28,18 @@ const ARCS = [
   [Math.PI / 2 + NEAR, Math.PI - SIDE, 0.7 * NEAR, 0.7 * SIDE],
   [Math.PI + SIDE, 2 * Math.PI - SIDE, 0.7 * SIDE, 0.7 * SIDE],
 ];
+// the stumps at either end of the pitch (turkeys can dig them up), a pair of plovers nesting on the field
+// either side, just in from each gateway (so they're the first thing you run into on your way to Big Kev),
+// and cricket gear left lying about: the team's kit piled up by the fence round on the right, and bits and
+// pieces all over
+export const STUMPS = [[CX, CZ - 9.2], [CX, CZ + 9.2]];
+export const PLOVER_NESTS = [[-19, -203], [19, -203]];
+export const CRICKET_KIT = [
+  ['ball', -9, -181], ['cap', 9, -179], ['gloves', -41, -191], ['ball', -42, -224],
+  ['kitbag', 43, -209], ['cooler', 43, -215.5], ['bat', 39.5, -219], ['pads', 42.5, -222], ['helmet', 40, -224.5],
+  ['bat', 2.6, -201], ['helmet', -2.2, -201.8], ['pads', -2.5, -223.5], ['gloves', 2.8, -223], ['ball', 11, -197], ['ball', -13, -230],
+  ['cap', 9, -246], ['ball', -31, -237],
+];
 // bins by Kev's shed and along the western fence (tip them over for what's inside): [kind, x, z, facing]
 export const OVAL_BINS = [
   ['red', 31.6, -240.6, 0.3], ['yellow', 32.5, -241.1, 0.3], ['green', 40.5, -241.2, -0.4],
@@ -90,13 +102,19 @@ export function buildOval(world) {
   track.plan();
   s.add(vcMesh(merge([...pickets, ...posts]), { cast: true, receive: true }));
 
-  // stumps at each end of the pitch
-  const stumps = [];
-  for (let i = -1; i <= 1; i++) stumps.push(part(G.cyl(0.025, 0.025, 0.7, 6), 0xf2e6c9, [i * 0.09, 0.35, 0]));
-  stumps.push(part(G.box(0.25, 0.025, 0.04), 0xf2e6c9, [0, 0.71, 0]));
-  const stumpGeo = merge(stumps);
-  put(world, stumpGeo, CX, CZ - 9.2, 0, [[0, 0, 0.2]]);
-  put(world, stumpGeo, CX, CZ + 9.2, 0, [[0, 0, 0.2]]);
+  // the plovers' nests: a scrape in the grass, with a clutch of speckled eggs
+  const nest = [part(G.cyl(0.42, 0.46, 0.04, 14), 0xb09a64, [0, 0.015, 0])];
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * TAU;
+    nest.push(part(G.box(0.2, 0.03, 0.04), pick([0xc8b476, 0xa8925a, 0xd6c48a]), [Math.cos(a) * 0.38, 0.04, Math.sin(a) * 0.38], [0, -a + rand(-0.4, 0.4), 0]));
+  }
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * TAU + 0.4, x = Math.cos(a) * 0.1, z = Math.sin(a) * 0.1;
+    nest.push(part(G.sphere(1, 10, 8), 0x8d8a55, [x, 0.07, z], [Math.PI / 2 - 0.3, a, 0], [0.055, 0.075, 0.055]));
+    for (let k = 0; k < 5; k++) nest.push(part(G.sphere(0.012, 5, 4), 0x3d3222, [x + rand(-0.04, 0.04), 0.1 + rand(-0.02, 0.02), z + rand(-0.04, 0.04)]));
+  }
+  const nestGeo = merge(nest);
+  for (const [x, z] of PLOVER_NESTS) put(world, nestGeo, x, z, rand(0, TAU));
 
   // sightscreens behind each end
   const screen = merge([

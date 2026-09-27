@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { vcMat, vcMesh, toonMat, part, merge, G, rand, pick, TAU, clamp, labelFade, Dial } from './util.js';
 import { PALETTES, JUNK, LEAF_SPLIT, litterGeo } from './leaves.js';
 import { flagMesh } from './items.js';
+import { stumpsMesh } from './cricket.js';
 
 const SOIL = [0x5b3b22, 0x6e4a2b, 0x8a6238, 0xa8683a, 0xb08a55, 0x7a7040, 0x654326];
 const LEAF_COLS = [0x9b6b3a, 0xb8834a, 0xc49a5a, 0x8e8a4b, 0xa0522d, 0xd2a15e];
@@ -12,6 +13,7 @@ const BUILD_WORK = 60; // turkey-seconds of scratching it takes (ten turkeys: si
 // leaves' worth it takes to fill a mound and hatch a batch of chicks: more for the big home mound, and
 // a bit more again after every hatching (up to a point)
 const HATCH_AT = { home: 12, other: 9, more: 3, max: 24 };
+const PADDED = 0.5; // chance a chick hatched on the oval comes out padded up for cricket (helmet and leg guards)
 const _c = new THREE.Color(), _v = new THREE.Vector3();
 
 /* One kind of thing stuck in a mound's surface (leaves, beach loot, rubbish): an InstancedMesh spread over the dome. */
@@ -99,9 +101,9 @@ export class Mound {
     this.purple = 0; // jacaranda flowers delivered
     this.purpleK = 0; // how purple the mound currently looks (creeps towards the target)
     this.shownK = 0;
-    this.converts = []; // turkeys that dived in ({ stage, hen }), waiting to pop back out
+    this.converts = []; // turkeys that dived in ({ stage, hen, gear }), waiting to pop back out
     this.convertT = 0;
-    this.trophies = []; // lifesaving flags planted in it
+    this.trophies = []; // lifesaving flags (and stumps) planted in it
 
     DOME ??= domeGeometry();
     if (!SKIRT) {
@@ -252,9 +254,9 @@ export class Mound {
     this.refreshLabel();
   }
 
-  /** a stolen lifesaving flag, planted in the mound at a jaunty angle */
-  addTrophy() {
-    const f = flagMesh();
+  /** something planted in the mound at a jaunty angle, for all to see: a stolen lifesaving flag, or a set of stumps */
+  addTrophy(kind = 'flag') {
+    const f = kind === 'stumps' ? stumpsMesh() : flagMesh();
     f.group.scale.setScalar(0.8);
     this.group.add(f.group);
     // spread them round the mound, leaning outwards
@@ -327,7 +329,7 @@ export class Mound {
   convert(t) {
     const g = this.game, same = (t.kind === 'beach') === this.beach;
     t.vanish();
-    this.converts.push({ stage: t.stage, hen: t.hen });
+    this.converts.push({ stage: t.stage, hen: t.hen, gear: t.gear });
     if (this.converts.length === 1) this.convertT = 0.8;
     this.bump = 1;
     const top = this.pos.clone();
@@ -387,7 +389,7 @@ export class Mound {
     this.purpleK += clamp(target - this.purpleK, -dt * 0.06, dt * 0.06);
     if (Math.abs(this.purpleK - this.shownK) > 0.01) this.recolor();
 
-    for (const t of this.trophies) t.panel.rotation.y = Math.sin(this.game.time * 3 + t.ph) * 0.3; // flags flutter
+    for (const t of this.trophies) if (t.panel) t.panel.rotation.y = Math.sin(this.game.time * 3 + t.ph) * 0.3; // flags flutter
 
     // turkeys that dived in come back out in boardshorts
     if (this.converts.length) {
@@ -453,9 +455,9 @@ export class Mound {
     this.dome.scale.set(this.r * sx, this.h * sy, this.r * sx);
   }
 
-  /** out pops a chick (or a turkey that dived in, coming back out: `back` is { stage, hen }) */
+  /** out pops a chick (or a turkey that dived in, coming back out: `back` is { stage, hen, gear }) */
   launchChick(back = null) {
-    const w = this.game.world;
+    const g = this.game, w = g.world;
     const top = this.pos.clone(); top.y += this.h + 0.1;
     let tx = 0, tz = 0;
     for (let k = 0; k < 12; k++) {
@@ -465,7 +467,13 @@ export class Mound {
     }
     // (never into the scrub, where you couldn't get to it)
     if (!w.isFree(tx, tz, 0.6)) { w.resolve(_v.set(tx, 0, tz), 0.6, this.game.mounds.colliders); tx = _v.x; tz = _v.z; }
-    this.game.turkeys.launchChick(top, tx, tz, this.beach ? 'beach' : 'normal', back?.stage ?? 0, back?.hen);
+    // on the oval, some come out padded up for a game of cricket (a turkey coming back out keeps its kit,
+    // bar out of a beach mound: boardshorts and a snorkel don't go with a helmet)
+    let gear = back?.gear && (back.gear.helmet || back.gear.pads) ? back.gear : null;
+    if (!gear && w.zoneOf(this.pos.z) === 3 && Math.random() < PADDED) gear = { helmet: true, pads: true };
+    if (this.beach) gear = null;
+    this.game.turkeys.launchChick(top, tx, tz, this.beach ? 'beach' : 'normal', back?.stage ?? 0, back?.hen, gear);
+    if (gear && !back) g.hud.toastOnce('padded', 'Padded up! Turkeys hatched on the oval come out in helmets and leg guards: a helmet shrugs off a peck or a swoop, the pads a bite or a rake', 6, 600);
     const converted = !!back;
     if (!converted) this.game.stats.hatched++;
     this.game.audio.fwoop();

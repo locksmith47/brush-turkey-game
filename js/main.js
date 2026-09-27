@@ -15,13 +15,14 @@ import { Cursor } from './cursor.js';
 import { HUD } from './hud.js';
 import { Toys } from './toys.js';
 import { BeachItem, BeachFlag } from './items.js';
+import { Stumps, CricketGear } from './cricket.js';
 import { Bin } from './bin.js';
 import { BUILD_CREW } from './mound.js';
 import { UMBRELLAS, FLAGS } from './props/beach.js';
 import { SUBURB_BINS, SIDE_GATE } from './props/suburb.js';
 import { HOME, START, TRACK, ARENAS, BUSH_BINS, BUSH_LITTER } from './props/bush.js';
 import { CITY_BINS, LANE_GATE } from './props/city.js';
-import { OVAL_BINS, FIELD_GATE } from './props/oval.js';
+import { OVAL_BINS, FIELD_GATE, STUMPS, PLOVER_NESTS, CRICKET_KIT } from './props/oval.js';
 import { DevMenu } from './devmenu.js';
 import { clamp, damp, rand, smoothstep, lerp, TAU } from './util.js';
 
@@ -42,7 +43,7 @@ const scene = new THREE.Scene();
 const aspect = () => (innerWidth > 0 && innerHeight > 0 ? innerWidth / innerHeight : 16 / 9);
 const camera = new THREE.PerspectiveCamera(50, aspect(), 0.1, 700);
 
-const game = { scene, camera, renderer, time: 0, started: false, stats: { leaves: 0, hatched: 0, plucked: 0, thrown: 0, lost: 0, converted: 0 }, dev: { invincible: false } };
+const game = { scene, camera, renderer, time: 0, started: false, stats: { leaves: 0, hatched: 0, plucked: 0, thrown: 0, lost: 0, converted: 0, saved: 0 }, dev: { invincible: false } };
 // nothing about beach turkeys shows up until the gate into Bondi is open (or you've got some anyway)
 game.bondiOpen = () => game.world.gates[3].open || game.turkeys.counts.beach > 0 || game.turkeys.list.some((t) => t.kind === 'beach');
 let shakeAmt = 0;
@@ -91,6 +92,15 @@ enemies.spawn('king', -6, -157);
 for (const [x, z] of [[34, -60], [38, -200]]) enemies.spawn('snake', x, z);
 for (const [x, z] of [[-4, -79], [-37, -198]]) enemies.spawn('spider', x, z);
 enemies.spawn('keeper', 0, -214);
+// on the oval: a pair of plovers to each nest, swooping anything that comes near (a taste of Big Kev), the
+// stumps to dig up, and the cricket gear left lying about
+for (const [x, z] of PLOVER_NESTS) {
+  const [a, b] = [-1, 1].map((s) => enemies.spawn('plover', x + s * 1.3, z + 0.7, [x, z]));
+  a.mate = b;
+  b.mate = a;
+}
+for (const [x, z] of STUMPS) enemies.list.push(new Stumps(game, x, z));
+for (const [type, x, z] of CRICKET_KIT) enemies.list.push(new CricketGear(game, type, x, z));
 // each area hides a giant key for the padlocked gate out of it
 game.barriers.spawnKeys();
 // and a shortcut or two, latched on the far side: open once you've made it round

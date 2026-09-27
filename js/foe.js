@@ -221,8 +221,12 @@ export class Foe {
       if (!t || (swimmersOnly && !t.canSwim)) continue;
       this.slotPos(i, _v);
       let d = Math.hypot(_v.x - t.pos.x, _v.z - t.pos.z);
-      // (squashed up against a wall or a fence, as near its place as it can get, a carrier still has hold of it)
-      if (d >= 1.0 && w.resolve(_v, t.radius, this.game.mounds.colliders)) d = Math.hypot(_v.x - t.pos.x, _v.z - t.pos.z);
+      if (d >= 1.0) {
+        // (squashed up against a wall, a fence or something lying about, as near its place as it can get, a
+        // carrier still has hold of it)
+        const a = w.resolve(_v, t.radius, this.game.mounds.colliders), b = w.resolve(_v, t.radius, this.game.enemies.colliders);
+        if (a || b) d = Math.hypot(_v.x - t.pos.x, _v.z - t.pos.z);
+      }
       if (d < 1.0) s += STRENGTH[t.stage];
     }
     return s;
@@ -333,8 +337,10 @@ export class Foe {
       if (k >= 1) { this.finishAbsorb(); return; }
     }
 
-    if (this.alive || this.state === 'carcass') {
+    // (a load nobody's carrying can't have moved: once it's been put right, it stays right)
+    if (this.alive || (this.state === 'carcass' && (this.carrying || !this.settled))) {
       g.world.resolve(this.pos, this.alive ? d.radius : d.carryR * 0.7, this.alive ? g.mounds.colliders : null);
+      this.settled = !this.alive && !this.carrying;
     }
     if (this.state !== 'absorb' && !this.airborne) this.pos.y = g.world.groundHeight(this.pos.x, this.pos.z);
     this.pose(dt);

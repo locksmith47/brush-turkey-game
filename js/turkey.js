@@ -88,6 +88,9 @@ function segDist(px, pz, ax, az, bx, bz) {
   return Math.hypot(ax + vx * t - px, az + vz * t - pz);
 }
 const BODY_MID = 0.45; // height of the middle of the body in the rig (what a somersault turns about)
+// cricket kit (turkeys hatched on the oval come padded up): what each piece saves it from, once. A helmet
+// takes a peck or a plover's swoop; leg guards take a bite at the legs, a rake or a stomp
+const KIT_SAVES = { peck: 'helmet', swoop: 'helmet', bite: 'pads', swept: 'pads', squash: 'pads' };
 const DROWN_TIME = 6; // seconds a landlubber lasts in deep water before it's a goner
 const RESCUE_TIME = 6; // seconds a whistled turkey gets to paddle back out
 const _v = new THREE.Vector3(), _r = new THREE.Vector3(), _d = new THREE.Vector3(), _w = new THREE.Vector3();
@@ -102,6 +105,7 @@ export class Turkey {
     this.id = nextId++;
     this.stage = stage;
     this.kind = kind; // 'normal' or 'beach' (boardshorts, snorkel, swims)
+    this.gear = null; // cricket kit it's wearing, if it hatched on the oval: { helmet, pads }
     this.variant = Math.floor(Math.random() * 6);
     this.hen = Math.random() < 0.5; // (it only shows once it's grown up)
     this.rescued = 0; // seconds a whistled non-swimmer may paddle through deep water
@@ -162,7 +166,7 @@ export class Turkey {
 
   buildRig() {
     if (this.rig) this.game.scene.remove(this.rig.root);
-    this.rig = createRig(this.stage, this.kind, this.variant, this.hen);
+    this.rig = createRig(this.stage, this.kind, this.variant, this.hen, this.gear);
     this.game.scene.add(this.rig.root);
     this.applyVisibility();
     this.pose(0);
@@ -267,6 +271,11 @@ export class Turkey {
 
   /** knocked flying by a big attack (a rake spin, a snake's whirl): lands dazed but alive */
   blastAway(from, dist, h = 2.5) {
+    // (leg guards on, it stands its ground: knocked back a step or two, no more)
+    if (this.gear?.pads) {
+      dist = Math.min(dist, Math.hypot(this.pos.x - from.x, this.pos.z - from.z) + 1.2);
+      h *= 0.45;
+    }
     this.dropEverything();
     this.workCenter = null;
     const a = Math.atan2(this.pos.x - from.x, this.pos.z - from.z) + rand(-0.35, 0.35);
@@ -478,6 +487,8 @@ export class Turkey {
 
   die(cause = 'peck') {
     if (this.dead) return;
+    const kit = KIT_SAVES[cause];
+    if (this.gear?.[kit]) { this.loseGear(kit); return; }
     if (this.game.dev?.invincible) {
       // dev mode: nobody dies, they just get bounced clear
       this.dropEverything();
@@ -497,6 +508,31 @@ export class Turkey {
     if (cause === 'squash') g.fx.dust(this.pos, 4);
     g.audio.die(this.stage);
     g.stats.lost++;
+  }
+
+  /** a piece of cricket kit took a blow that would have done for it: off it flies, and the turkey lives on */
+  loseGear(piece) {
+    const g = this.game, r = this.rig;
+    this.gear[piece] = false;
+    for (const m of piece === 'helmet' ? [r.helmet] : r.pads ?? []) {
+      if (!m) continue;
+      const a = rand(0, TAU);
+      g.fx.fling(m, _w.set(Math.cos(a) * rand(0.8, 1.8), rand(3, 4.5), Math.sin(a) * rand(0.8, 1.8)), _s.set(rand(-9, 9), rand(-9, 9), rand(-9, 9)));
+    }
+    if (piece === 'helmet') r.helmet = null;
+    else r.pads = null;
+    g.audio.clonk();
+    g.fx.sparkle(_v.set(this.pos.x, this.pos.y + 0.6 * this.scale, this.pos.z), 8, [0xffffff, 0xc9ced4, 0xffe066]);
+    g.stats.saved++;
+    g.hud.toastOnce(`kit-${piece}`, piece === 'helmet' ? 'Clonk! The helmet took that one' : 'Saved by the leg guards!', 2, 30);
+    // (knocked back a step, and a bit dazed)
+    this.dropEverything();
+    this.workCenter = null;
+    this.holder = null;
+    const a = rand(0, TAU);
+    this.hopTo(this.pos.x + Math.sin(a) * 0.9, this.pos.z + Math.cos(a) * 0.9, 0.4, 0.5);
+    this.flight.spin = 1;
+    this.flung = true;
   }
 
   dropEverything() {
@@ -1262,7 +1298,7 @@ export class Turkey {
       foe.damage(DPS[this.stage] * dt, this);
       this.hitting = true;
       // sand flies out behind a turkey digging something out
-      if (foe.def.task === 'dig' && this.scratchTick(dt)) this.scrapeDust(_v.set(-Math.sin(this.heading), 0, -Math.cos(this.heading)), SAND_BITS);
+      if (foe.def.task === 'dig' && this.scratchTick(dt)) this.scrapeDust(_v.set(-Math.sin(this.heading), 0, -Math.cos(this.heading)), foe.def.bits === 'soil' ? SOIL_BITS : SAND_BITS);
     }
   }
 

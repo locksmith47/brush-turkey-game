@@ -2,7 +2,7 @@ export class HUD {
   constructor(game) {
     this.game = game;
     this.el = {};
-    for (const id of ['hud', 'help', 'toast', 'c-squad', 'c-field', 'c-sprouts', 'c-s0', 'c-s1', 'c-s2', 'throw-name', 'c-leaves', 'c-hatched', 'c-mounds', 'c-lost', 'boss', 'boss-name', 'boss-hp', 'boss-lag', 'banner', 'banner-text', 'zone-title', 'zone-name', 'boss-grip', 'boss-grip-fill', 'boss-grip-time', 'c-beach', 'tk-normal', 'tk-beach', 'throw-type', 'throw-kind', 'c-beach-box', 'help-tab']) {
+    for (const id of ['hud', 'help', 'toast', 'c-squad', 'c-field', 'c-sprouts', 'c-s0', 'c-s1', 'c-s2', 'throw-name', 'c-leaves', 'c-hatched', 'c-mounds', 'c-lost', 'boss', 'boss-name', 'boss-hp', 'boss-lag', 'banner', 'banner-text', 'zone-title', 'zone-name', 'boss-grip', 'boss-grip-fill', 'boss-grip-time', 'c-beach', 'tk-normal', 'tk-beach', 'throw-type', 'throw-kind', 'c-beach-box', 'help-tab', 'c-kit', 'c-kit-box']) {
       this.el[id] = document.getElementById(id);
     }
     this.toastT = 0;
@@ -105,6 +105,9 @@ export class HUD {
     this.set('c-s1', c.stages[1]);
     this.set('c-s2', c.stages[2]);
     this.set('c-beach', c.beach);
+    this.set('c-kit', c.kit);
+    // (the padded-up count turns up once you've got some)
+    if (c.kit && !this.kitShown) { this.kitShown = true; this.el['c-kit-box'].classList.remove('hidden'); }
     // beach turkey bits of the HUD stay hidden until Bondi's open
     const bondi = g.bondiOpen();
     if (bondi !== this.bondiShown) {
