@@ -1,0 +1,211 @@
+import * as THREE from 'three';
+import { vcMesh, part, merge, G, clamp, pinLabel } from './util.js';
+import { palingGeo, picketGeo, railGeo, wireGeo, wireMat, placeAlong } from './props/fences.js';
+import { BOUNDS, ZONES } from './world.js';
+import { Key } from './key.js';
+
+/* One giant key per area; each needs more turkeys to lift than the last. */
+const KEYS = [
+  { x: 22, z: -18, size: 1.0, weight: 4, slots: 8, heading: 0.6 },
+  { x: 22, z: -86, size: 1.6, weight: 10, slots: 14, heading: 2.2 },
+  { x: 6, z: -158, size: 2.3, weight: 20, slots: 24, heading: 0.2 },
+  { x: 6, z: -228, size: 2.6, weight: 22, slots: 26, heading: 1.0 }, // on the pitch, under Big Kev's nose
+  { x: -3, z: -337, size: 3.0, weight: 26, slots: 28, heading: 0.4 }, // sunk in the King Crab's rock pool
+];
+
+function leafGeo(kind, w) {
+  if (kind === 'wood') {
+    return { solid: merge([palingGeo(w), part(G.box(Math.hypot(w, 1.1), 0.1, 0.05), 0x8a6a4a, [w / 2, 0.9, -0.1], [0, 0, Math.atan2(1.1, w)])]) };
+  }
+  if (kind === 'picket') return { solid: picketGeo(w) };
+  if (kind === 'rail') return { solid: railGeo(w) };
+  const g = wireGeo(w, { height: 2.1 });
+  const brace = part(G.cyl(0.035, 0.035, Math.hypot(w, 1.9), 6), 0xb0b6bb, [w / 2, 1.05, 0], [0, 0, -Math.atan2(w, 1.9)]);
+  return { solid: merge([g.frame, brace, part(G.cyl(0.05, 0.05, 2.1, 6), 0xb0b6bb, [w, 1.05, 0])]), mesh: g.mesh };
+}
+
+function padlockGeo() {
+  const brass = 0xd4a017;
+  const body = [
+    part(G.box(0.36, 0.3, 0.16), brass, [0, 0, 0]),
+    part(G.cyl(0.18, 0.18, 0.16, 16, false), brass, [0, -0.15, 0], [Math.PI / 2, 0, 0], [1, 1, 1]),
+    part(G.cyl(0.045, 0.045, 0.02, 10), 0x2a1d0e, [0, -0.04, 0.085], [Math.PI / 2, 0, 0]),
+    part(G.box(0.03, 0.1, 0.02), 0x2a1d0e, [0, -0.1, 0.085]),
+    part(G.box(0.38, 0.03, 0.17), 0xb8860b, [0, 0.14, 0]),
+  ];
+  const shackle = part(G.torus(0.12, 0.035, 8, 16, Math.PI), 0xcfd4d8, [0.12, 0, 0]);
+  return { body: merge(body), shackle: merge([shackle, part(G.cyl(0.035, 0.035, 0.12, 8), 0xcfd4d8, [0.24, -0.06, 0])]) };
+}
+
+class Gate {
+  constructor(game, gate, index) {
+    this.game = game;
+    this.gate = gate;
+    this.index = index;
+    this.kind = gate.kind;
+    const hw = gate.hw, z = gate.z;
+    this.seg = game.world.addSegment(gate.x - hw, z, gate.x + hw, z, 0.25, true);
+    this.center = new THREE.Vector3(gate.x, 0, z);
+
+    // double gate: two leaves hinged at the outer posts, chained & padlocked in the middle
+    this.leaves = [-1, 1].map((side) => {
+      const pivot = new THREE.Group();
+      pivot.position.set(gate.x + side * hw, 0, z);
+      pivot.scale.x = -side; // the right leaf is mirrored
+      const g = leafGeo(this.kind, hw);
+      pivot.add(vcMesh(g.solid, { cast: true, receive: true }));
+      if (g.mesh) pivot.add(new THREE.Mesh(g.mesh, wireMat()));
+      game.scene.add(pivot);
+      return pivot;
+    });
+
+    const h = this.kind === 'picket' ? 0.75 : this.kind === 'rail' ? 0.85 : 1.05;
+    this.lock = new THREE.Group();
+    this.lock.position.set(gate.x, h, z + 0.18);
+    const pl = padlockGeo();
+    const body = vcMesh(pl.body);
+    this.shackle = new THREE.Group();
+    this.shackle.position.set(-0.12, 0.15, 0);
+    this.shackle.add(vcMesh(pl.shackle));
+    this.lock.add(body, this.shackle);
+    const chain = [];
+    for (let i = -4; i <= 4; i++) {
+      if (i === 0) continue;
+      chain.push(part(G.torus(0.07, 0.02, 4, 10), 0xaab0b6, [i * 0.1, 0.2 + Math.abs(i) * 0.012, -0.05], [0, i % 2 ? Math.PI / 2 : 0, 0]));
+    }
+    this.lock.add(vcMesh(merge(chain)));
+    this.lock.scale.setScalar(1.7);
+    game.scene.add(this.lock);
+
+    // a glowing see-through ring marks the gate
+    const glow = { color: 0xffd21f, transparent: true, depthWrite: false };
+    this.ring = new THREE.Group();
+    this.ring.position.set(gate.x, 0.07, z);
+    this.ring.scale.set(hw + 1.3, 1, 2.1);
+    this.ringLine = new THREE.Mesh(new THREE.TorusGeometry(1, 0.05, 6, 64).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ ...glow, opacity: 0.85 }));
+    this.ringDisc = new THREE.Mesh(new THREE.CircleGeometry(1, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ ...glow, opacity: 0.12 }));
+    this.ringWall = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1.8, 48, 1, true).translate(0, 0.9, 0), new THREE.MeshBasicMaterial({ ...glow, opacity: 0.1, side: THREE.DoubleSide }));
+    this.ring.add(this.ringLine, this.ringDisc, this.ringWall);
+    game.scene.add(this.ring);
+    this.ringFade = 1;
+
+    this.state = 'locked';
+    this.t = 0;
+    this.label = document.createElement('div');
+    this.label.className = 'mound-label small';
+    this.label.innerHTML = '🔒 Needs the key';
+    this.label.style.display = 'none';
+    document.getElementById('labels').appendChild(this.label);
+  }
+
+  get locked() { return this.state === 'locked'; }
+
+  lockWorld(out) {
+    return this.lock.getWorldPosition(out);
+  }
+
+  unlock(silent = false) {
+    if (!this.locked) return;
+    const g = this.game;
+    this.state = 'opening';
+    this.t = 0;
+    this.seg.active = false;
+    this.gate.open = true;
+    this.label.style.display = 'none';
+    if (silent) return;
+    g.audio.unlock();
+    g.fx.sparkle(this.lockWorld(new THREE.Vector3()), 24);
+    g.hud.banner('GATE UNLOCKED', 3);
+    g.hud.toast(`${ZONES[this.index + 1].name} awaits...`, 3);
+  }
+
+  update(dt, camera, v) {
+    this.t += dt;
+    if (this.ring.visible) {
+      this.ringFade = this.locked ? 1 : Math.max(0, this.ringFade - dt * 1.5);
+      const pulse = 0.75 + Math.sin(this.game.time * 3.2 + this.index) * 0.25;
+      this.ringLine.material.opacity = 0.85 * pulse * this.ringFade;
+      this.ringDisc.material.opacity = 0.12 * pulse * this.ringFade;
+      this.ringWall.material.opacity = 0.1 * pulse * this.ringFade;
+      this.ringWall.scale.y = 0.9 + Math.sin(this.game.time * 3.2 + this.index) * 0.1;
+      if (this.ringFade <= 0) this.ring.visible = false;
+    }
+
+    if (this.state === 'opening') {
+      // shackle pops, padlock drops, the gates swing open
+      const t = this.t;
+      this.shackle.rotation.y = -Math.min(1, t / 0.2) * 1.4;
+      this.shackle.position.y = 0.15 + Math.min(1, t / 0.2) * 0.08;
+      if (t > 0.3) {
+        const f = t - 0.3;
+        this.lock.position.y = Math.max(0.15, this.lock.position.y - dt * (2 + f * 10));
+        this.lock.rotation.z = Math.min(1.5, f * 3);
+        if (f > 1.6) this.lock.visible = false;
+      }
+      const k = clamp((t - 0.45) / 1.1, 0, 1);
+      const open = 1.8 * (1 - (1 - k) ** 3);
+      this.leaves[0].rotation.y = open;
+      this.leaves[1].rotation.y = -open;
+      if (t > 2.2) this.state = 'open';
+    }
+
+    // "needs the key" hint when the player is near a locked gate
+    const p = this.game.player.pos;
+    const near = this.locked && Math.hypot(p.x - this.center.x, p.z - this.center.z) < 14;
+    if (!near) { if (this.label.style.display !== 'none') this.label.style.display = 'none'; return; }
+    pinLabel(this.label, v.set(this.center.x, 2.9, this.center.z), camera);
+  }
+}
+
+export class Barriers {
+  constructor(game) {
+    this.game = game;
+    this.gates = [];
+    const w = game.world;
+    w.gates.forEach((gate, i) => {
+      const z = gate.z, x0 = BOUNDS.xMin - 3, x1 = BOUNDS.xMax + 3;
+      const left = gate.x - gate.hw, right = gate.x + gate.hw;
+      w.addSegment(x0, z, left, z, 0.25, true);
+      w.addSegment(right, z, x1, z, 0.25, true);
+      // solid fence either side of the gate
+      for (const [a, b] of [[x0, left], [right, x1]]) {
+        for (let x = a; x < b - 0.01; x += 12) {
+          const len = Math.min(12, b - x);
+          if (gate.kind === 'wood') {
+            w.scene.add(placeAlong(vcMesh(palingGeo(len), { cast: true, receive: true }), x, z, x + len, z));
+          } else if (gate.kind === 'picket') {
+            w.scene.add(placeAlong(vcMesh(picketGeo(len), { cast: true, receive: true }), x, z, x + len, z));
+          } else if (gate.kind === 'rail') {
+            w.scene.add(placeAlong(vcMesh(railGeo(len), { cast: true, receive: true }), x, z, x + len, z));
+          } else {
+            const g = wireGeo(len);
+            w.scene.add(placeAlong(vcMesh(g.frame, { cast: true, receive: true }), x, z, x + len, z));
+            w.scene.add(placeAlong(new THREE.Mesh(g.mesh, wireMat()), x, z, x + len, z));
+          }
+        }
+      }
+      this.gates.push(new Gate(game, gate, i));
+    });
+    this._v = new THREE.Vector3();
+  }
+
+  /** drop each area's key into the world (needs game.enemies, which hauls them) */
+  spawnKeys() {
+    this.keys = KEYS.map((spec, i) => {
+      const k = new Key(this.game, spec, this.game.world.gates[i], i);
+      this.game.enemies.list.push(k);
+      return k;
+    });
+  }
+
+  /** debug helper: open gate i straight away (and tidy away its key) */
+  unlock(i, silent = false) {
+    this.gates[i].unlock(silent);
+    const k = this.keys?.[i];
+    if (k && !k.gone && k.state === 'carcass') k.dispose();
+  }
+
+  update(dt, camera) {
+    for (const g of this.gates) g.update(dt, camera, this._v);
+  }
+}

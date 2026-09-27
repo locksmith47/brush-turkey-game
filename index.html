@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Turkmin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&display=swap">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="labels"></div>
+
+  <div id="hud" class="hidden">
+    <div id="counter">
+      <div class="row big"><span class="lbl">Squad</span><span id="c-squad">0</span></div>
+      <div class="row"><span class="lbl">Field</span><span id="c-field">0</span></div>
+      <div class="row"><span class="lbl">In ground</span><span id="c-sprouts">0</span></div>
+      <div class="stages">
+        <div class="stage s0"><i></i><span id="c-s0">0</span></div>
+        <div class="stage s1"><i></i><span id="c-s1">0</span></div>
+        <div class="stage s2"><i></i><span id="c-s2">0</span></div>
+        <div class="stage s3 hidden" id="c-beach-box" title="beach turkeys"><i></i><span id="c-beach">0</span></div>
+      </div>
+    </div>
+
+    <div id="throw-type" class="hidden">
+      <div class="lbl">Next throw</div>
+      <div id="throw-name">—</div>
+      <div id="throw-kind" class="hidden"><span id="tk-normal" class="on">Normal</span><span id="tk-beach">Beach</span><kbd>Tab</kbd></div>
+    </div>
+
+    <div id="stats">
+      <div>Leaves mounded: <b id="c-leaves">0</b></div>
+      <div>Chicks hatched: <b id="c-hatched">0</b></div>
+      <div>Mounds: <b id="c-mounds">1</b></div>
+      <div>Turkeys lost: <b id="c-lost">0</b></div>
+    </div>
+
+    <div id="help-mini"><kbd>H</kbd> controls</div>
+  </div>
+
+  <div id="help" class="hidden">
+    <h3>Controls</h3>
+    <table>
+      <tr><td><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></td><td>Walk</td></tr>
+      <tr><td>Mouse</td><td>Aim</td></tr>
+      <tr><td>Left click</td><td>Throw a turkey (hold to keep throwing)</td></tr>
+      <tr><td>Right click / <kbd>Space</kbd></td><td>Whistle (hold). Calls turkeys in the ring</td></tr>
+      <tr><td><kbd>E</kbd></td><td>Pluck a turkey out of the ground (hold)</td></tr>
+      <tr><td><kbd>X</kbd></td><td>Dismiss the squad</td></tr>
+      <tr id="help-tab" class="hidden"><td><kbd>Tab</kbd></td><td>Switch between normal and beach turkeys (the biggest are always thrown first)</td></tr>
+      <tr><td><kbd>M</kbd></td><td>Scratch up a new mound (takes 10 turkeys)</td></tr>
+      <tr><td><kbd>Z</kbd> <kbd>C</kbd> / middle-drag</td><td>Rotate the camera</td></tr>
+      <tr><td>Wheel</td><td>Zoom (zoom right in to see his face)</td></tr>
+      <tr><td><kbd>H</kbd></td><td>Toggle this panel</td></tr>
+    </table>
+  </div>
+
+  <div id="toast"></div>
+
+  <div id="boss" class="hidden">
+    <div id="boss-name">King Ibis</div>
+    <div class="boss-bar"><i id="boss-lag"></i><i id="boss-hp"></i></div>
+    <div id="boss-grip" class="hidden">
+      <span>Break its grip!</span>
+      <div class="grip-bar"><i id="boss-grip-fill"></i></div>
+      <div class="grip-time"><i id="boss-grip-time"></i></div>
+    </div>
+  </div>
+  <div id="banner"><span id="banner-text"></span></div>
+  <div id="zone-title"><div class="line"></div><span id="zone-name"></span><div class="line"></div></div>
+
+  <div id="splash">
+    <div class="card">
+      <h1>TURKMIN</h1>
+      <p class="sub">a brush turkey mound-building adventure</p>
+      <table class="keys">
+        <tr><td><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></td><td>Walk</td></tr>
+        <tr><td>Mouse</td><td>Aim</td></tr>
+        <tr><td>Left click</td><td>Throw a turkey (hold to keep throwing)</td></tr>
+        <tr><td>Right click / <kbd>Space</kbd></td><td>Whistle your turkeys back (hold)</td></tr>
+        <tr><td><kbd>E</kbd></td><td>Pluck a turkey out of the ground (hold)</td></tr>
+        <tr><td><kbd>X</kbd></td><td>Dismiss the squad</td></tr>
+        <tr><td><kbd>M</kbd></td><td>Scratch up a new mound (takes 10 turkeys)</td></tr>
+        <tr><td><kbd>Z</kbd> <kbd>C</kbd> / middle-drag</td><td>Rotate the camera</td></tr>
+        <tr><td>Wheel</td><td>Zoom</td></tr>
+      </table>
+      <button id="play">Play</button>
+      <p class="hint">Press <kbd>H</kbd> any time to see these again</p>
+    </div>
+  </div>
+
+  <div id="loading">Loading…</div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

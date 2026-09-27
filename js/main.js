@@ -1,0 +1,422 @@
+import * as THREE from 'three';
+import { World, ZONES } from './world.js';
+import { Barriers } from './barriers.js';
+import { Enemies } from './enemies.js';
+import { Ghosts } from './ghosts.js';
+import { FX } from './fx.js';
+import { Audio } from './audio.js';
+import { Leaves } from './leaves.js';
+import { Grubs } from './grubs.js';
+import { Mounds } from './mound.js';
+import { Turkeys } from './turkeys.js';
+import { Player } from './player.js';
+import { Input } from './input.js';
+import { Cursor } from './cursor.js';
+import { HUD } from './hud.js';
+import { Toys } from './toys.js';
+import { BeachItem, BeachFlag } from './items.js';
+import { Bin } from './bin.js';
+import { BUILD_CREW } from './mound.js';
+import { UMBRELLAS, FLAGS } from './props/beach.js';
+import { SUBURB_BINS } from './props/suburb.js';
+import { CITY_BINS } from './props/city.js';
+import { OVAL_BINS } from './props/oval.js';
+import { DevMenu } from './devmenu.js';
+import { clamp, damp, rand, smoothstep, lerp, TAU } from './util.js';
+
+const THROW_RANGE = 11;
+const WHISTLE_RANGE = 15;
+const WHISTLE_MAX_R = 5.5;
+
+/* ------------------------------------------------------------------ setup */
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.getElementById('app').appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+// (a window with no size yet, like a hidden tab, would make that 0/0: keep a sane shape until it has one)
+const aspect = () => (innerWidth > 0 && innerHeight > 0 ? innerWidth / innerHeight : 16 / 9);
+const camera = new THREE.PerspectiveCamera(50, aspect(), 0.1, 700);
+
+const game = { scene, camera, renderer, time: 0, started: false, stats: { leaves: 0, hatched: 0, plucked: 0, thrown: 0, lost: 0, converted: 0 }, dev: { invincible: false } };
+// nothing about beach turkeys shows up until the gate into Bondi is open (or you've got some anyway)
+game.bondiOpen = () => game.world.gates[3].open || game.turkeys.counts.beach > 0 || game.turkeys.list.some((t) => t.kind === 'beach');
+let shakeAmt = 0;
+game.shake = (a) => { shakeAmt = Math.min(1.2, shakeAmt + a); };
+game.audio = new Audio();
+game.world = new World(game);
+game.barriers = new Barriers(game);
+game.fx = new FX(game);
+game.ghosts = new Ghosts(game);
+game.hud = new HUD(game);
+game.leaves = new Leaves(game);
+game.grubs = new Grubs(game);
+game.mounds = new Mounds(game);
+game.player = new Player(game);
+game.turkeys = new Turkeys(game);
+game.enemies = new Enemies(game);
+game.toys = new Toys(game);
+game.cursor = new Cursor(game);
+window.game = game; // handy for poking around in devtools
+
+const input = new Input();
+const { world, player, turkeys, mounds, leaves, audio, hud, fx, enemies } = game;
+
+/* ------------------------------------------------------------------ starting layout */
+mounds.add(0, -2, true);
+for (const s of world.treeSpots) leaves.spawnCluster(s.x, s.z, s.palette === 'gum' ? 18 : 14, 4.2, s.palette);
+leaves.spawnCluster(-7, 4, 16, 2);
+leaves.spawnCluster(7, 2, 14, 1.8);
+leaves.spawnCluster(-3, -9, 12, 2);
+for (let i = 0; i < 6; i++) leaves.spawnCluster(rand(-40, 40), rand(-32, 40), 12, 2.2);
+
+// the locals: ibises everywhere, giants in the suburbs and city, and the King on his skip-bin throne
+enemies.spawn('ibis', 20, -26);
+for (const [x, z] of [[-22, -64], [8, -58], [-8, -88], [32, -74]]) enemies.spawn('ibis', x, z);
+enemies.spawn('giant', 12, -90);
+for (const [x, z] of [[-20, -108], [16, -112], [38, -134], [-40, -142], [22, -148]]) enemies.spawn('ibis', x, z);
+enemies.spawn('giant', -24, -128);
+enemies.spawn('king', 6, -152);
+// snakes lurking in the litter, funnel-webs in their burrows, and Big Kev on his oval
+for (const [x, z] of [[30, 24], [36, -62], [28, -224]]) enemies.spawn('snake', x, z);
+for (const [x, z] of [[-30, -16], [-32, -76], [-30, -196]]) enemies.spawn('spider', x, z);
+enemies.spawn('keeper', 0, -214);
+// each area hides a giant key for the padlocked gate out of it
+game.barriers.spawnKeys();
+// wheelie bins to knock over: green ones spill garden clippings, red ones rubbish, yellow ones recycling
+const BUSH_BINS = [['green', -9.5, 13.5, Math.PI], ['red', -8.3, 13.8, Math.PI]];
+for (const [kind, x, z, face] of [...BUSH_BINS, ...SUBURB_BINS, ...CITY_BINS, ...OVAL_BINS]) {
+  const overflowing = kind === 'red' && z < -98 && z > -170; // city bins are always overflowing
+  enemies.list.push(new Bin(game, kind, x, z, face, overflowing));
+}
+// the backyard playground (and the washing line, which is basically a merry-go-round)
+game.toys.addTrampoline(18, -80);
+game.toys.addSwingSet(-6, -47, 0);
+game.toys.addHoist(-18, -58);
+// and out in the bush, the gums' low branches to roost on
+for (const r of world.roosts) game.toys.addRoost(r);
+
+// Bondi: a beach mound to feed with stolen gear, crabs, and the King Crab in his rock pool
+mounds.add(-22, -266, false, 'beach');
+for (const [x, z] of [[-6, -272], [6, -290], [-16, -306], [8, -318], [22, -280]]) enemies.spawn('crab', x, z);
+enemies.spawn('kingcrab', -6, -339);
+const loot = [
+  ['towel', -14, -262], ['ball', -8, -266], ['spade', -4, -270], ['bucket', -3, -269], ['thong', -18, -270], ['thong', -17.5, -271],
+  ['sunscreen', -12, -281], ['towel', -22, -283], ['sunnies', -21, -286], ['hat', -26, -276], ['noodle', 2, -278], ['boogie', 6, -276],
+  ['esky', -10, -296], ['umbrella', -26, -296], ['towel', -4, -304], ['ball', 0, -310], ['spade', -20, -300], ['bucket', -12, -316],
+  ['towel', 4, -322], ['thong', -8, -312], ['sunnies', -24, -310], ['hat', -2, -296], ['boogie', 10, -304], ['surfboard', 8, -268],
+  ['noodle', -28, -322], ['sunscreen', -16, -326],
+  // beach chairs set up under the umbrellas
+  ['chair', -12, -267], ['chair', -18.2, -287.2], ['chair', -4.4, -304.2], ['chair', -22.4, -322], ['chair', 1.8, -320.2],
+  // things you need a swimmer to fetch
+  ['surfboard', 33, -299], ['esky', 31, -302], ['ball', -2, -289], ['sunnies', -1.5, -288], ['towel', 12, -331],
+];
+for (const [type, x, z] of loot) enemies.list.push(new BeachItem(game, type, x, z));
+// the lifesaving flags have to be dug out first; the umbrellas are bouncy
+for (const [x, z] of FLAGS) enemies.list.push(new BeachFlag(game, x, z));
+for (const [x, z, a, b] of UMBRELLAS) game.toys.addUmbrella(x, z, a, b);
+[[-1.6, 5.4, 0], [1.4, 5.8, 0], [0, 4.4, 0], [-2.9, 6.9, 0], [2.8, 7.1, 1], [-0.3, 6.9, 2]]
+  .forEach(([x, z, s]) => { const t = turkeys.spawnSprout(x, z, s); t.growT = 0; });
+game.grubs.spawn(4.5, 8);
+player.pos.set(0, world.groundHeight(0, 10), 10);
+
+/* ------------------------------------------------------------------ camera */
+const cam = { yaw: 0, dist: 12, zoom: 12, pitch: 0.74, tilt: 0, target: new THREE.Vector3(0, 1, 10) };
+game.cam = cam;
+const MIN_DIST = 3.2, MAX_DIST = 30;
+function updateCamera(dt) {
+  // zooming in swings the camera down towards eye level so you can see his face
+  cam.dist = damp(cam.dist, cam.zoom, 10, dt);
+  const close = 1 - smoothstep(MIN_DIST, 11, cam.dist);
+  cam.pitch = clamp((cam.dist > 11 ? 0.74 + (cam.dist - 11) * 0.012 : lerp(0.74, 0.1, close)) + cam.tilt, 0.04, 1.45);
+  cam.target.x = damp(cam.target.x, player.pos.x, 8, dt);
+  cam.target.y = damp(cam.target.y, player.pos.y + lerp(0.8, 1.55, close), 8, dt);
+  cam.target.z = damp(cam.target.z, player.pos.z, 8, dt);
+  const h = Math.cos(cam.pitch) * cam.dist;
+  camera.position.set(
+    cam.target.x + Math.sin(cam.yaw) * h,
+    cam.target.y + Math.sin(cam.pitch) * cam.dist,
+    cam.target.z + Math.cos(cam.yaw) * h,
+  );
+  camera.lookAt(cam.target);
+  if (shakeAmt > 0) {
+    camera.position.x += rand(-1, 1) * shakeAmt * 0.35;
+    camera.position.y += rand(-1, 1) * shakeAmt * 0.35;
+    shakeAmt = Math.max(0, shakeAmt - dt * 2.2);
+  }
+  // three.js only refreshes these at render time; the floating labels are projected before that,
+  // so without this they'd use last frame's camera and trail a frame behind the scene
+  camera.updateMatrixWorld();
+  world.followSun(player.pos);
+  world.fadeOccluders(camera.position, player.pos);
+}
+updateCamera(1);
+
+/* ------------------------------------------------------------------ aiming */
+const raycaster = new THREE.Raycaster();
+const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const aim = new THREE.Vector3();
+const target = new THREE.Vector3();
+const whistle = { active: false, center: new THREE.Vector3(), radius: 0, t: 0 };
+
+function updateAim() {
+  raycaster.setFromCamera(input.mouse, camera);
+  let h = player.pos.y;
+  for (let i = 0; i < 3; i++) {
+    plane.constant = -h;
+    if (!raycaster.ray.intersectPlane(plane, aim)) { aim.copy(player.pos); break; }
+    h = world.groundHeight(aim.x, aim.z);
+  }
+  const clampTo = (out, max) => {
+    const dx = aim.x - player.pos.x, dz = aim.z - player.pos.z, d = Math.hypot(dx, dz);
+    const k = d > max ? max / d : 1;
+    out.set(player.pos.x + dx * k, 0, player.pos.z + dz * k);
+    world.resolve(out, 0.1);
+    out.y = world.groundHeight(out.x, out.z);
+    return out;
+  };
+  clampTo(target, THROW_RANGE);
+  // throws can't sail over fences: stop just short of the first one in the way
+  const clear = world.throwClear(player.pos.x, player.pos.z, target.x, target.z);
+  if (clear < 1) {
+    const dx = target.x - player.pos.x, dz = target.z - player.pos.z, d = Math.hypot(dx, dz) || 1;
+    const k = Math.max(0, clear - 0.55 / d);
+    target.set(player.pos.x + dx * k, 0, player.pos.z + dz * k);
+    target.y = world.groundHeight(target.x, target.z);
+  }
+  if (!whistle.active) clampTo(whistle.center, WHISTLE_RANGE);
+}
+
+/* ------------------------------------------------------------------ actions */
+let throwHold = 0, autoThrow = 0, pluckHold = 0, throwKind = null;
+const move = { x: 0, z: 0 };
+
+/** throw the next turkey; holding the button keeps throwing the same kind (so no landlubbers end up in the sea) */
+function doThrow(manual) {
+  const t = turkeys.throwAt(target, manual ? null : throwKind);
+  if (t) {
+    if (manual) throwKind = t.kind;
+    player.playThrow();
+    game.stats.thrown++;
+  } else if (manual && turkeys.counts.squad === 0) {
+    hud.toast(turkeys.counts.sprouts ? 'No turkeys with you. Pluck some with E!' : 'No turkeys with you. Whistle to call them!', 1.6);
+  }
+}
+
+function tryPluck() {
+  const t = turkeys.pluckNearest(player.pos);
+  if (t) {
+    player.playPluck();
+    player.heading = Math.atan2(t.pos.x - player.pos.x, t.pos.z - player.pos.z);
+    game.stats.plucked++;
+  }
+  return t;
+}
+
+/** M: mark out a new mound, and send a crew of turkeys to scratch it up (it takes at least BUILD_CREW) */
+function buildMound() {
+  const x = player.pos.x + Math.sin(player.heading) * 3, z = player.pos.z + Math.cos(player.heading) * 3;
+  const why = mounds.whyNot(x, z);
+  if (why) { hud.toast(why); audio.nope(); return; }
+  const near = (t) => Math.hypot(t.pos.x - player.pos.x, t.pos.z - player.pos.z);
+  const crew = turkeys.list.filter((t) => t.state === 'follow' && near(t) < 12).sort((a, b) => near(a) - near(b));
+  if (crew.length < BUILD_CREW) {
+    hud.toast(`It takes ${BUILD_CREW} turkeys to scratch up a mound (you've got ${crew.length} with you)`, 2.5);
+    audio.nope();
+    return;
+  }
+  const m = mounds.add(x, z, false, world.isSand(x, z) ? 'beach' : 'leaf', true);
+  crew.slice(0, BUILD_CREW).forEach((t) => t.joinBuild(m));
+  fx.ring(m.pos, 0xffd21f, 2.6, 0.6);
+  audio.build();
+  hud.toast(`${BUILD_CREW} turkeys are scratching up a new ${m.beach ? 'beach ' : ''}mound...`, 2.5);
+}
+
+function handleInput(dt) {
+  if (input.isDown('KeyZ')) cam.yaw += dt * 2.2;
+  if (input.isDown('KeyC')) cam.yaw -= dt * 2.2;
+  // middle-drag orbits the camera (and tilts it up/down)
+  if (input.mmb) {
+    cam.yaw -= input.dragX * 0.006;
+    cam.tilt = clamp(cam.tilt + input.dragY * 0.004, -0.5, 0.6);
+  }
+  document.body.style.cursor = input.mmb ? 'grabbing' : '';
+  cam.zoom = clamp(cam.zoom * (1 + input.wheel * 0.12), MIN_DIST, MAX_DIST);
+
+  let f = 0, r = 0;
+  if (input.isDown('KeyW', 'ArrowUp')) f += 1;
+  if (input.isDown('KeyS', 'ArrowDown')) f -= 1;
+  if (input.isDown('KeyD', 'ArrowRight')) r += 1;
+  if (input.isDown('KeyA', 'ArrowLeft')) r -= 1;
+  const fx_ = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw);
+  move.x = fx_ * f + -fz * r;
+  move.z = fz * f + fx_ * r;
+  const len = Math.hypot(move.x, move.z);
+  if (len > 1) { move.x /= len; move.z /= len; }
+
+  // throwing (hold to keep throwing)
+  if (input.lmbPressed) { doThrow(true); throwHold = 0; autoThrow = 0; }
+  else if (input.lmb) {
+    throwHold += dt;
+    if (throwHold > 0.35) { autoThrow -= dt; if (autoThrow <= 0) { autoThrow = 0.15; doThrow(false); } }
+  }
+
+  // whistle
+  const wantWhistle = input.rmb || input.isDown('Space');
+  if (wantWhistle && !whistle.active) { whistle.active = true; whistle.t = 0; audio.whistleStart(); }
+  if (!wantWhistle && whistle.active) { whistle.active = false; audio.whistleStop(); }
+  player.whistling = whistle.active;
+  if (whistle.active) {
+    whistle.t += dt;
+    whistle.center.lerp(target, 1 - Math.exp(-20 * dt));
+    whistle.radius = Math.min(WHISTLE_MAX_R, 0.6 + whistle.t * 9);
+    const n = turkeys.whistle(whistle.center, whistle.radius);
+    if (n) fx.sparkle(whistle.center, Math.min(6, n * 2), [0xffd21f]);
+  }
+
+  // plucking (hold E to keep plucking)
+  if (input.pressed('KeyE')) { tryPluck(); pluckHold = 0; }
+  else if (input.isDown('KeyE')) {
+    pluckHold += dt;
+    if (pluckHold > 0.32) { pluckHold = 0; tryPluck(); }
+  }
+
+  if (input.pressed('KeyX')) {
+    const n = turkeys.dismiss();
+    if (n) { audio.peep(2); hud.toast(`Dismissed ${n}`, 1); }
+  }
+  if (input.pressed('Tab')) {
+    if (turkeys.cyclePreferred()) audio.peep(turkeys.candidate?.stage ?? 0);
+    else {
+      if (game.bondiOpen()) hud.toast(turkeys.preferred === 'beach' ? 'No normal turkeys with you' : 'No beach turkeys with you', 1.4);
+      audio.nope();
+    }
+  }
+  if (input.pressed('KeyM')) buildMound();
+  if (input.pressed('KeyH')) hud.toggleHelp();
+}
+
+/* ------------------------------------------------------------------ tips */
+const tips = [
+  { when: () => true, text: 'Walk up to a turkey poking out of the ground and press E to pluck it' },
+  { when: () => game.stats.plucked >= 2, text: 'Aim at leaf litter and left-click to throw a turkey' },
+  { when: () => game.stats.thrown >= 2, text: 'Turkeys rake the leaves back to the mound with their feet. Hold right-click to whistle them back' },
+  { when: () => game.stats.leaves >= 4, text: 'Fill the mound to hatch more chicks!' },
+  { when: () => game.stats.hatched >= 1, text: 'Grubs make turkeys grow. Bins are worth knocking over, too' },
+  { when: () => game.stats.hatched >= 3, text: 'The gate north is padlocked. Find the giant golden key (look for the light beam)!' },
+  { when: () => game.stats.hatched >= 5, text: 'Keys are heavy: throw enough turkeys at one and they will carry it to the gate' },
+  { when: () => world.gates[0].open, text: 'Beware of ibises! Throw turkeys ON them. Turkeys on the ground get pecked' },
+  { when: () => world.gates[0].open && world.zoneOf(player.pos.z) === 1, text: 'Each key is bigger than the last: you will need a bigger flock!' },
+  { when: () => world.zoneOf(player.pos.z) === 4, text: 'Bondi! Steal beach gear for the beach mound: it hatches BEACH turkeys' },
+  { when: () => turkeys.list.some((t) => t.kind === 'beach' && t.state === 'follow'), text: 'Beach turkeys can swim! Others drown in deep water unless you whistle them out' },
+  { when: () => turkeys.list.some((t) => t.kind === 'beach' && t.state === 'follow'), text: 'Tab swaps between normal and beach turkeys. The biggest always get thrown first' },
+  { when: () => world.zoneOf(player.pos.z) === 4 && turkeys.list.some((t) => t.kind === 'beach'), text: 'Out of beach gear? Throw normal turkeys into a beach mound to turn them into beach turkeys' },
+];
+let tipIdx = 0, tipT = 1.5;
+function updateTips(dt) {
+  tipT -= dt;
+  if (tipT > 0 || tipIdx >= tips.length) return;
+  if (tips[tipIdx].when()) { hud.toast(tips[tipIdx].text, 5); tipIdx++; tipT = 6; }
+  else tipT = 0.5;
+}
+
+/* ------------------------------------------------------------------ dev menu (~) */
+const ZONE_SPAWN = [[0, 10], [6, -44], [-8, -104], [-20, -176], [-16, -256], [-30, -356]];
+new DevMenu(game, {
+  goto(v) {
+    const zi = +v;
+    for (let i = 0; i < zi; i++) game.barriers.unlock(i, true);
+    const [x, z] = ZONE_SPAWN[zi];
+    player.pos.set(x, world.groundHeight(x, z), z);
+    cam.target.set(x, player.pos.y + 1, z);
+    turkeys.list.filter((t) => t.state === 'follow').forEach((t, i) => t.pos.set(x + (i % 6) * 0.7 - 2, 0, z + 2 + Math.floor(i / 6) * 0.7));
+    hud.zoneTitle(ZONES[zi].name);
+  },
+  spawn(v) {
+    const [kind, stage] = v.split(':');
+    for (let i = 0; i < 10; i++) {
+      const t = turkeys.spawnSprout(player.pos.x + rand(-2, 2), player.pos.z + rand(1, 3), +stage, kind);
+      t.pluck();
+    }
+  },
+  unlockAll() { game.barriers.gates.forEach((_, i) => game.barriers.unlock(i, true)); hud.toast('All gates unlocked'); },
+  killNearby() {
+    enemies.list.filter((e) => e.alive && Math.hypot(e.pos.x - player.pos.x, e.pos.z - player.pos.z) < 30).forEach((e) => e.die());
+  },
+  hatch() {
+    const m = mounds.list.reduce((b, m2) => (!b || m2.pos.distanceTo(player.pos) < b.pos.distanceTo(player.pos) ? m2 : b), null);
+    if (m) m.addLeaves(m.threshold - m.fill, null);
+  },
+  invincible() { game.dev.invincible = !game.dev.invincible; return game.dev.invincible; },
+});
+
+/* ------------------------------------------------------------------ zones & boss */
+const visited = new Set([0]);
+let zonePrompt = null; // { t, text }: a hint shown a moment after arriving somewhere new
+function updateZones(dt) {
+  const z = world.zoneOf(player.pos.z);
+  if (!visited.has(z)) {
+    visited.add(z);
+    hud.zoneTitle(ZONES[z].name);
+    // a new area is a long walk from the old mounds: time to build one here
+    if (z === 1) zonePrompt = { t: 3.5, text: `Press M and ${BUILD_CREW} of your turkeys will scratch up a new mound here` };
+  }
+  if (zonePrompt && (zonePrompt.t -= dt) <= 0) { hud.toast(zonePrompt.text, 6); zonePrompt = null; }
+  hud.boss(enemies.engagedBoss());
+}
+
+/* ------------------------------------------------------------------ loop */
+const clock = new THREE.Clock();
+let first = true;
+
+function step(dt) {
+  game.time += dt;
+  if (game.started) { updateAim(); handleInput(dt); updateTips(dt); }
+  else { move.x = move.z = 0; updateAim(); }
+
+  player.update(dt, move, target);
+  updateCamera(dt);
+  mounds.update(dt, camera);
+  enemies.update(dt, camera);
+  game.barriers.update(dt, camera);
+  game.toys.update(dt); // rides move before their riders take their seats
+  turkeys.update(dt);
+  game.ghosts.update(dt);
+  updateZones(dt);
+  leaves.update(dt);
+  game.grubs.update(dt, game.time);
+  world.update(dt, game.time);
+  fx.update(dt);
+  game.cursor.update(dt, target, whistle, camera);
+  hud.update(dt);
+  input.endFrame();
+}
+game.step = step; // lets devtools fast-forward: for (let i = 0; i < 600; i++) game.step(1 / 60)
+game.input = input;
+game.aimTarget = target;
+
+function frame() {
+  requestAnimationFrame(frame);
+  step(Math.min(clock.getDelta(), 1 / 20));
+  renderer.render(scene, camera);
+  if (first) { first = false; document.getElementById('loading').remove(); }
+}
+frame();
+
+addEventListener('resize', () => {
+  camera.aspect = aspect();
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+document.getElementById('play').addEventListener('click', (e) => {
+  e.currentTarget.blur();
+  audio.init();
+  document.getElementById('splash').classList.add('hidden');
+  hud.show();
+  setTimeout(() => { input.endFrame(); input.lmb = false; game.started = true; }, 50);
+  setTimeout(() => hud.zoneTitle(ZONES[0].name), 400);
+});
