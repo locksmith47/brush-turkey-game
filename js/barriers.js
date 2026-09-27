@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { vcMesh, part, merge, G, limb, clamp, rand, pick, pinLabel } from './util.js';
+import { vcMesh, part, merge, tint, G, limb, clamp, rand, pick, pinLabel } from './util.js';
 import { palingGeo, picketGeo, railGeo, wireGeo, wireMat, placeAlong } from './props/fences.js';
 import { BOUNDS, ZONES } from './world.js';
 import { Key } from './key.js';
@@ -8,13 +8,25 @@ import { TRACK } from './props/bush.js';
 /* One giant key per area; each needs more turkeys to lift than the last. */
 const KEYS = [
   { x: TRACK.clearings.key[0], z: TRACK.clearings.key[1], size: 1.0, weight: 4, slots: 8, heading: 0.6 }, // off to the right of the gate, behind its guards
-  { x: 22, z: -86, size: 1.6, weight: 10, slots: 14, heading: 2.2 },
-  { x: 6, z: -158, size: 2.3, weight: 20, slots: 24, heading: 0.2 },
+  { x: -34, z: -86, size: 1.6, weight: 10, slots: 14, heading: 2.2 }, // in the far yard on the left, the giant ibis's
+  { x: -41, z: -133, size: 2.3, weight: 20, slots: 24, heading: 0.2 }, // down the far end of the city's back alley
   { x: 6, z: -228, size: 2.6, weight: 22, slots: 26, heading: 1.0 }, // on the pitch, under Big Kev's nose
   { x: -3, z: -337, size: 3.0, weight: 26, slots: 28, heading: 0.4 }, // sunk in the King Crab's rock pool
 ];
 
 function leafGeo(kind, w) {
+  if (kind === 'painted') {
+    // (a side gate painted up, so it stands out from the fence it's in, with its latch where the leaves meet)
+    const green = new THREE.Color(0x3f6e4e);
+    return {
+      solid: merge([
+        tint(palingGeo(w, { height: 1.75 }), (x, y, z, c) => c.lerp(green, 0.85)),
+        part(G.box(Math.hypot(w, 1.1), 0.1, 0.05), 0x2f5540, [w / 2, 0.9, -0.1], [0, 0, Math.atan2(1.1, w)]),
+        part(G.box(0.34, 0.07, 0.05), 0x222222, [w - 0.2, 1.12, 0.05]),
+        part(G.box(0.34, 0.07, 0.05), 0x222222, [w - 0.2, 1.12, -0.12]),
+      ]),
+    };
+  }
   if (kind === 'wood') {
     return { solid: merge([palingGeo(w), part(G.box(Math.hypot(w, 1.1), 0.1, 0.05), 0x8a6a4a, [w / 2, 0.9, -0.1], [0, 0, Math.atan2(1.1, w)])]) };
   }
@@ -192,7 +204,7 @@ class Barricade {
     this.edge = edge;
     this.guards = guards;
     this.seg = game.world.addSegment(x - px * hw, z - pz * hw, x + px * hw, z + pz * hw, 0.45, true);
-    track.block(edge, this.seg);
+    track.addWall(this.seg);
 
     // two halves hinged in the scrub either side, meeting in the middle of the track; they swing open
     // (away from the clearing) like a pair of gates
@@ -226,7 +238,7 @@ class Barricade {
     this.state = 'opening';
     this.t = 0;
     this.seg.active = false;
-    g.world.track.unblock(this.edge);
+    g.world.track.plan();
     this.label.style.display = 'none';
     // (anything given up on for being out of reach behind it is fair game again)
     for (const l of g.leaves.list) if (l.snubT > g.time && Math.hypot(l.pos.x - this.center.x, l.pos.z - this.center.z) < 20) l.snubT = 0;
@@ -254,10 +266,89 @@ class Barricade {
   }
 }
 
+/*
+ * A side gate in a fence, latched on the far side. From this side there's no way through it (or throwing
+ * over it); come up to it from the other side, though, and you can let yourself through, and it stays open:
+ * a shortcut back the way you came.
+ */
+class SideGate {
+  /** the opening runs from a to b ([x, z]); `latch` is which side of it ([x, z] direction) it opens from */
+  constructor(game, a, b, latch, kind = 'wood') {
+    this.game = game;
+    const w = game.world;
+    let [ax, az] = a, [bx, bz] = b;
+    // (the leaves swing open towards the latch side, the way the zone gates open outwards)
+    if ((bz - az) * latch[0] - (bx - ax) * latch[1] < 0) [ax, az, bx, bz] = [bx, bz, ax, az];
+    const len = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / len, uz = (bz - az) / len, hw = len / 2;
+    this.center = new THREE.Vector3((ax + bx) / 2, 0, (az + bz) / 2);
+    this.latch = latch;
+    this.seg = w.addSegment(ax, az, bx, bz, 0.25, true);
+    this.track = w.trackAt(this.center.z);
+    this.track?.addWall(this.seg);
+    this.group = new THREE.Group();
+    this.group.position.copy(this.center);
+    this.group.rotation.y = Math.atan2(-uz, ux);
+    this.leaves = [-1, 1].map((side) => {
+      const pivot = new THREE.Group();
+      pivot.position.x = side * hw;
+      pivot.scale.x = -side;
+      const g = leafGeo(kind, hw);
+      pivot.add(vcMesh(g.solid, { cast: true, receive: true }));
+      if (g.mesh) pivot.add(new THREE.Mesh(g.mesh, wireMat()));
+      this.group.add(pivot);
+      return pivot;
+    });
+    game.scene.add(this.group);
+    this.state = 'shut';
+    this.t = 0;
+    this.label = document.createElement('div');
+    this.label.className = 'mound-label small';
+    this.label.innerHTML = '🔒 Latched on the other side';
+    this.label.style.display = 'none';
+    document.getElementById('labels').appendChild(this.label);
+  }
+
+  get shut() { return this.state === 'shut'; }
+
+  open(silent = false) {
+    if (!this.shut) return;
+    const g = this.game;
+    this.state = 'opening';
+    this.t = 0;
+    this.seg.active = false;
+    this.track?.plan();
+    this.label.style.display = 'none';
+    if (silent) return;
+    g.audio.unlock();
+    g.fx.sparkle(this.center.clone().setY(1.2), 14);
+    g.hud.toast('You unlatched the side gate: a shortcut back!', 3);
+  }
+
+  update(dt, camera, v) {
+    this.t += dt;
+    const p = this.game.player.pos, dx = p.x - this.center.x, dz = p.z - this.center.z, d = Math.hypot(dx, dz);
+    // (up to it on the latch side: let yourself through)
+    const onLatchSide = dx * this.latch[0] + dz * this.latch[1] > 0;
+    if (this.shut && d < 3.2 && onLatchSide) this.open();
+    if (this.state === 'opening') {
+      const k = clamp(this.t / 1.1, 0, 1), open = 1.7 * (1 - (1 - k) ** 3);
+      this.leaves[0].rotation.y = open;
+      this.leaves[1].rotation.y = -open;
+      if (k >= 1) this.state = 'open';
+    }
+    // (what it'll take to get through, from whichever side the player's on)
+    if (!this.shut || d > 10) { if (this.label.style.display !== 'none') this.label.style.display = 'none'; return; }
+    const text = onLatchSide ? '🔓 Unlatch it: a shortcut back' : '🔒 Latched on the other side';
+    if (this.label.innerHTML !== text) this.label.innerHTML = text;
+    pinLabel(this.label, v.set(this.center.x, 2.4, this.center.z), camera);
+  }
+}
+
 export class Barriers {
   constructor(game) {
     this.game = game;
     this.barricades = [];
+    this.sideGates = [];
     this.gates = [];
     const w = game.world;
     w.gates.forEach((gate, i) => {
@@ -304,6 +395,13 @@ export class Barriers {
     return b;
   }
 
+  /** a side gate across the opening a->b in a fence, that only opens from its `latch` side */
+  addSideGate(a, b, latch, kind) {
+    const s = new SideGate(this.game, a, b, latch, kind);
+    this.sideGates.push(s);
+    return s;
+  }
+
   /** debug helper: open gate i straight away (and tidy away its key) */
   unlock(i, silent = false) {
     this.gates[i].unlock(silent);
@@ -314,5 +412,6 @@ export class Barriers {
   update(dt, camera) {
     for (const g of this.gates) g.update(dt, camera, this._v);
     for (const b of this.barricades) b.update(dt, camera, this._v);
+    for (const s of this.sideGates) s.update(dt, camera, this._v);
   }
 }

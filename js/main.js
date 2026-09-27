@@ -18,10 +18,10 @@ import { BeachItem, BeachFlag } from './items.js';
 import { Bin } from './bin.js';
 import { BUILD_CREW } from './mound.js';
 import { UMBRELLAS, FLAGS } from './props/beach.js';
-import { SUBURB_BINS } from './props/suburb.js';
+import { SUBURB_BINS, SIDE_GATE } from './props/suburb.js';
 import { HOME, START, TRACK, ARENAS, BUSH_BINS, BUSH_LITTER } from './props/bush.js';
-import { CITY_BINS } from './props/city.js';
-import { OVAL_BINS } from './props/oval.js';
+import { CITY_BINS, LANE_GATE } from './props/city.js';
+import { OVAL_BINS, FIELD_GATE } from './props/oval.js';
 import { DevMenu } from './devmenu.js';
 import { clamp, damp, rand, smoothstep, lerp, TAU } from './util.js';
 
@@ -79,27 +79,31 @@ for (const a of ARENAS) {
   const guards = a.foes.map(([kind, dx, dz]) => enemies.spawn(kind, cx + dx, cz + dz));
   barricade[a.at] = game.barriers.addBarricade(a.at, a.to, guards, a.name);
 }
-// the locals: ibises everywhere, giants in the suburbs and city, and the King on his skip-bin throne
-for (const [x, z] of [[-22, -64], [8, -58], [-8, -88], [32, -74]]) enemies.spawn('ibis', x, z);
-enemies.spawn('giant', 12, -90);
-for (const [x, z] of [[-20, -108], [16, -112], [38, -134], [-40, -142], [22, -148]]) enemies.spawn('ibis', x, z);
-enemies.spawn('giant', -24, -128);
-enemies.spawn('king', 6, -152);
-// snakes lurking in the litter, funnel-webs in their burrows, and Big Kev on his oval
-for (const [x, z] of [[36, -62], [28, -224]]) enemies.spawn('snake', x, z);
-for (const [x, z] of [[-32, -76], [-30, -196]]) enemies.spawn('spider', x, z);
+// the locals: ibises everywhere (one to most of the backyards, and up and down the city's street and back
+// alley), giants by the keys in the backyards and the alley, and the King on his skip-bin throne by the way out
+for (const [x, z] of [[4, -58], [-28, -52], [26, -78], [4, -90]]) enemies.spawn('ibis', x, z);
+enemies.spawn('giant', -30, -80);
+for (const [x, z] of [[-22, -108], [16, -110], [12, -133], [38, -133], [22, -153]]) enemies.spawn('ibis', x, z);
+enemies.spawn('giant', -32, -133);
+enemies.spawn('king', -6, -157);
+// snakes lurking in the litter, funnel-webs in their burrows (one each side of the way round the oval), and
+// Big Kev on his oval
+for (const [x, z] of [[34, -60], [38, -200]]) enemies.spawn('snake', x, z);
+for (const [x, z] of [[-4, -79], [-37, -198]]) enemies.spawn('spider', x, z);
 enemies.spawn('keeper', 0, -214);
 // each area hides a giant key for the padlocked gate out of it
 game.barriers.spawnKeys();
+// and a shortcut or two, latched on the far side: open once you've made it round
+for (const s of [SIDE_GATE, LANE_GATE, FIELD_GATE]) game.barriers.addSideGate(s.a, s.b, s.latch, s.kind);
 // wheelie bins to knock over: green ones spill garden clippings, red ones rubbish, yellow ones recycling
 for (const [kind, x, z, face] of [...BUSH_BINS, ...SUBURB_BINS, ...CITY_BINS, ...OVAL_BINS]) {
   const overflowing = kind === 'red' && z < -98 && z > -170; // city bins are always overflowing
   enemies.list.push(new Bin(game, kind, x, z, face, overflowing));
 }
 // the backyard playground (and the washing line, which is basically a merry-go-round)
-game.toys.addTrampoline(18, -80);
-game.toys.addSwingSet(-6, -47, 0);
-game.toys.addHoist(-18, -58);
+game.toys.addTrampoline(30, -84);
+game.toys.addSwingSet(-7, -43, 0);
+game.toys.addHoist(-26, -46);
 // and out in the bush, the gums' low branches to roost on
 for (const r of world.roosts) game.toys.addRoost(r);
 
@@ -355,6 +359,7 @@ new DevMenu(game, {
   unlockAll() {
     game.barriers.gates.forEach((_, i) => game.barriers.unlock(i, true));
     game.barriers.barricades.forEach((b) => b.open(true));
+    game.barriers.sideGates.forEach((s) => s.open(true));
     hud.toast('All gates unlocked');
   },
   killNearby() {

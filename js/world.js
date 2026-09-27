@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { vcMat, toonMat, clamp, smoothstep } from './util.js';
 import { buildBush, BUSH_SOUTH, HOME, TRACK } from './props/bush.js';
 import { Track } from './track.js';
-import { buildSuburb } from './props/suburb.js';
-import { buildCity } from './props/city.js';
-import { buildOval } from './props/oval.js';
+import { buildSuburb, BACKYARDS } from './props/suburb.js';
+import { buildCity, STREETS } from './props/city.js';
+import { buildOval, FIELD } from './props/oval.js';
 import { buildBeach, beachGround, waterAt, shoreDir, seaWave, isSand } from './props/beach.js';
 
 /* The map is a long strip running north (-z): bush -> backyards -> city -> oval -> Bondi. */
@@ -35,8 +35,11 @@ export class World {
     this.treeSpots = []; // {x, z, h, palette}
     this.roosts = []; // low branches turkeys can roost on: {tree, x, z, perches, spot} (the toys pick these up)
     this.swayers = [];
+    this.occluders = []; // buildings that go see-through when they're in the way of the camera
     this.gates = FENCES.map((f) => ({ x: f.gateX, z: f.z, hw: f.gateHW, kind: f.kind, open: false }));
-    this.track = new Track(TRACK); // the way through the bush (the scrub either side of it is impassable)
+    this.track = this.zoneTrack(0, TRACK); // the way through the bush (the scrub either side of it is impassable)
+    // each zone's lie of the land (where there's any to speak of: the beach and the wharf are wide open)
+    this.tracks = [this.track, this.zoneTrack(1, BACKYARDS), this.zoneTrack(2, STREETS), this.zoneTrack(3, FIELD)];
 
     this.buildSky();
     this.buildLights();
@@ -46,6 +49,16 @@ export class World {
     buildCity(this);
     buildOval(this);
     this.beach = buildBeach(this);
+  }
+
+  /** zone i's track (see Track), with room to get through the gates in and out of it */
+  zoneTrack(i, spec) {
+    if (!spec.rooms) spec = Track.fromPaths(spec);
+    const rooms = [...spec.rooms];
+    for (const g of [this.gates[i - 1], this.gates[i]]) {
+      if (g) rooms.push({ rect: [g.x - g.hw - 0.5, g.z - 3, g.x + g.hw + 0.5, g.z + 3], ground: 'dirt' });
+    }
+    return new Track({ ...spec, rooms });
   }
 
   zoneOf(z) {
@@ -171,13 +184,24 @@ export class World {
 
   addSway(mesh) { this.swayers.push({ m: mesh, ph: Math.random() * 6.28 }); }
 
-  /** is z in the bush (south of its fence)? There, off the track is all impassable scrub */
-  inBush(z) { return z > FENCES[0].z; }
+  /** a building (a mesh, in place) that goes see-through whenever it's between the camera and the player */
+  addOccluder(mesh) {
+    mesh.updateMatrixWorld(true);
+    const solid = mesh.material, fade = solid.clone();
+    fade.transparent = true;
+    fade.opacity = 0.22;
+    fade.depthWrite = false;
+    this.occluders.push({ mesh, solid, fade, box: new THREE.Box3().setFromObject(mesh) });
+  }
+
+  /** the lie of the land in the zone at z (null where it's all open ground) */
+  trackAt(z) { return this.tracks[this.zoneOf(z)] ?? null; }
 
   isFree(x, z, r = 0.5) {
     const b = this.bounds;
     if (x < b.xMin + r || x > b.xMax - r || z < b.zMin + r || z > b.zMax - r) return false;
-    if (this.inBush(z) && !this.track.inside(x, z, r)) return false;
+    const tr = this.trackAt(z);
+    if (tr && !tr.inside(x, z, r)) return false;
     for (const c of this.colliders) if (Math.hypot(x - c.x, z - c.z) < c.r + r) return false;
     for (const s of this.segments) if (s.active && segDist(x, z, s) < s.r + r) return false;
     return true;
@@ -203,15 +227,16 @@ export class World {
     const b = this.bounds;
     const x = clamp(p.x, b.xMin + r, b.xMax - r), z = clamp(p.z, b.zMin + r, b.zMax - r);
     if (x !== p.x || z !== p.z) { p.x = x; p.z = z; hit = true; }
-    // (in the bush, nothing gets off the track into the scrub)
-    if (this.inBush(p.z) && this.track.clamp(p, r)) hit = true;
+    // (nothing gets out of a zone's open ground: into the bush's scrub, say, or a building)
+    const tr = this.trackAt(p.z);
+    if (tr && tr.clamp(p, r)) hit = true;
     return hit;
   }
 
   /**
    * A heading close to (ux, uz) along which something at (x, z), needing `pad` of room, won't run into a
-   * rock, tree or shed within `look` metres (it swings left or right round them). `memo.swing` remembers
-   * which way it last swung, so it doesn't dither. Written into `out`; null if it's boxed in.
+   * rock, tree, shed or fence within `look` metres (it swings left or right round them). `memo.swing`
+   * remembers which way it last swung, so it doesn't dither. Written into `out`; null if it's boxed in.
    */
   clearHeading(x, z, ux, uz, pad, look, memo, out) {
     const blocked = (dx, dz) => {
@@ -220,6 +245,13 @@ export class World {
         const ex = px - c.x, ez = pz - c.z, m = c.r + pad;
         // (only things ahead count: anything it's already brushing past is beside or behind)
         if (ex * ex + ez * ez < m * m && (c.x - x) * dx + (c.z - z) * dz > 0) return true;
+      }
+      // (fences and the like the same: up against one ahead, or along one it's running too close to)
+      for (const s of this.segments) {
+        if (!s.active) continue;
+        const t = segT(px, pz, s), cx = s.ax + (s.bx - s.ax) * t, cz = s.az + (s.bz - s.az) * t;
+        const ex = px - cx, ez = pz - cz, m = s.r + pad;
+        if (ex * ex + ez * ez < m * m && (cx - x) * dx + (cz - z) * dz > 0) return true;
       }
       return false;
     };
@@ -234,7 +266,7 @@ export class World {
     return null;
   }
 
-  /** fraction (0..1) along a->b where a throw first hits a wall (or the bush's scrub), or 1 if clear */
+  /** fraction (0..1) along a->b where a throw first hits a wall (or goes out of a zone's open ground), or 1 if clear */
   throwClear(ax, az, bx, bz) {
     let best = 1;
     for (const s of this.segments) {
@@ -242,12 +274,19 @@ export class World {
       const t = segIntersect(ax, az, bx, bz, s.ax, s.az, s.bx, s.bz);
       if (t !== null && t < best) best = t;
     }
-    return Math.min(best, this.track.exitAlong(ax, az, bx, bz, FENCES[0].z));
+    // (nor over the bush's scrub, or a building)
+    const n = Math.ceil((Math.hypot(bx - ax, bz - az) * best) / 0.4);
+    for (let i = 1; i <= n; i++) {
+      const x = ax + ((bx - ax) * best * i) / n, z = az + ((bz - az) * best * i) / n, tr = this.trackAt(z);
+      if (tr && !tr.inside(x, z)) return (best * (i - 1)) / n;
+    }
+    return best;
   }
 
-  /** can something at a see as far as b? (in the bush, not through the scrub) */
+  /** can something at a see as far as b? (not through scrub, buildings or fences) */
   canSee(ax, az, bx, bz) {
-    return !this.inBush(az) || !this.inBush(bz) || this.track.clearLine(ax, az, bx, bz);
+    const za = this.zoneOf(az), tr = this.tracks[za];
+    return !tr || za !== this.zoneOf(bz) || tr.clearLine(ax, az, bx, bz, false);
   }
 
   /**
@@ -265,7 +304,8 @@ export class World {
       tx = gate.x;
       tz = gate.z + dir * 1.3;
     }
-    return zf === 0 ? this.track.route(fx, fz, tx, tz, out) : out.set(tx, 0, tz);
+    const tr = this.tracks[zf];
+    return tr ? tr.route(fx, fz, tx, tz, out) : out.set(tx, 0, tz);
   }
 
   /** trees between the camera and the player go see-through so they never hide the action */
@@ -281,6 +321,11 @@ export class World {
       if (s.m.material !== mat) s.m.material = mat;
       s.m.visible = Math.hypot(ax - p.x, az - p.z) > 3.4; // camera inside the canopy: hide the whole tree
     }
+    // (and buildings: any the line from the camera to the player passes through)
+    for (const o of this.occluders) {
+      const mat = segHitsBox(cam.x, cam.y, cam.z, target.x, target.y + 1, target.z, o.box) ? o.fade : o.solid;
+      if (o.mesh.material !== mat) o.mesh.material = mat;
+    }
   }
 
   update(dt, t) {
@@ -293,6 +338,20 @@ export class World {
 }
 
 /* ------------------------------------------------------------------ geometry helpers */
+/** does the segment a->b pass through box (a Box3)? */
+function segHitsBox(ax, ay, az, bx, by, bz, box) {
+  let t0 = 0, t1 = 1;
+  for (const [a, d, lo, hi] of [[ax, bx - ax, box.min.x, box.max.x], [ay, by - ay, box.min.y, box.max.y], [az, bz - az, box.min.z, box.max.z]]) {
+    if (Math.abs(d) < 1e-9) { if (a < lo || a > hi) return false; continue; }
+    let u = (lo - a) / d, v = (hi - a) / d;
+    if (u > v) [u, v] = [v, u];
+    t0 = Math.max(t0, u);
+    t1 = Math.min(t1, v);
+    if (t0 > t1) return false;
+  }
+  return true;
+}
+
 function pushCircles(p, r, list) {
   let hit = false;
   for (const c of list) {

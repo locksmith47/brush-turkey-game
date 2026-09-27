@@ -1,6 +1,39 @@
 import * as THREE from 'three';
 import { part, merge, vcMesh, G, limb, rand, pick, TAU, toonMat, canvasTexture } from '../util.js';
 
+/*
+ * The city: a street along the near side, a row of shops, a back alley behind them, another row of
+ * buildings, and the King's plaza at the far end, with the gate out to the oval. Laneways run through the
+ * rows: two from the street into the alley (and one more between them, gated off from the street: it only
+ * opens from the alley side), and two on from the alley to the plaza, never in line with the first. The
+ * key's down the far end of the alley, with a giant ibis, and the King holds court by the gate.
+ */
+const STREET = -118, ALLEY = [-128, -138], PLAZA = -148; // (where the rows of buildings start and end)
+// the laneways through each row: [name, x0, x1] (10 m across: room enough for the key and its carriers)
+const FRONT_LANES = [['w', -40, -30], ['m', -4, 6], ['e', 20, 30]];
+const BACK_LANES = [['w2', -20, -10], ['e2', 28, 38]];
+// the gate across the middle laneway's street end, latched on the alley side
+export const LANE_GATE = { a: [-4, STREET], b: [6, STREET], latch: [0, -1], kind: 'wire' };
+
+// the lie of the land (see Track): the street, the alley and the plaza, and the laneways between them
+// (each reaching a way out into the open at either end, so anything big coming or going is always well
+// inside one or the other), with a waypoint out in the open off each end of each laneway (clear of the
+// trees, lamps and bins along the footpaths and walls). Everywhere else is buildings
+const lane = ([name, x0, x1], z0, z1) => ({ rect: [x0, z1 - 4, x1, z0 + 6], nodes: [`${name}_s`, `${name}_n`] });
+export const STREETS = {
+  nodes: Object.fromEntries([
+    ...FRONT_LANES.flatMap(([name, x0, x1]) => [[`${name}_s`, [(x0 + x1) / 2, STREET + 5]], [`${name}_n`, [(x0 + x1) / 2, ALLEY[0] - 3]]]),
+    ...BACK_LANES.flatMap(([name, x0, x1]) => [[`${name}_s`, [(x0 + x1) / 2, ALLEY[1] + 3]], [`${name}_n`, [(x0 + x1) / 2, PLAZA - 2]]]),
+  ]),
+  rooms: [
+    { rect: [-46, STREET, 46, -98], nodes: FRONT_LANES.map(([n]) => `${n}_s`) },
+    ...FRONT_LANES.map((l) => lane(l, STREET, ALLEY[0])),
+    { rect: [-46, ALLEY[1], 46, ALLEY[0]], nodes: [...FRONT_LANES.map(([n]) => `${n}_n`), ...BACK_LANES.map(([n]) => `${n}_s`)] },
+    ...BACK_LANES.map((l) => lane(l, ALLEY[1], PLAZA)),
+    { rect: [-46, -170, 46, PLAZA], nodes: BACK_LANES.map(([n]) => `${n}_n`) },
+  ],
+};
+
 function flat(w, d, color, x, z, y) {
   return part(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2), color, [x, y, z]);
 }
@@ -55,29 +88,59 @@ function fig(h) {
 
 // bins: ibis heaven (the red ones are overflowing). Tip them over for what's inside: [kind, x, z, facing]
 export const CITY_BINS = [
-  ['red', -20, -101.5, 0], ['yellow', -19.2, -101.5, 0], ['red', 14, -118.5, Math.PI], ['red', 15, -118.5, Math.PI],
-  ['yellow', 42, -142, -Math.PI / 2], ['red', -43, -150, Math.PI / 2], ['red', -2, -121.5, Math.PI],
-  ['green', -33.5, -126.5, 0.5], ['green', 33.5, -126.5, -0.5],
+  ['red', -20, -101.5, 0], ['yellow', -19.2, -101.5, 0], ['red', 8, -116.5, Math.PI], ['red', 9, -116.5, Math.PI],
+  ['red', -24, -129.3, Math.PI], ['red', 13, -129.3, Math.PI], ['yellow', 18, -136.7, 0], ['green', 44.5, -131, -Math.PI / 2],
+  ['red', -2, -136.7, 0], ['green', -33.5, -166.5, 0.5], ['green', 33.5, -166.5, -0.5],
 ];
 
+/**
+ * A row of buildings from z0 to z1 (all the way across, bar its laneways), a few of them to each block,
+ * each a different height and colour. They go see-through when they're in the way of the camera
+ */
+function row(world, z0, z1, lanes, shopfronts) {
+  const cols = [0xa0523d, 0xd9c49a, 0x9aa3ab, 0x6fa3b0, 0xc47c5a, 0xb9b39f, 0xc9a27a, 0x8f9c84];
+  const awnings = [0x2f6fb0, 0xc0392b, 0x2e8b57, 0xe0a526];
+  const edges = [-50, ...lanes.flatMap(([, x0, x1]) => [x0, x1]), 50];
+  for (let i = 0; i < edges.length; i += 2) {
+    const a = edges[i], b = edges[i + 1], n = Math.max(1, Math.round((b - a) / 11)), w = (b - a) / n;
+    for (let k = 0; k < n; k++) {
+      const h = rand(5.5, 9.5), x = a + w * (k + 0.5), m = building(w - 0.1, h, z0 - z1, pick(cols));
+      m.position.set(x, h / 2, (z0 + z1) / 2);
+      world.scene.add(m);
+      world.addOccluder(m);
+      // (a shop awning over the footpath)
+      if (shopfronts) {
+        const aw = vcMesh(merge([part(G.box(w - 1.2, 0.12, 1.6), pick(awnings), [0, 0, 0.8], [0.18, 0, 0])]), { cast: true, receive: false });
+        aw.position.set(x, 3.1, z0);
+        world.scene.add(aw);
+      }
+    }
+  }
+}
+
 export function buildCity(world) {
-  const s = world.scene;
+  const s = world.scene, track = world.tracks[2];
   const ground = [
     flat(92, 6, 0xc9c6bd, 0, -101, 0.03),
     flat(92, 10, 0x4a4d52, 0, -109, 0.02),
-    flat(92, 6, 0xc9c6bd, 0, -117, 0.03),
+    flat(92, 4, 0xc9c6bd, 0, -116, 0.03),
+    flat(92, ALLEY[0] - ALLEY[1], 0x6f6c66, 0, (ALLEY[0] + ALLEY[1]) / 2, 0.02),
+    flat(92, 0.3, 0x55524d, 0, (ALLEY[0] + ALLEY[1]) / 2, 0.03), // (the drain down the middle of the alley)
   ];
+  for (const [, x0, x1] of FRONT_LANES) ground.push(flat(x1 - x0, STREET - ALLEY[0], 0x8f8b84, (x0 + x1) / 2, (STREET + ALLEY[0]) / 2, 0.025));
+  for (const [, x0, x1] of BACK_LANES) ground.push(flat(x1 - x0, ALLEY[1] - PLAZA, 0x8f8b84, (x0 + x1) / 2, (ALLEY[1] + PLAZA) / 2, 0.025));
   for (let x = -44; x < 46; x += 6) ground.push(flat(3, 0.18, 0xf2d24b, x, -109, 0.035));
   for (const z of [-104.5, -113.5]) ground.push(flat(92, 0.15, 0xf2f2f2, 0, z, 0.035));
   for (let x = -11; x <= -5; x += 1) ground.push(flat(0.55, 9, 0xf2f2f2, x, -109, 0.04));
+  // the plaza's paving
   for (let i = 0; i < 23; i++) {
-    for (let j = 0; j < 12; j++) {
-      ground.push(flat(4, 4, (i + j) % 2 ? 0xd6cdbd : 0xcdc3b2, -44 + i * 4 + 2, -122 - j * 4 - 2, 0.03));
+    for (let j = 0; j < Math.round((PLAZA + 170) / 4); j++) {
+      ground.push(flat(4, 4, (i + j) % 2 ? 0xd6cdbd : 0xcdc3b2, -44 + i * 4 + 2, PLAZA - j * 4 - 2, 0.03));
     }
   }
   s.add(vcMesh(merge(ground), { cast: false, receive: true }));
 
-  // buildings frame the streets (outside the play area)
+  // buildings frame the streets (outside the play area), and the two rows between the street, the alley and the plaza
   const cols = [0xa0523d, 0xd9c49a, 0x9aa3ab, 0x6fa3b0, 0xc47c5a, 0xb9b39f];
   for (let z = -100; z > -166; z -= 13) {
     for (const side of [-1, 1]) {
@@ -87,9 +150,21 @@ export function buildCity(world) {
       s.add(b);
     }
   }
+  row(world, STREET, ALLEY[0], FRONT_LANES, true);
+  row(world, ALLEY[1], PLAZA, BACK_LANES, false);
+  // (the way through a laneway keeps to the middle of it, clear of the corners, where the key's carriers need the room)
+  for (const [lanes, z0, z1] of [[FRONT_LANES, STREET, ALLEY[0]], [BACK_LANES, ALLEY[1], PLAZA]]) {
+    for (const [, x0, x1] of lanes) {
+      for (const z of [z0, z1]) {
+        track.addWall({ ax: x0, az: z, bx: x0 + (x1 - x0) * 0.35, bz: z, active: true, guide: true }, false);
+        track.addWall({ ax: x1 - (x1 - x0) * 0.35, az: z, bx: x1, bz: z, active: true, guide: true }, false);
+      }
+    }
+  }
+  track.plan();
 
-  // Moreton Bay figs in planters + street trees
-  for (const [x, z, big] of [[-36, -130, 1], [36, -130, 1], [-38, -160, 1], [38, -160, 1], [-30, -117, 0], [10, -117, 0], [32, -117, 0]]) {
+  // Moreton Bay figs in planters in the plaza, and street trees along the shops
+  for (const [x, z, big] of [[-38, -158, 1], [42, -157, 1], [14, -167, 1], [-24, -115.5, 0], [14, -115.5, 0], [40, -115.5, 0]]) {
     const h = big ? rand(6, 7.5) : rand(4, 5);
     const m = vcMesh(fig(h));
     m.position.set(x, 0, z);
@@ -107,16 +182,15 @@ export function buildCity(world) {
     part(G.box(0.08, 0.5, 0.5), 0x333333, [-0.9, 0.25, 0]),
     part(G.box(0.08, 0.5, 0.5), 0x333333, [0.9, 0.25, 0]),
   ]);
-  for (const [x, z, r] of [[-8, -124, 0], [22, -124, 0], [-44, -136, Math.PI / 2], [44, -150, -Math.PI / 2]]) put(world, bench, x, z, r, [[-0.6, 0, 0.45], [0.6, 0, 0.45]].map(([a, b, c]) => [a * Math.cos(r), -a * Math.sin(r), c]));
+  for (const [x, z, r] of [[-30, -151, 0], [6, -155, 0], [-44, -106, Math.PI / 2], [44, -162, -Math.PI / 2]]) put(world, bench, x, z, r, [[-0.6, 0, 0.45], [0.6, 0, 0.45]].map(([a, b, c]) => [a * Math.cos(r), -a * Math.sin(r), c]));
   const lamp = merge([
     part(G.cyl(0.07, 0.09, 4, 8), 0x3a3f44, [0, 2, 0]),
     limb([0, 3.9, 0], [0.6, 4.1, 0], 0.05, 0.05, 0x3a3f44, 6),
     part(G.box(0.4, 0.14, 0.25), 0xfff3c4, [0.7, 4.0, 0]),
   ]);
-  for (let x = -40; x <= 40; x += 16) {
-    put(world, lamp, x, -99.4, -Math.PI / 2, [[0, 0, 0.15]]);
-    put(world, lamp, x + 8, -118.8, Math.PI / 2, [[0, 0, 0.15]]);
-  }
+  for (const x of [-40, -24, 8, 24, 40]) put(world, lamp, x, -99.4, -Math.PI / 2, [[0, 0, 0.15]]); // (none in front of the gate)
+  for (const x of [-20, -8, 11, 36]) put(world, lamp, x, -117.2, Math.PI / 2, [[0, 0, 0.15]]);
+  for (const [x, z] of [[-26, -168.6], [2, -168.6], [30, -168.6]]) put(world, lamp, x, z, Math.PI / 2, [[0, 0, 0.15]]);
   put(world, merge([
     part(G.box(4, 0.1, 1.6), 0x6c7a89, [0, 2.5, 0]),
     part(G.box(0.08, 2.5, 0.08), 0x6c7a89, [-1.9, 1.25, -0.7]),
@@ -125,6 +199,14 @@ export function buildCity(world) {
     part(G.box(2.4, 0.08, 0.4), 0x8a5a3a, [0, 0.5, -0.4]),
   ]), 26, -101, 0, [[-1.3, -0.5, 0.6], [0, -0.5, 0.6], [1.3, -0.5, 0.6]]);
 
+  // out the back: pallets and crates stacked against the walls of the alley
+  const crates = [];
+  for (const [x, z, n] of [[-44.5, -137, 1], [33, -129.8, 3], [42, -137, 2]]) {
+    for (let i = 0; i < n; i++) crates.push(part(G.box(1.1, 0.9, 1.1), pick([0xa47c52, 0x8f6b45, 0xb58d5e]), [x + (i % 2) * 1.15, 0.45 + Math.floor(i / 2) * 0.9, z], [0, rand(-0.2, 0.2), 0]));
+    world.colliders.push({ x: x + (n > 1 ? 0.55 : 0), z, r: n > 1 ? 1.2 : 0.8 });
+  }
+  s.add(vcMesh(merge(crates), { cast: true, receive: true }));
+
   // fountain
   put(world, merge([
     part(G.cyl(2.3, 2.4, 0.6, 28), 0xbab3a4, [0, 0.3, 0]),
@@ -132,13 +214,13 @@ export function buildCity(world) {
     part(G.cyl(0.25, 0.35, 1.6, 10), 0xbab3a4, [0, 0.8, 0]),
     part(G.cyl(0.8, 0.5, 0.25, 16), 0xbab3a4, [0, 1.6, 0]),
     part(G.ico(0.35, 1), 0xbfe9ff, [0, 1.9, 0]),
-  ]), -28, -146, 0, [[0, 0, 2.4]]);
+  ]), 24, -159, 0, [[0, 0, 2.4]]);
 
-  // the King's throne: an overflowing skip bin
+  // the King's throne, by the gate out: an overflowing skip bin
   const skip = [
     part(G.box(5, 1.6, 2.6), 0xe0a526, [0, 0.8, 0]),
     part(G.box(5.2, 0.12, 2.8), 0xb88418, [0, 1.62, 0]),
   ];
   for (let i = 0; i < 16; i++) skip.push(part(G.ico(rand(0.2, 0.45), 0), pick([0xe8e2d0, 0x6b4f3a, 0xd94c3d, 0x4d96ff, 0x333333]), [rand(-2.2, 2.2), 1.7 + rand(0, 0.4), rand(-1, 1)], [rand(0, 3), rand(0, 3), 0]));
-  put(world, merge(skip), 6, -164, 0, [[-1.6, 0, 1.4], [0, 0, 1.4], [1.6, 0, 1.4]]);
+  put(world, merge(skip), -4, -165, 0, [[-1.6, 0, 1.4], [0, 0, 1.4], [1.6, 0, 1.4]]);
 }

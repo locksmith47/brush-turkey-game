@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Foe } from './foe.js';
 import { createIbisRig } from './ibisModel.js';
-import { rand, damp, dampAngle, TAU } from './util.js';
+import { rand, damp, dampAngle } from './util.js';
 
 const COMMON = { bodyY: 0.8, labelY: 1.35, carcassLabelY: 0.7 };
 export const IBIS_KINDS = {
@@ -107,8 +107,7 @@ export class Ibis extends Foe {
         this.wanderT -= dt;
         if (this.wanderT <= 0) {
           this.wanderT = rand(2.5, 6);
-          const a = rand(0, TAU), r = rand(0, d.leash);
-          this.wanderTo.set(this.home.x + Math.cos(a) * r, 0, this.home.z + Math.sin(a) * r);
+          this.wanderPoint(0, d.leash, this.wanderTo);
         }
         this.walk(this.wanderTo.x, this.wanderTo.z, d.speed * 0.45, dt, 0.4);
         if (this.latched.length) { this.state = 'chase'; break; }
@@ -135,7 +134,7 @@ export class Ibis extends Foe {
           break;
         }
         const tg = this.target;
-        if (!tg || tg.dead || !tg.grounded || Math.hypot(tg.pos.x - this.pos.x, tg.pos.z - this.pos.z) > d.aggro * 1.6) {
+        if (!tg || tg.dead || !tg.grounded || Math.hypot(tg.pos.x - this.pos.x, tg.pos.z - this.pos.z) > d.aggro * 1.6 || !this.sees(tg)) {
           this.target = this.findTarget();
           if (!this.target) {
             this.walk(this.home.x, this.home.z, d.speed * 0.6, dt, 0.5);

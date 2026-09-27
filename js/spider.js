@@ -253,7 +253,7 @@ export class Spider extends Foe {
         if (this.wantsShake()) { this.state = 'buck'; this.t = 0; break; }
         const tg = this.target;
         const far = Math.hypot(this.pos.x - this.home.x, this.pos.z - this.home.z) > d.leash;
-        if (!tg || tg.dead || !tg.grounded || far || (this.outT > 8 && !this.enraged)) {
+        if (!tg || tg.dead || !tg.grounded || far || (this.outT > 8 && !this.enraged) || !this.sees(tg)) {
           this.target = this.findTarget(d.webR + 2, this.home);
           if (!this.target || far || (this.outT > 8 && !this.enraged)) { this.state = 'retreat'; this.t = 0; }
           break;

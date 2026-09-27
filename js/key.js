@@ -71,11 +71,12 @@ export class Key extends Foe {
     const tp = this.lockPoint(_t);
     const dist = Math.hypot(tp.x - this.pos.x, tp.z - this.pos.z);
     const speed = clamp(1.0 + 0.1 * (st - d.weight), 1.0, 2.4);
-    const wp = this.game.world.route(this.pos.x, this.pos.z, tp.x, tp.z, _w) ?? tp; // (in the bush, along the track)
+    const wp = this.game.world.route(this.pos.x, this.pos.z, tp.x, tp.z, _w) ?? tp; // (round the fences, or along the bush's track)
     const dx = wp.x - this.pos.x, dz = wp.z - this.pos.z, step = Math.hypot(dx, dz);
     if (step > 0.01) {
       let ux = dx / step, uz = dz / step;
-      const clear = this.clearWay(ux, uz); // round rocks and trees rather than getting stuck on them
+      // (round rocks, trees and fences rather than getting stuck on them, bar the fence it's headed for)
+      const clear = dist > d.carryR + 2.5 ? this.clearWay(ux, uz) : null;
       if (clear) { ux = clear.x; uz = clear.z; }
       if (this.pos.z < -249) { // the King Crab's key: don't drag landlubbers through the rock pool
         const dry = this.dryWay(ux, uz);

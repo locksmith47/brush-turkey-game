@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { clamp, damp, dampAngle, rand, pinLabel, labelFade, Dial, TAU } from './util.js';
 
 export const STRENGTH = [1, 1.5, 2];
-const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _u = new THREE.Vector3();
+const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _u = new THREE.Vector3(), _r = new THREE.Vector3();
 
 /*
  * Shared behaviour for everything turkeys can fight: being clung to, taking damage,
@@ -142,13 +142,34 @@ export class Foe {
 
   countNear(p, r) { return this.turkeysNear(p, r).length; }
 
+  /** can it see t from where it is? (not round a fence, say, or through the scrub) */
+  sees(t) { return this.game.world.canSee(this.pos.x, this.pos.z, t.pos.x, t.pos.z); }
+
+  /** somewhere r0..r1 from home to wander over to, in plain sight of it (so never over a fence), into out */
+  wanderPoint(r0, r1, out) {
+    const w = this.game.world;
+    for (let i = 0; i < 6; i++) {
+      const a = rand(0, TAU), r = rand(r0, r1);
+      out.set(this.home.x + Math.cos(a) * r, 0, this.home.z + Math.sin(a) * r);
+      if (w.canSee(this.home.x, this.home.z, out.x, out.z)) return out;
+    }
+    return out.set(this.home.x, 0, this.home.z);
+  }
+
   forward(out) { return out.set(Math.sin(this.heading), 0, Math.cos(this.heading)); }
 
   walk(tx, tz, speed, dt, stop = 0.1, turn = 5) {
     const dx = tx - this.pos.x, dz = tz - this.pos.z, d = Math.hypot(dx, dz);
+    let hx = dx, hz = dz;
+    // (with a fence or a building in the way, round by the way through: home from a chase next door, say)
+    const w = this.game.world, tr = w.trackAt(this.pos.z);
+    if (tr && d > stop && !tr.clearLine(this.pos.x, this.pos.z, tx, tz)) {
+      const wp = w.route(this.pos.x, this.pos.z, tx, tz, _r);
+      if (wp) { hx = wp.x - this.pos.x; hz = wp.z - this.pos.z; }
+    }
     this.speedNow = damp(this.speedNow ?? 0, d > stop ? speed : 0, 6, dt);
     if (d > 0.01 && this.speedNow > 0.01) {
-      this.heading = dampAngle(this.heading, Math.atan2(dx, dz), turn, dt);
+      this.heading = dampAngle(this.heading, Math.atan2(hx, hz), turn, dt);
       this.pos.x += Math.sin(this.heading) * this.speedNow * dt;
       this.pos.z += Math.cos(this.heading) * this.speedNow * dt;
     }
@@ -193,19 +214,23 @@ export class Foe {
   hasFreeSlot() { return this.state === 'carcass' && this.slots.some((s) => !s); }
 
   strength(swimmersOnly = false) {
+    const w = this.game.world;
     let s = 0;
     for (let i = 0; i < this.slots.length; i++) {
       const t = this.slots[i];
       if (!t || (swimmersOnly && !t.canSwim)) continue;
       this.slotPos(i, _v);
-      if (Math.hypot(_v.x - t.pos.x, _v.z - t.pos.z) < 1.0) s += STRENGTH[t.stage];
+      let d = Math.hypot(_v.x - t.pos.x, _v.z - t.pos.z);
+      // (squashed up against a wall or a fence, as near its place as it can get, a carrier still has hold of it)
+      if (d >= 1.0 && w.resolve(_v, t.radius, this.game.mounds.colliders)) d = Math.hypot(_v.x - t.pos.x, _v.z - t.pos.z);
+      if (d < 1.0) s += STRENGTH[t.stage];
     }
     return s;
   }
 
   /**
-   * A heading close to (ux, uz) that doesn't march the load (and its carriers) into a rock, tree or
-   * shed; loads slide round things in their way instead of getting stuck on them. Null if boxed in.
+   * A heading close to (ux, uz) that doesn't march the load (and its carriers) into a rock, tree, shed
+   * or fence; loads slide round things in their way instead of getting stuck on them. Null if boxed in.
    */
   clearWay(ux, uz) {
     this.swingMemo ??= {};
@@ -247,7 +272,7 @@ export class Foe {
       const speed = clamp(1.2 + 0.12 * (st - d.weight), 1.2, 3.0);
       const dx = wp.x - this.pos.x, dz = wp.z - this.pos.z, dist = Math.hypot(dx, dz) || 1;
       let ux = dx / dist, uz = dz / dist;
-      const clear = this.clearWay(ux, uz); // round rocks and trees
+      const clear = this.clearWay(ux, uz); // round rocks, trees and fences
       if (clear) { ux = clear.x; uz = clear.z; }
       if (this.pos.z < -249) { // (there's only water at Bondi)
         const dry = this.dryWay(ux, uz);

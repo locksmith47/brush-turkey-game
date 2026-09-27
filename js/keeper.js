@@ -243,8 +243,7 @@ export class Keeper extends Foe {
         this.wanderT -= dt;
         if (this.wanderT <= 0) {
           this.wanderT = rand(3, 6);
-          const a = rand(0, TAU), r = rand(2, 9);
-          this.wanderTo.set(this.home.x + Math.cos(a) * r, 0, this.home.z + Math.sin(a) * r);
+          this.wanderPoint(2, 9, this.wanderTo);
         }
         this.walk(this.wanderTo.x, this.wanderTo.z, 0.8, dt, 0.5, 2);
         if (Math.random() < dt * 3) g.fx.leafBits(this.rakeHead(_v), 1);
@@ -258,7 +257,7 @@ export class Keeper extends Foe {
           this.state = 'spinWind'; this.t = 0; g.audio.oi(); break;
         }
         const tg = this.target;
-        if (!tg || tg.dead || !tg.grounded) {
+        if (!tg || tg.dead || !tg.grounded || !this.sees(tg)) {
           this.target = this.findTarget(d.aggro * 1.3);
           if (!this.target) {
             this.walk(this.home.x, this.home.z, d.speed * 0.6, dt, 1);

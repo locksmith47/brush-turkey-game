@@ -558,8 +558,9 @@ export class Mounds {
     for (const m of this.list) if (Math.hypot(m.pos.x - x, m.pos.z - z) < 12) return 'Too close to another mound';
     const w = this.game.world;
     if (!w.isFree(x, z, 2.2)) return 'Not enough room here';
-    // (in the bush, only out in a clearing: a mound grows, and one on a path would end up blocking the way)
-    if (w.inBush(z) && !w.track.inside(x, z, 4.2)) return 'Not enough room here: find a clearing';
+    // (only out in the open: a mound grows, and one on a path, by a gateway or up against a fence would end up in the way)
+    const tr = w.trackAt(z);
+    if (tr && (!tr.inside(x, z, 4.2) || tr.keepClear(x, z, 8) || tr.nearWall(x, z, 4.2))) return 'Not enough room here: find somewhere more open';
     // (and never right up against a gate, where the key has to be carried)
     for (const g of w.gates) if (Math.hypot(g.x - x, g.z - z) < 9) return 'Too close to the gate';
     // (the builders need room to stand round it, so nothing big can be in the way: keys, bins, carcasses...)
