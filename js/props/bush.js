@@ -45,7 +45,8 @@ export function makeEucalyptus(h, roost = null) {
 // spots along a roosting branch (fractions of the way out), each sitting on top of the branch
 const PERCHES = [0.42, 0.66, 0.88];
 
-function addTree(world, x, z, h, collide, roost = null) {
+/** `spot` (with a roost) is the tree's entry in world.treeSpots: the patch of litter it sheds onto */
+function addTree(world, x, z, h, collide, roost = null, spot = null) {
   const m = vcMesh(makeEucalyptus(h, roost));
   m.position.set(x, world.groundHeight(x, z), z);
   m.rotation.y = rand(0, TAU);
@@ -59,7 +60,7 @@ function addTree(world, x, z, h, collide, roost = null) {
       from[1] + (to[1] - from[1]) * t + (0.14 - 0.07 * t) * 0.85,
       from[2] + (to[2] - from[2]) * t,
     ));
-    world.roosts.push({ tree: m, x, z, perches });
+    world.roosts.push({ tree: m, x, z, perches, spot });
   }
 }
 
@@ -72,8 +73,9 @@ export function buildBush(world) {
     const h = rand(6, 8.5);
     // every one of them has a good low branch for roosting on (brush turkeys sleep up in the trees)
     const roost = { a: ((Math.floor(rand(0, 4)) + 0.5) / 4) * TAU, y: h * rand(0.32, 0.37), len: rand(2.1, 2.5), rise: rand(0.12, 0.25) };
-    addTree(world, x, z, h, true, roost);
-    world.treeSpots.push({ x, z, h, palette: 'gum' });
+    const spot = { x, z, h, palette: 'gum' };
+    addTree(world, x, z, h, true, roost, spot);
+    world.treeSpots.push(spot);
     world.stainGround(x, z, 6.5, 0x8f6a3e, 0.55);
   }
   // dense bush beyond the edges

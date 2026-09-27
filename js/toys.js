@@ -383,11 +383,12 @@ class HillsHoist {
  * for a while (a look round, a stretch, a little doze), then flutter back down.
  */
 class TreeRoost {
-  constructor(game, { tree, x, z, perches }) {
+  constructor(game, { tree, x, z, perches, spot }) {
     this.game = game;
     this.tree = tree;
     this.x = x;
     this.z = z;
+    this.spot = spot; // (the tree's patch of litter)
     this.perches = perches; // (in the tree's own space, so they sway with it)
     this.seatPose = 'roost';
     this.seats = perches.map(() => ({ rider: null, face: 1 }));
@@ -430,12 +431,12 @@ class TreeRoost {
   rideTime() { return rand(12, 28); }
   canLeave() { return true; }
 
-  /** landing on the branch shakes a leaf or two loose */
+  /** landing on the branch shakes a leaf or two loose (not while the tree's resting after being raked bare) */
   onMount(t, i) {
     this.seats[i].face = Math.random() < 0.5 ? 1 : -1;
     const g = this.game;
     this.seatPos(i, _v);
-    for (let k = 0; k < 2; k++) g.leaves.dropFromTree(this.x, this.z, _v.y - this.tree.position.y + 1.5, 'gum');
+    if (!g.leaves.resting(this.spot)) for (let k = 0; k < 2; k++) g.leaves.dropFromTree(this.x, this.z, _v.y - this.tree.position.y + 1.5, 'gum');
     g.audio.leaf();
   }
 
@@ -500,12 +501,19 @@ export class Toys {
   /**
    * The nearest free seat on any ride within r, as { set, i }. `toysOnly` (for a turkey that's just landed
    * next to one) skips beach chairs, which are loot, and the roosts up the gums, which are for idling in:
-   * a turkey thrown at the leaves under a tree is there to rake them
+   * a turkey thrown at the leaves under a tree is there to rake them (if it doesn't take a fancy to the tree)
    */
   freeSeatNear(p, r, toysOnly = false) {
+    return this.seatNear(p, r, (ride) => !(toysOnly && (ride.haulable || ride.seatPose === 'roost')));
+  }
+
+  /** the nearest free spot on a gum's roosting branch within r, as { set, i } */
+  freeRoostNear(p, r) { return this.seatNear(p, r, (ride) => ride.seatPose === 'roost'); }
+
+  seatNear(p, r, ok) {
     let best = null, bd = r;
     for (const ride of this.rides) {
-      if (toysOnly && (ride.haulable || ride.seatPose === 'roost')) continue;
+      if (!ok(ride)) continue;
       const s = ride.nearestSeat(p);
       if (s && s.d < bd) { bd = s.d; best = { set: ride, i: s.i }; }
     }

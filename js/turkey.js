@@ -17,9 +17,11 @@ const DPS = [1.0, 1.5, 2.2];
 const WORK_R = 8;
 // seconds in the ground to grow from a chick into a juvenile, and from a juvenile into an adult
 const GROW_TIME = [27, 62];
-// raking litter home: how much a turkey can shift in one clump (in leaves' worth), and how far back
+// raking litter home: how much a turkey can shift in one clump (in leaves' worth), how far round the first
+// bit of it it'll reach for the rest (thin litter, like under a tree, is spread about), and how far back
 // one good kick flings it
-const RAKE_WORTH = [5 / 3, 3, 13 / 3];
+const RAKE_WORTH = [5, 9, 13];
+const RAKE_R = [2.4, 3, 3.6];
 const KICK_REACH = [3.3, 4.05, 4.8];
 // ...and the further the pile has to go, the harder it gets kicked: as usual near the mound, building up
 // to twice as far for a pile a long way off (so a bin tipped over at the far end of the yard is worth it)
@@ -29,6 +31,10 @@ const RAKE_TRIES = 3; // goes at a pile that get it nowhere before a turkey give
 const SET_TIMEOUT = 6; // seconds trying to get in behind a pile before that counts as a wasted go
 const BACK_UP = 5.5; // a pile landed further off than this and it turns and runs after it, rather than backing up
 const SNUB_TIME = 45; // seconds everyone leaves a pile alone once it's been given up on
+// brush turkeys have minds of their own: one that's got to a pile near a gum with a free spot on its
+// branch will, one time in ten, forget all about raking and flap up to roost there instead (there's
+// nearly always litter under a gum to be raking, so otherwise they'd hardly ever go up)
+const ROOST_WHIM = 0.1, ROOST_NEAR = 7;
 // easing into and out of a walk (a raking turkey scurrying after its pile, one settling into its spot)
 const EASE_ACCEL = 8, EASE_DECEL = 5;
 // turning with a bit of weight to it: it gets going into a turn and eases out of it (rad/s, rad/s²)
@@ -949,12 +955,18 @@ export class Turkey {
    * kicks fling it up onto the heap.
    */
 
-  /** claim a clump of litter (starting at `first`) to rake home; false if there's no mound to take it to */
+  /**
+   * Off to rake a clump of litter home, starting at `first`; false if there's no mound to take it to. (It
+   * only lays claim to the rest of the clump once it's got there, so while it's on its way, nobody else
+   * nearer is kept off the litter, and if it can't get there after all, it's only the one bit given up on)
+   */
   startRake(first) {
     const g = this.game;
     const m = g.mounds.nearestReachable(first.pos);
     if (!m) return false;
-    this.clump = g.leaves.gather(first, 1.3, RAKE_WORTH[this.stage], this);
+    this.clump.length = 0;
+    this.clump.push(first);
+    first.owner = this;
     this.rakeTo = m;
     this.rakeTries = 0;
     this.rakeStall = 0;
@@ -1015,6 +1027,15 @@ export class Turkey {
     this.scanT = rand(0.8, 1.5);
   }
 
+  /** got to its pile, but fancies a roost up the gum instead? (whatever it was thrown there to do) True if it's off */
+  roostWhim() {
+    if (this.playCool > 0 || Math.random() >= ROOST_WHIM) return false;
+    const seat = this.game.toys.freeRoostNear(this.pos, ROOST_NEAR);
+    if (!seat) return false;
+    this.goPlay(seat);
+    return true;
+  }
+
   /** a go that got nowhere; a few of those and it gives up on this pile. True if it's given up */
   failedTry() {
     if (++this.rakeTries < RAKE_TRIES) return false;
@@ -1032,6 +1053,7 @@ export class Turkey {
     out.set(c.x - dir.x * back - dir.z * side, 0, c.z - dir.z * back + dir.x * side);
     for (let i = 0; i < 4 && !this.canSwim && w.waterDepth(out.x, out.z) === 2; i++) out.set((out.x + c.x) / 2, 0, (out.z + c.z) / 2);
     w.resolve(out, this.radius + 0.03, this.game.mounds.colliders); // (out of the rocks, trees and fences)
+    w.resolve(out, this.radius + 0.03, this.game.enemies.colliders); // (and whatever's lying about, like a tipped-over bin)
     return out;
   }
 
@@ -1045,6 +1067,9 @@ export class Turkey {
     const st = this.standSpot(_v, dir, _s);
     const d = this.steer(st.x, st.z, sp, dt, 0.04, true);
     if (d < 0.5) {
+      if (this.roostWhim()) return;
+      // there: it rakes in the rest of what's lying about, as much as it can shift
+      this.game.leaves.gather(this.clump, _v.x, _v.z, RAKE_R[this.stage], RAKE_WORTH[this.stage], this);
       this.setState(S.RAKE);
       this.rakePhase = 'set'; // (it settles in, turns its back on the mound, then kicks)
       this.setT = 0;
@@ -1096,7 +1121,7 @@ export class Turkey {
     let cx = 0, cz = 0;
     for (const l of this.clump) {
       if (l.owner !== this || l.state !== 'ground') continue; // (anything still in the air: wait for it)
-      if (Math.hypot(l.pos.x - this.pos.x, l.pos.z - this.pos.z) > 2.8) { g.leaves.release(l); continue; } // left behind
+      if (Math.hypot(l.pos.x - this.pos.x, l.pos.z - this.pos.z) > RAKE_R[this.stage] + 1.5) { g.leaves.release(l); continue; } // left behind
       _pile.push(l);
       cx += l.pos.x; cz += l.pos.z;
     }

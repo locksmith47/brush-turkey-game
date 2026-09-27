@@ -21,9 +21,10 @@ export const JUNK = new Set(['rubbish', 'recycling']);
 export const LEAF_SPLIT = 3;
 const MAX = { leaf: 3600, box: 160, can: 160 };
 const TREE_DROP_CAP = 3000; // trees stop shedding while there's this much litter about
-// each tree drops a leaf every so often onto the ground under it, until there's this many lying there: so
-// a patch the turkeys have raked bare takes a good few minutes to fill back in
+// each tree drops a leaf every so often onto the ground under it, until there's this many lying there
 const TREE_LITTER = 30, SHED_EVERY = [9, 15];
+// ...but once the turkeys have raked the ground under one bare, it has a rest: not a leaf for five minutes
+const TREE_REST = 300;
 const LIFT = { leaf: [0.02, 0.06], box: [0.035, 0.04], can: [0.07, 0.075] }; // how high it lies off the ground
 const GEOS = {};
 
@@ -173,11 +174,14 @@ export class Leaves {
     l.owner = null;
   }
 
-  /** how many leaves are lying (or on their way down) within r of (x, z) */
-  lyingNear(x, z, r) {
+  /** is this tree (one of the world's treeSpots) having a rest from shedding, after being raked bare? */
+  resting(spot) { return spot.restUntil > this.game.time; }
+
+  /** how many leaves are lying (or, unless `falling` is false, on their way down) within r of (x, z) */
+  lyingNear(x, z, r, falling = true) {
     let n = 0;
     for (const l of this.pools.leaf) {
-      if ((l.state === 'ground' || l.state === 'falling') && (l.pos.x - x) ** 2 + (l.pos.z - z) ** 2 < r * r) n++;
+      if ((l.state === 'ground' || (falling && l.state === 'falling')) && (l.pos.x - x) ** 2 + (l.pos.z - z) ** 2 < r * r) n++;
     }
     return n;
   }
@@ -199,21 +203,28 @@ export class Leaves {
     return best;
   }
 
-  /** claim `first` and the unclaimed pieces lying round it, up to `worth` in total: a clump to rake */
-  gather(first, r, worth, owner) {
-    const out = [first];
-    let v = first.value;
-    first.owner = owner;
-    const now = this.game.time;
+  /**
+   * Add the unclaimed pieces lying within r of (x, z) to owner's `clump`, nearest first, until it's worth
+   * `worth` in all: raking in the litter round a pile (from close by where it's thick, further out where
+   * it's thin)
+   */
+  gather(clump, x, z, r, worth, owner) {
+    let v = 0;
+    for (const l of clump) if (l.owner === owner) v += l.value;
+    const near = [], now = this.game.time;
     for (const l of this.list) {
+      if (l.state !== 'ground' || l.owner || l.snubT > now) continue;
+      const d2 = (l.pos.x - x) ** 2 + (l.pos.z - z) ** 2;
+      if (d2 <= r * r) near.push({ l, d2 });
+    }
+    near.sort((a, b) => a.d2 - b.d2);
+    for (const { l } of near) {
       if (v >= worth - 1e-6) break;
-      if (l === first || l.state !== 'ground' || l.owner || l.snubT > now || v + l.value > worth + 1e-6) continue;
-      if ((l.pos.x - first.pos.x) ** 2 + (l.pos.z - first.pos.z) ** 2 > r * r) continue;
+      if (v + l.value > worth + 1e-6) continue;
       l.owner = owner;
-      out.push(l);
+      clump.push(l);
       v += l.value;
     }
-    return out;
   }
 
   release(l) { if (l && (l.state === 'ground' || l.state === 'kicked')) l.owner = null; }
@@ -234,14 +245,22 @@ export class Leaves {
     const w = this.game.world;
     let active = 0;
 
-    // trees near the player keep shedding the odd leaf, so the bush never quite runs dry
+    // trees near the player keep shedding the odd leaf, so the bush never quite runs dry (bar the ones
+    // having a rest after the turkeys cleaned them out)
     this.dropTimer -= dt;
     if (this.dropTimer <= 0) {
       this.dropTimer = 0.5;
       const p = this.game.player.pos, now = this.game.time;
       for (const s of w.treeSpots) {
-        if (this.active >= TREE_DROP_CAP) break;
-        if (s.shedAt > now || Math.hypot(s.x - p.x, s.z - p.z) > 45) continue;
+        if (this.resting(s) || Math.hypot(s.x - p.x, s.z - p.z) > 45) continue;
+        if (this.lyingNear(s.x, s.z, 4.5, false)) s.littered = true;
+        else if (s.littered) {
+          // raked bare
+          s.littered = false;
+          s.restUntil = now + TREE_REST;
+          continue;
+        }
+        if (s.shedAt > now || this.active >= TREE_DROP_CAP) continue;
         s.shedAt = now + rand(...SHED_EVERY);
         if (this.lyingNear(s.x, s.z, 4.5) < TREE_LITTER) this.dropFromTree(s.x, s.z, s.h, s.palette);
       }

@@ -32,7 +32,7 @@ export class World {
     this.colliders = []; // circles {x, z, r}
     this.segments = []; // capsules {ax, az, bx, bz, r, active, blockThrow}
     this.treeSpots = []; // {x, z, h, palette}
-    this.roosts = []; // low branches turkeys can roost on: {tree, x, z, perches} (the toys pick these up)
+    this.roosts = []; // low branches turkeys can roost on: {tree, x, z, perches, spot} (the toys pick these up)
     this.swayers = [];
     this.gates = FENCES.map((f) => ({ x: f.gateX, z: f.z, hw: f.gateHW, kind: f.kind, open: false }));
 
