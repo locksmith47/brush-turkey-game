@@ -1,12 +1,13 @@
 import * as THREE from 'three';
-import { vcMesh, part, merge, G, clamp, pinLabel } from './util.js';
+import { vcMesh, part, merge, G, limb, clamp, rand, pick, pinLabel } from './util.js';
 import { palingGeo, picketGeo, railGeo, wireGeo, wireMat, placeAlong } from './props/fences.js';
 import { BOUNDS, ZONES } from './world.js';
 import { Key } from './key.js';
+import { TRACK } from './props/bush.js';
 
 /* One giant key per area; each needs more turkeys to lift than the last. */
 const KEYS = [
-  { x: 22, z: -18, size: 1.0, weight: 4, slots: 8, heading: 0.6 },
+  { x: TRACK.clearings.key[0], z: TRACK.clearings.key[1], size: 1.0, weight: 4, slots: 8, heading: 0.6 }, // off to the right of the gate, behind its guards
   { x: 22, z: -86, size: 1.6, weight: 10, slots: 14, heading: 2.2 },
   { x: 6, z: -158, size: 2.3, weight: 20, slots: 24, heading: 0.2 },
   { x: 6, z: -228, size: 2.6, weight: 22, slots: 26, heading: 1.0 }, // on the pitch, under Big Kev's nose
@@ -157,9 +158,106 @@ class Gate {
   }
 }
 
+/** half of a barricade: logs piled up, built along +x from its hinge (0) to the middle of the track (len) */
+function logPileGeo(len) {
+  const barks = [0x7d5f40, 0x8b6a48, 0x74563a], cut = 0xd2b48c, greens = [0x6d8f4e, 0x5f8045, 0x7f9f5c];
+  const p = [];
+  for (const [y, z, r, l] of [[0.34, 0.36, 0.34, len], [0.34, -0.36, 0.33, len - 0.15], [0.92, 0, 0.3, len - 0.4]]) {
+    p.push(part(G.cyl(r, r * 1.08, l, 10), pick(barks), [l / 2, y, z], [0, 0, Math.PI / 2]));
+    p.push(part(G.cyl(r * 0.85, r * 0.85, 0.02, 10), cut, [l + 0.005, y, z], [0, 0, Math.PI / 2]));
+    p.push(part(G.cyl(r * 0.85, r * 0.85, 0.02, 10), cut, [-0.005, y, z], [0, 0, Math.PI / 2]));
+  }
+  // snapped-off branches poking out, still in leaf
+  for (let i = 0; i < 3; i++) {
+    const x = rand(0.6, len - 0.6), side = i % 2 ? 1 : -1;
+    const end = [x + rand(-0.4, 0.4), rand(1.4, 1.9), side * rand(0.2, 0.6)];
+    p.push(limb([x, 0.9, side * 0.1], end, 0.07, 0.04, pick(barks), 5));
+    p.push(part(G.ico(rand(0.3, 0.45), 1), pick(greens), end, [rand(0, 3), rand(0, 3), 0], [1, 0.7, 1]));
+  }
+  return merge(p);
+}
+
+/*
+ * A barricade of logs across the track out of one of the bush's clearings. Nothing gets past it (or is
+ * thrown over it) while whatever's holding the clearing is still about; beat them all and it swings open.
+ */
+class Barricade {
+  constructor(game, edge, at, guards, name) {
+    this.game = game;
+    const track = game.world.track, a = track.nodes[edge.a], b = track.nodes[edge.b];
+    const dx = (b.x - a.x) / edge.len, dz = (b.z - a.z) / edge.len; // (along the track, out of the clearing)
+    const px = -dz, pz = dx, hw = track.width + 0.8; // (across it, and into the scrub either side)
+    const x = a.x + dx * at, z = a.z + dz * at;
+    this.center = new THREE.Vector3(x, game.world.groundHeight(x, z), z);
+    this.edge = edge;
+    this.guards = guards;
+    this.seg = game.world.addSegment(x - px * hw, z - pz * hw, x + px * hw, z + pz * hw, 0.45, true);
+    track.block(edge, this.seg);
+
+    // two halves hinged in the scrub either side, meeting in the middle of the track; they swing open
+    // (away from the clearing) like a pair of gates
+    this.group = new THREE.Group();
+    this.group.position.copy(this.center);
+    this.group.rotation.y = Math.atan2(-pz, px);
+    this.leaves = [-1, 1].map((side) => {
+      const pivot = new THREE.Group();
+      pivot.position.x = side * hw;
+      pivot.scale.x = -side;
+      pivot.add(vcMesh(logPileGeo(hw), { cast: true, receive: true }));
+      this.group.add(pivot);
+      return pivot;
+    });
+    game.scene.add(this.group);
+
+    this.state = 'up';
+    this.t = 0;
+    this.label = document.createElement('div');
+    this.label.className = 'mound-label small';
+    this.label.innerHTML = `⚔️ Beat ${name} to get through`;
+    this.label.style.display = 'none';
+    document.getElementById('labels').appendChild(this.label);
+  }
+
+  get up() { return this.state === 'up'; }
+
+  open(silent = false) {
+    if (!this.up) return;
+    const g = this.game;
+    this.state = 'opening';
+    this.t = 0;
+    this.seg.active = false;
+    g.world.track.unblock(this.edge);
+    this.label.style.display = 'none';
+    // (anything given up on for being out of reach behind it is fair game again)
+    for (const l of g.leaves.list) if (l.snubT > g.time && Math.hypot(l.pos.x - this.center.x, l.pos.z - this.center.z) < 20) l.snubT = 0;
+    if (silent) return;
+    g.audio.clatter();
+    g.fx.dust(this.center, 14);
+    g.shake(0.2);
+    g.hud.toast('The way through is clear!', 2.5);
+  }
+
+  update(dt, camera, v) {
+    this.t += dt;
+    if (this.up && this.guards.every((f) => !f.alive)) this.open();
+    if (this.state === 'opening') {
+      const k = clamp(this.t / 1.1, 0, 1), open = 1.65 * (1 - (1 - k) ** 3);
+      this.leaves[0].rotation.y = open;
+      this.leaves[1].rotation.y = -open;
+      if (k >= 1) this.state = 'open';
+    }
+    // what it'll take to get past, when the player's close by
+    const p = this.game.player.pos;
+    const near = this.up && Math.hypot(p.x - this.center.x, p.z - this.center.z) < 14;
+    if (!near) { if (this.label.style.display !== 'none') this.label.style.display = 'none'; return; }
+    pinLabel(this.label, v.set(this.center.x, this.center.y + 2.3, this.center.z), camera);
+  }
+}
+
 export class Barriers {
   constructor(game) {
     this.game = game;
+    this.barricades = [];
     this.gates = [];
     const w = game.world;
     w.gates.forEach((gate, i) => {
@@ -198,6 +296,14 @@ export class Barriers {
     });
   }
 
+  /** a barricade across the track out of clearing `at` (towards `to`), until all the `guards` are beaten */
+  addBarricade(at, to, guards, name) {
+    const track = this.game.world.track;
+    const b = new Barricade(this.game, track.firstEdge(at, to), track.node(at).r + 1.6, guards, name);
+    this.barricades.push(b);
+    return b;
+  }
+
   /** debug helper: open gate i straight away (and tidy away its key) */
   unlock(i, silent = false) {
     this.gates[i].unlock(silent);
@@ -207,5 +313,6 @@ export class Barriers {
 
   update(dt, camera) {
     for (const g of this.gates) g.update(dt, camera, this._v);
+    for (const b of this.barricades) b.update(dt, camera, this._v);
   }
 }

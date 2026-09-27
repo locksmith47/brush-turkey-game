@@ -19,6 +19,7 @@ import { Bin } from './bin.js';
 import { BUILD_CREW } from './mound.js';
 import { UMBRELLAS, FLAGS } from './props/beach.js';
 import { SUBURB_BINS } from './props/suburb.js';
+import { HOME, START, TRACK, ARENAS, BUSH_BINS, BUSH_LITTER } from './props/bush.js';
 import { CITY_BINS } from './props/city.js';
 import { OVAL_BINS } from './props/oval.js';
 import { DevMenu } from './devmenu.js';
@@ -66,28 +67,31 @@ const input = new Input();
 const { world, player, turkeys, mounds, leaves, audio, hud, fx, enemies } = game;
 
 /* ------------------------------------------------------------------ starting layout */
-mounds.add(0, -2, true);
+mounds.add(HOME.x, HOME.z, true);
 for (const s of world.treeSpots) leaves.spawnCluster(s.x, s.z, s.palette === 'gum' ? 18 : 14, 4.2, s.palette);
-leaves.spawnCluster(-7, 4, 16, 2);
-leaves.spawnCluster(7, 2, 14, 1.8);
-leaves.spawnCluster(-3, -9, 12, 2);
-for (let i = 0; i < 6; i++) leaves.spawnCluster(rand(-40, 40), rand(-32, 40), 12, 2.2);
+for (const [x, z, n, r] of BUSH_LITTER) leaves.spawnCluster(x, z, n, r);
 
+// the bush's clearings, each held by something you'll have to beat to get any further (and a barricade
+// across the way on until you do): an ibis, a funnel-web, two ibises, then the key's guards
+const barricade = {};
+for (const a of ARENAS) {
+  const [cx, cz] = TRACK.clearings[a.at];
+  const guards = a.foes.map(([kind, dx, dz]) => enemies.spawn(kind, cx + dx, cz + dz));
+  barricade[a.at] = game.barriers.addBarricade(a.at, a.to, guards, a.name);
+}
 // the locals: ibises everywhere, giants in the suburbs and city, and the King on his skip-bin throne
-enemies.spawn('ibis', 20, -26);
 for (const [x, z] of [[-22, -64], [8, -58], [-8, -88], [32, -74]]) enemies.spawn('ibis', x, z);
 enemies.spawn('giant', 12, -90);
 for (const [x, z] of [[-20, -108], [16, -112], [38, -134], [-40, -142], [22, -148]]) enemies.spawn('ibis', x, z);
 enemies.spawn('giant', -24, -128);
 enemies.spawn('king', 6, -152);
 // snakes lurking in the litter, funnel-webs in their burrows, and Big Kev on his oval
-for (const [x, z] of [[30, 24], [36, -62], [28, -224]]) enemies.spawn('snake', x, z);
-for (const [x, z] of [[-30, -16], [-32, -76], [-30, -196]]) enemies.spawn('spider', x, z);
+for (const [x, z] of [[36, -62], [28, -224]]) enemies.spawn('snake', x, z);
+for (const [x, z] of [[-32, -76], [-30, -196]]) enemies.spawn('spider', x, z);
 enemies.spawn('keeper', 0, -214);
 // each area hides a giant key for the padlocked gate out of it
 game.barriers.spawnKeys();
 // wheelie bins to knock over: green ones spill garden clippings, red ones rubbish, yellow ones recycling
-const BUSH_BINS = [['green', -9.5, 13.5, Math.PI], ['red', -8.3, 13.8, Math.PI]];
 for (const [kind, x, z, face] of [...BUSH_BINS, ...SUBURB_BINS, ...CITY_BINS, ...OVAL_BINS]) {
   const overflowing = kind === 'red' && z < -98 && z > -170; // city bins are always overflowing
   enemies.list.push(new Bin(game, kind, x, z, face, overflowing));
@@ -118,13 +122,14 @@ for (const [type, x, z] of loot) enemies.list.push(new BeachItem(game, type, x, 
 // the lifesaving flags have to be dug out first; the umbrellas are bouncy
 for (const [x, z] of FLAGS) enemies.list.push(new BeachFlag(game, x, z));
 for (const [x, z, a, b] of UMBRELLAS) game.toys.addUmbrella(x, z, a, b);
-[[-1.6, 5.4, 0], [1.4, 5.8, 0], [0, 4.4, 0], [-2.9, 6.9, 0], [2.8, 7.1, 1], [-0.3, 6.9, 2]]
-  .forEach(([x, z, s]) => { const t = turkeys.spawnSprout(x, z, s); t.growT = 0; });
-game.grubs.spawn(4.5, 8);
-player.pos.set(0, world.groundHeight(0, 10), 10);
+// you start out behind the mound, with a few turkeys poking up out of the ground in front of you
+[[-1.6, -4.6, 0], [1.4, -4.2, 0], [0, -5.6, 0], [-2.9, -3.1, 0], [2.8, -2.9, 1], [-0.3, -3.1, 2]]
+  .forEach(([x, z, s]) => { const t = turkeys.spawnSprout(START.x + x, START.z + z, s); t.growT = 0; });
+game.grubs.spawn(START.x + 4.5, START.z - 2);
+player.pos.set(START.x, world.groundHeight(START.x, START.z), START.z);
 
 /* ------------------------------------------------------------------ camera */
-const cam = { yaw: 0, dist: 12, zoom: 12, pitch: 0.74, tilt: 0, target: new THREE.Vector3(0, 1, 10) };
+const cam = { yaw: 0, dist: 12, zoom: 12, pitch: 0.74, tilt: 0, target: new THREE.Vector3(START.x, 1, START.z) };
 game.cam = cam;
 const MIN_DIST = 3.2, MAX_DIST = 30;
 function updateCamera(dt) {
@@ -300,15 +305,20 @@ function handleInput(dt) {
 }
 
 /* ------------------------------------------------------------------ tips */
+/** is the player in (or within `pad` of) one of the bush's clearings? */
+const nearClearing = (name, pad = 6) => {
+  const [x, z, r] = TRACK.clearings[name];
+  return Math.hypot(player.pos.x - x, player.pos.z - z) < r + pad;
+};
 const tips = [
   { when: () => true, text: 'Walk up to a turkey poking out of the ground and press E to pluck it' },
   { when: () => game.stats.plucked >= 2, text: 'Aim at leaf litter and left-click to throw a turkey' },
   { when: () => game.stats.thrown >= 2, text: 'Turkeys rake the leaves back to the mound with their feet. Hold right-click to whistle them back' },
   { when: () => game.stats.leaves >= 4, text: 'Fill the mound to hatch more chicks!' },
   { when: () => game.stats.hatched >= 1, text: 'Grubs make turkeys grow. Bins are worth knocking over, too' },
-  { when: () => game.stats.hatched >= 3, text: 'The gate north is padlocked. Find the giant golden key (look for the light beam)!' },
-  { when: () => game.stats.hatched >= 5, text: 'Keys are heavy: throw enough turkeys at one and they will carry it to the gate' },
-  { when: () => world.gates[0].open, text: 'Beware of ibises! Throw turkeys ON them. Turkeys on the ground get pecked' },
+  { when: () => nearClearing('ibis'), text: 'An ibis holds the way on! Throw turkeys ON it: turkeys on the ground get pecked' },
+  { when: () => nearClearing('gate'), text: 'The gate is padlocked. Find the giant golden key (look for the light beam)!' },
+  { when: () => !barricade.guards.up, text: 'Keys are heavy: throw enough turkeys at one and they will carry it to the gate' },
   { when: () => world.gates[0].open && world.zoneOf(player.pos.z) === 1, text: 'Each key is bigger than the last: you will need a bigger flock!' },
   { when: () => world.zoneOf(player.pos.z) === 4, text: 'Bondi! Steal beach gear for the beach mound: it hatches BEACH turkeys' },
   { when: () => turkeys.list.some((t) => t.kind === 'beach' && t.state === 'follow'), text: 'Beach turkeys can swim! Others drown in deep water unless you whistle them out' },
@@ -324,7 +334,7 @@ function updateTips(dt) {
 }
 
 /* ------------------------------------------------------------------ dev menu (~) */
-const ZONE_SPAWN = [[0, 10], [6, -44], [-8, -104], [-20, -176], [-16, -256], [-30, -356]];
+const ZONE_SPAWN = [[START.x, START.z], [6, -44], [-8, -104], [-20, -176], [-16, -256], [-30, -356]];
 new DevMenu(game, {
   goto(v) {
     const zi = +v;
@@ -342,7 +352,11 @@ new DevMenu(game, {
       t.pluck();
     }
   },
-  unlockAll() { game.barriers.gates.forEach((_, i) => game.barriers.unlock(i, true)); hud.toast('All gates unlocked'); },
+  unlockAll() {
+    game.barriers.gates.forEach((_, i) => game.barriers.unlock(i, true));
+    game.barriers.barricades.forEach((b) => b.open(true));
+    hud.toast('All gates unlocked');
+  },
   killNearby() {
     enemies.list.filter((e) => e.alive && Math.hypot(e.pos.x - player.pos.x, e.pos.z - player.pos.z) < 30).forEach((e) => e.die());
   },
@@ -356,7 +370,13 @@ new DevMenu(game, {
 /* ------------------------------------------------------------------ zones & boss */
 const visited = new Set([0]);
 let zonePrompt = null; // { t, text }: a hint shown a moment after arriving somewhere new
+let farPrompted = false;
 function updateZones(dt) {
+  // the bush's track is a long walk: by the funnel-web's clearing, it's time for a mound closer to hand
+  if (!farPrompted && nearClearing('spider', 0)) {
+    farPrompted = true;
+    zonePrompt = { t: 2, text: `It's a long way back to the mound! Press M and ${BUILD_CREW} of your turkeys will scratch up a new one` };
+  }
   const z = world.zoneOf(player.pos.z);
   if (!visited.has(z)) {
     visited.add(z);

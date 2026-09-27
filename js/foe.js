@@ -122,7 +122,8 @@ export class Foe {
     for (const t of this.game.turkeys.list) {
       if (!t.grounded || t.dead || w.zoneOf(t.pos.z) !== this.zone) continue;
       const d = Math.hypot(t.pos.x - from.x, t.pos.z - from.z);
-      if (d < bd && Math.hypot(t.pos.x - this.home.x, t.pos.z - this.home.z) < leash) { bd = d; best = t; }
+      if (d >= bd || Math.hypot(t.pos.x - this.home.x, t.pos.z - this.home.z) >= leash) continue;
+      if (w.canSee(from.x, from.z, t.pos.x, t.pos.z)) { bd = d; best = t; } // (not through the scrub)
     }
     return best;
   }

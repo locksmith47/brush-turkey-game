@@ -1,13 +1,14 @@
 import * as THREE from 'three';
 import { vcMat, toonMat, clamp, smoothstep } from './util.js';
-import { buildBush } from './props/bush.js';
+import { buildBush, BUSH_SOUTH, HOME, TRACK } from './props/bush.js';
+import { Track } from './track.js';
 import { buildSuburb } from './props/suburb.js';
 import { buildCity } from './props/city.js';
 import { buildOval } from './props/oval.js';
 import { buildBeach, beachGround, waterAt, shoreDir, seaWave, isSand } from './props/beach.js';
 
 /* The map is a long strip running north (-z): bush -> backyards -> city -> oval -> Bondi. */
-export const BOUNDS = { xMin: -46, xMax: 46, zMin: -366, zMax: 46 };
+export const BOUNDS = { xMin: -46, xMax: 46, zMin: -366, zMax: BUSH_SOUTH };
 export const ZONES = [
   { name: 'The Bush', zMin: -38 },
   { name: 'The Backyards', zMin: -98 },
@@ -35,6 +36,7 @@ export class World {
     this.roosts = []; // low branches turkeys can roost on: {tree, x, z, perches, spot} (the toys pick these up)
     this.swayers = [];
     this.gates = FENCES.map((f) => ({ x: f.gateX, z: f.z, hw: f.gateHW, kind: f.kind, open: false }));
+    this.track = new Track(TRACK); // the way through the bush (the scrub either side of it is impassable)
 
     this.buildSky();
     this.buildLights();
@@ -59,8 +61,8 @@ export class World {
     const h = 0.45 * Math.sin(x * 0.11 + 0.7) * Math.cos(z * 0.09 - 0.3)
       + 0.25 * Math.sin(x * 0.05 - z * 0.07 + 1.9)
       + 0.12 * Math.sin(x * 0.31 + z * 0.23);
-    const flat = smoothstep(6, 16, Math.hypot(x, z));
-    const rim = (smoothstep(44, 60, Math.abs(x)) + smoothstep(44, 60, z)) * 4;
+    const flat = smoothstep(6, 16, Math.hypot(x - HOME.x, z - HOME.z)); // (the mound sits on the level)
+    const rim = (smoothstep(44, 60, Math.abs(x)) + smoothstep(BUSH_SOUTH - 2, BUSH_SOUTH + 14, z)) * 4;
     return (h * flat + rim) * bush;
   }
 
@@ -100,14 +102,15 @@ export class World {
   }
 
   buildGround() {
-    const W = 280, D = 390, cz = -55; // stops at the Oval; the beach has its own finer ground
-    const g = new THREE.PlaneGeometry(W, D, 140, 195);
+    const W = 280, D = 410, cz = -45; // stops at the Oval; the beach has its own finer ground
+    const g = new THREE.PlaneGeometry(W, D, 140, 205);
     g.rotateX(-Math.PI / 2);
     g.translate(0, 0, cz);
     const pos = g.attributes.position;
     const col = new Float32Array(pos.count * 3);
     const grassA = new THREE.Color(0x7fae4f), grassB = new THREE.Color(0x96b95a), dirt = new THREE.Color(0x9c7a4f);
     const dry = new THREE.Color(0xb7ad6a), lawn = new THREE.Color(0x86bd52), concrete = new THREE.Color(0xa9a79f), oval = new THREE.Color(0x74b548), c = new THREE.Color();
+    const track = new THREE.Color(0xa48558), mould = new THREE.Color(0x4d5a2f);
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i), z = pos.getZ(i);
       pos.setY(i, this.groundHeight(x, z));
@@ -116,7 +119,11 @@ export class World {
         const n = 0.5 + 0.5 * Math.sin(x * 0.37 + Math.sin(z * 0.21) * 2) * Math.cos(z * 0.29 - x * 0.05);
         c.copy(grassA).lerp(grassB, n);
         c.lerp(dry, smoothstep(0.65, 1, 0.5 + 0.5 * Math.sin(x * 0.08 + z * 0.06 + 2.0)) * 0.6);
-        c.lerp(dirt, (1 - smoothstep(3, 9, Math.hypot(x, z))) * 0.55);
+        c.lerp(dirt, (1 - smoothstep(3, 9, Math.hypot(x - HOME.x, z - HOME.z))) * 0.55);
+        // the track: bare earth along the paths and in the clearings you fight in (the mound's is grassy),
+        // and dark leaf mould under the scrub either side
+        c.lerp(track, this.track.dirt(x, z));
+        c.lerp(mould, smoothstep(0.5, 3, this.track.depth(x, z)) * 0.85);
       } else if (zone === 1) {
         c.copy(lawn);
       } else if (zone === 2) {
@@ -164,9 +171,13 @@ export class World {
 
   addSway(mesh) { this.swayers.push({ m: mesh, ph: Math.random() * 6.28 }); }
 
+  /** is z in the bush (south of its fence)? There, off the track is all impassable scrub */
+  inBush(z) { return z > FENCES[0].z; }
+
   isFree(x, z, r = 0.5) {
     const b = this.bounds;
     if (x < b.xMin + r || x > b.xMax - r || z < b.zMin + r || z > b.zMax - r) return false;
+    if (this.inBush(z) && !this.track.inside(x, z, r)) return false;
     for (const c of this.colliders) if (Math.hypot(x - c.x, z - c.z) < c.r + r) return false;
     for (const s of this.segments) if (s.active && segDist(x, z, s) < s.r + r) return false;
     return true;
@@ -192,6 +203,8 @@ export class World {
     const b = this.bounds;
     const x = clamp(p.x, b.xMin + r, b.xMax - r), z = clamp(p.z, b.zMin + r, b.zMax - r);
     if (x !== p.x || z !== p.z) { p.x = x; p.z = z; hit = true; }
+    // (in the bush, nothing gets off the track into the scrub)
+    if (this.inBush(p.z) && this.track.clamp(p, r)) hit = true;
     return hit;
   }
 
@@ -221,7 +234,7 @@ export class World {
     return null;
   }
 
-  /** fraction (0..1) along a->b where a throw first hits a wall, or 1 if clear */
+  /** fraction (0..1) along a->b where a throw first hits a wall (or the bush's scrub), or 1 if clear */
   throwClear(ax, az, bx, bz) {
     let best = 1;
     for (const s of this.segments) {
@@ -229,21 +242,30 @@ export class World {
       const t = segIntersect(ax, az, bx, bz, s.ax, s.az, s.bx, s.bz);
       if (t !== null && t < best) best = t;
     }
-    return best;
+    return Math.min(best, this.track.exitAlong(ax, az, bx, bz, FENCES[0].z));
+  }
+
+  /** can something at a see as far as b? (in the bush, not through the scrub) */
+  canSee(ax, az, bx, bz) {
+    return !this.inBush(az) || !this.inBush(bz) || this.track.clearLine(ax, az, bx, bz);
   }
 
   /**
-   * Next point to walk to on the way from (fx,fz) to (tx,tz), going through gates
-   * between zones. Returns null if the way is still fenced off.
+   * Next point to walk to on the way from (fx,fz) to (tx,tz), going through gates between zones, and in
+   * the bush, along the track. Returns null if the way is still fenced off (or barricaded).
    */
   route(fx, fz, tx, tz, out) {
     const zf = this.zoneOf(fz), zt = this.zoneOf(tz);
-    if (zf === zt) return out.set(tx, 0, tz);
-    const dir = zt > zf ? 1 : -1; // +1 = heading north (-z)
-    const gate = this.gates[dir > 0 ? zf : zf - 1];
-    if (!gate.open) return null;
-    const nearGap = Math.abs(fx - gate.x) < gate.hw - 0.3 && Math.abs(fz - gate.z) < 1.6;
-    return nearGap ? out.set(gate.x, 0, gate.z - dir * 2.5) : out.set(gate.x, 0, gate.z + dir * 1.3);
+    if (zf !== zt) {
+      const dir = zt > zf ? 1 : -1; // +1 = heading north (-z)
+      const gate = this.gates[dir > 0 ? zf : zf - 1];
+      if (!gate.open) return null;
+      const nearGap = Math.abs(fx - gate.x) < gate.hw - 0.3 && Math.abs(fz - gate.z) < 1.6;
+      if (nearGap) return out.set(gate.x, 0, gate.z - dir * 2.5);
+      tx = gate.x;
+      tz = gate.z + dir * 1.3;
+    }
+    return zf === 0 ? this.track.route(fx, fz, tx, tz, out) : out.set(tx, 0, tz);
   }
 
   /** trees between the camera and the player go see-through so they never hide the action */

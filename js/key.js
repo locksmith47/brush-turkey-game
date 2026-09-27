@@ -8,6 +8,7 @@ import { part, merge, vcMesh, G, clamp, damp, dampAngle, TAU } from './util.js';
  */
 const GOLD = 0xf2c230, DARK = 0xc8961e;
 let GEO = null;
+const _t = new THREE.Vector3(), _w = new THREE.Vector3();
 
 function keyGeo() {
   if (GEO) return GEO;
@@ -67,11 +68,13 @@ export class Key extends Foe {
     const st = this.strength(), d = this.def;
     this.carrying = st >= d.weight;
     if (!this.carrying) return;
-    const tp = this.lockPoint(new THREE.Vector3());
-    const dx = tp.x - this.pos.x, dz = tp.z - this.pos.z, dist = Math.hypot(dx, dz);
+    const tp = this.lockPoint(_t);
+    const dist = Math.hypot(tp.x - this.pos.x, tp.z - this.pos.z);
     const speed = clamp(1.0 + 0.1 * (st - d.weight), 1.0, 2.4);
-    if (dist > 0.01) {
-      let ux = dx / dist, uz = dz / dist;
+    const wp = this.game.world.route(this.pos.x, this.pos.z, tp.x, tp.z, _w) ?? tp; // (in the bush, along the track)
+    const dx = wp.x - this.pos.x, dz = wp.z - this.pos.z, step = Math.hypot(dx, dz);
+    if (step > 0.01) {
+      let ux = dx / step, uz = dz / step;
       const clear = this.clearWay(ux, uz); // round rocks and trees rather than getting stuck on them
       if (clear) { ux = clear.x; uz = clear.z; }
       if (this.pos.z < -249) { // the King Crab's key: don't drag landlubbers through the rock pool
@@ -79,8 +82,8 @@ export class Key extends Foe {
         if (dry) { ux = dry.x; uz = dry.z; }
         else if (this.strength(true) < d.weight) return;
       }
-      this.pos.x += ux * Math.min(dist, speed * dt);
-      this.pos.z += uz * Math.min(dist, speed * dt);
+      this.pos.x += ux * Math.min(step, speed * dt);
+      this.pos.z += uz * Math.min(step, speed * dt);
       this.heading = dampAngle(this.heading, Math.atan2(ux, uz) - Math.PI / 2, 1.5, dt);
     }
     if (dist < 0.6) this.startUnlock();

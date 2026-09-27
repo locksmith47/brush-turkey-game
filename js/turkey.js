@@ -537,7 +537,8 @@ export class Turkey {
   findWork(near = 3.5) {
     const g = this.game;
     const zone = g.world.zoneOf(this.pos.z);
-    const reachable = (p) => this.canSwim || g.world.waterDepth(p.x, p.z) < 2;
+    // (not out in the deep for a landlubber, and not behind a barricade that's still up)
+    const reachable = (p) => (this.canSwim || g.world.waterDepth(p.x, p.z) < 2) && !!g.world.route(this.pos.x, this.pos.z, p.x, p.z, _d);
     const foe = g.enemies.nearestAlive(this.pos, near);
     if (foe && foe.zone === zone && reachable(foe.pos)) { this.attack(foe); return true; }
     // beach turkeys out in the water go looking much further afield
@@ -548,7 +549,7 @@ export class Turkey {
     const site = g.mounds.siteNear(this.pos, near + 2);
     if (site && g.world.zoneOf(site.pos.z) === zone && this.joinBuild(site)) return true;
     const grub = g.grubs.nearestFree(this.pos, 3);
-    if (grub && this.stage < 2) {
+    if (grub && this.stage < 2 && reachable(grub.pos)) {
       this.grub = grub;
       g.grubs.claim(grub, this);
       this.setState(S.EAT);
@@ -559,9 +560,12 @@ export class Turkey {
     const leaf = this.workCenter
       ? g.leaves.nearestFree(this.pos, 200, this.workCenter, WORK_R)
       : g.leaves.nearestFree(this.pos, 3.5);
-    if (leaf && g.world.zoneOf(leaf.pos.z) === zone && this.startRake(leaf)) {
-      this.workCenter ??= leaf.pos.clone();
-      return true;
+    if (leaf && g.world.zoneOf(leaf.pos.z) === zone) {
+      if (!reachable(leaf.pos)) leaf.snubT = g.time + SNUB_TIME; // (no way to it for now: leave it be)
+      else if (this.startRake(leaf)) {
+        this.workCenter ??= leaf.pos.clone();
+        return true;
+      }
     }
     // nothing to do? go and play (a swing, the Hills Hoist, a roost up a gum), or lie down for a sunbake
     if (this.state !== S.IDLE || this.sunT > 0) return false;

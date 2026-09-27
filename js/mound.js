@@ -463,6 +463,8 @@ export class Mound {
       tx = this.pos.x + Math.cos(a) * d; tz = this.pos.z + Math.sin(a) * d;
       if (w.isFree(tx, tz, 0.6) && !this.game.mounds.blocked(tx, tz, 0.6) && !w.waterDepth(tx, tz)) break;
     }
+    // (never into the scrub, where you couldn't get to it)
+    if (!w.isFree(tx, tz, 0.6)) { w.resolve(_v.set(tx, 0, tz), 0.6, this.game.mounds.colliders); tx = _v.x; tz = _v.z; }
     this.game.turkeys.launchChick(top, tx, tz, this.beach ? 'beach' : 'normal', back?.stage ?? 0, back?.hen);
     const converted = !!back;
     if (!converted) this.game.stats.hatched++;
@@ -523,7 +525,7 @@ export class Mounds {
       if (m.kind !== kind || m.building) continue;
       p.set(pos.x, 0, pos.z);
       let len = 0, ok = false;
-      for (let i = 0; i < 8; i++) {
+      for (let i = 0; i < 24; i++) { // (the way round the bush's track takes a fair few turns)
         if (!w.route(p.x, p.z, m.pos.x, m.pos.z, wp)) break;
         len += Math.hypot(wp.x - p.x, wp.z - p.z);
         if (wp.x === m.pos.x && wp.z === m.pos.z) { ok = true; break; }
@@ -554,7 +556,12 @@ export class Mounds {
   whyNot(x, z) {
     if (this.list.length >= 5) return 'You already have 5 mounds!';
     for (const m of this.list) if (Math.hypot(m.pos.x - x, m.pos.z - z) < 12) return 'Too close to another mound';
-    if (!this.game.world.isFree(x, z, 2.2)) return 'Not enough room here';
+    const w = this.game.world;
+    if (!w.isFree(x, z, 2.2)) return 'Not enough room here';
+    // (in the bush, only out in a clearing: a mound grows, and one on a path would end up blocking the way)
+    if (w.inBush(z) && !w.track.inside(x, z, 4.2)) return 'Not enough room here: find a clearing';
+    // (and never right up against a gate, where the key has to be carried)
+    for (const g of w.gates) if (Math.hypot(g.x - x, g.z - z) < 9) return 'Too close to the gate';
     // (the builders need room to stand round it, so nothing big can be in the way: keys, bins, carcasses...)
     for (const c of this.game.enemies.colliders) if (Math.hypot(c.x - x, c.z - z) < c.r + 2.6) return 'Something is in the way';
     return null;
