@@ -746,7 +746,7 @@ export class Turkey {
    * Returns true if it changed course; the new velocity is left in _d.
    */
   dodgeWater(vx, vz) {
-    if (this.canSwim || this.rescued > 0 || this.pos.z > -249) return false; // (no water north of Bondi)
+    if (this.canSwim || this.rescued > 0 || this.pos.z > -299) return false; // (no water north of Bondi)
     const w = this.game.world, sp = Math.hypot(vx, vz);
     const ux = vx / sp, uz = vz / sp, L = 0.3 + this.radius + sp * 0.1;
     if (w.waterDepth(this.pos.x + ux * L, this.pos.z + uz * L) < 2) return false;

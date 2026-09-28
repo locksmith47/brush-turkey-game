@@ -9,7 +9,7 @@ import { picketGeo } from './fences.js';
  * burrow on the left, or a snake on the right), onto the field past Big Kev for the key, and back out again.
  * Once you're on the field you can let yourself out of the near gate: a shortcut back.
  */
-const CX = 0, CZ = -212; // centre of the oval
+const CX = 0, CZ = -262; // centre of the oval
 const RX = 28, RZ = 24; // (the fence round the field: an ellipse)
 const SIDE = 0.2527; // (the gateways either side: half their width, as an angle round the fence (12 m across))
 const NEAR = Math.asin(4 / RX); // (and the gate at the near end: 8 m across)
@@ -19,8 +19,8 @@ export const FIELD_GATE = { a: [CX - 4, NEAR_Z], b: [CX + 4, NEAR_Z], latch: [0,
 // the lie of the land (see Track): all open ground, bar the fence (walls, with guides a way into each
 // gateway), with waypoints in the gateways and round the outside of the field
 export const FIELD = {
-  nodes: { gw: ell(Math.PI), ge: ell(0), gs: [CX, NEAR_Z], w: [-38, CZ], e: [38, CZ], sw: [-32, -182], se: [32, -182], nw: [-22, -244], ne: [22, -244] },
-  rooms: [{ rect: [-46, -250, 46, -170], nodes: ['gw', 'ge', 'gs', 'w', 'e', 'sw', 'se', 'nw', 'ne'] }],
+  nodes: { gw: ell(Math.PI), ge: ell(0), gs: [CX, NEAR_Z], w: [-38, CZ], e: [38, CZ], sw: [-32, -232], se: [32, -232], nw: [-22, -294], ne: [22, -294] },
+  rooms: [{ rect: [-46, -300, 46, -220], nodes: ['gw', 'ge', 'gs', 'w', 'e', 'sw', 'se', 'nw', 'ne'] }],
 };
 // the fence's three stretches, between the gateways: [from, to] (angles round it), and how far guides reach into the gateway at either end
 const ARCS = [
@@ -33,17 +33,17 @@ const ARCS = [
 // and cricket gear left lying about: the team's kit piled up by the fence round on the right, and bits and
 // pieces all over
 export const STUMPS = [[CX, CZ - 9.2], [CX, CZ + 9.2]];
-export const PLOVER_NESTS = [[-19, -203], [19, -203]];
+export const PLOVER_NESTS = [[-19, -253], [19, -253]];
 export const CRICKET_KIT = [
-  ['ball', -9, -181], ['cap', 9, -179], ['gloves', -41, -191], ['ball', -42, -224],
-  ['kitbag', 43, -209], ['cooler', 43, -215.5], ['bat', 39.5, -219], ['pads', 42.5, -222], ['helmet', 40, -224.5],
-  ['bat', 2.6, -201], ['helmet', -2.2, -201.8], ['pads', -2.5, -223.5], ['gloves', 2.8, -223], ['ball', 11, -197], ['ball', -13, -230],
-  ['cap', 9, -246], ['ball', -31, -237],
+  ['ball', -9, -231], ['cap', 9, -229], ['gloves', -41, -241], ['ball', -42, -274],
+  ['kitbag', 43, -259], ['cooler', 43, -265.5], ['bat', 39.5, -269], ['pads', 42.5, -272], ['helmet', 40, -274.5],
+  ['bat', 2.6, -251], ['helmet', -2.2, -251.8], ['pads', -2.5, -273.5], ['gloves', 2.8, -273], ['ball', 11, -247], ['ball', -13, -280],
+  ['cap', 9, -296], ['ball', -31, -287],
 ];
 // bins by Kev's shed and along the western fence (tip them over for what's inside): [kind, x, z, facing]
 export const OVAL_BINS = [
-  ['red', 31.6, -240.6, 0.3], ['yellow', 32.5, -241.1, 0.3], ['green', 40.5, -241.2, -0.4],
-  ['green', -44, -214.5, Math.PI / 2], ['red', -44, -216.1, Math.PI / 2],
+  ['red', 31.6, -290.6, 0.3], ['yellow', 32.5, -291.1, 0.3], ['green', 40.5, -291.2, -0.4],
+  ['green', -44, -264.5, Math.PI / 2], ['red', -44, -266.1, Math.PI / 2],
 ];
 
 function put(world, geo, x, z, rotY = 0, colliders = []) {
@@ -122,8 +122,8 @@ export function buildOval(world) {
     part(G.box(0.2, 0.8, 0.2), 0x9a9a9a, [-3, 0.4, 0]),
     part(G.box(0.2, 0.8, 0.2), 0x9a9a9a, [3, 0.4, 0]),
   ]);
-  put(world, screen, CX, -178, 0, [[-2.6, 0, 0.8], [0, 0, 0.8], [2.6, 0, 0.8]]);
-  put(world, screen, CX, -239.5, 0, [[-2.6, 0, 0.8], [0, 0, 0.8], [2.6, 0, 0.8]]);
+  put(world, screen, CX, -228, 0, [[-2.6, 0, 0.8], [0, 0, 0.8], [2.6, 0, 0.8]]);
+  put(world, screen, CX, -289.5, 0, [[-2.6, 0, 0.8], [0, 0, 0.8], [2.6, 0, 0.8]]);
 
   // grandstand along the east side, scoreboard to the west (outside the play area)
   const stand = [];
@@ -146,7 +146,7 @@ export function buildOval(world) {
   s.add(vcMesh(merge([part(G.box(0.4, 5, 0.4), 0x5a5a5a, [-54, 2.5, CZ - 9]), part(G.box(0.4, 5, 0.4), 0x5a5a5a, [-54, 2.5, CZ - 3])])));
 
   // autumn trees shedding red & gold leaves
-  for (const [x, z] of [[-40, -180], [40, -184], [-42, -228], [42, -226], [-24, -246], [40, -247], [-40, -204]]) {
+  for (const [x, z] of [[-40, -230], [40, -234], [-42, -278], [42, -276], [-24, -296], [40, -297], [-40, -254]]) {
     const h = rand(5, 6.5);
     const m = vcMesh(autumnTree(h));
     m.position.set(x, 0, z);
@@ -163,7 +163,7 @@ export function buildOval(world) {
     part(G.box(5.4, 0.15, 4.2), 0x6d6d6d, [0, 2.95, 0], [0.1, 0, 0]),
     part(G.box(2, 2.2, 0.06), 0x5d7a5a, [0.8, 1.1, 1.82]),
     part(G.box(0.9, 0.6, 0.06), 0x9fd0ee, [-1.4, 1.8, 1.82]),
-  ]), 36, -238, 0, [[-1.6, 0, 1.9], [1.6, 0, 1.9]]);
+  ]), 36, -288, 0, [[-1.6, 0, 1.9], [1.6, 0, 1.9]]);
   put(world, merge([
     part(G.box(1.1, 0.5, 1.8), 0xc0392b, [0, 0.55, 0]),
     part(G.box(0.6, 0.12, 0.5), 0x222222, [0, 0.9, -0.2]),
@@ -173,5 +173,5 @@ export function buildOval(world) {
     part(G.cyl(0.2, 0.2, 0.15, 12), 0x222222, [0.55, 0.2, 0.6], [0, 0, Math.PI / 2]),
     part(G.cyl(0.2, 0.2, 0.15, 12), 0x222222, [-0.55, 0.2, 0.6], [0, 0, Math.PI / 2]),
     part(G.cyl(0.03, 0.03, 0.5, 6), 0x333333, [0, 1.05, 0.35], [-0.5, 0, 0]),
-  ]), 30, -236, 0.4, [[0, 0, 1.1]]);
+  ]), 30, -286, 0.4, [[0, 0, 1.1]]);
 }

@@ -219,7 +219,7 @@ export class Key extends Foe {
       // (round rocks, trees and fences rather than getting stuck on them, bar the fence it's headed for)
       const clear = dist > d.carryR + 2.5 ? this.clearWay(ux, uz) : null;
       if (clear) { ux = clear.x; uz = clear.z; }
-      if (this.pos.z < -249) { // the King Crab's key: don't drag landlubbers through the rock pool
+      if (this.pos.z < -299) { // the King Crab's key: don't drag landlubbers through the rock pool
         const dry = this.dryWay(ux, uz);
         if (dry) { ux = dry.x; uz = dry.z; }
         else if (this.strength(true) < d.weight) return;

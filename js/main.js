@@ -17,11 +17,12 @@ import { Toys } from './toys.js';
 import { BeachItem, BeachFlag } from './items.js';
 import { Stumps, CricketGear } from './cricket.js';
 import { Bin } from './bin.js';
+import { BinBag } from './binbag.js';
 import { BUILD_CREW } from './mound.js';
 import { UMBRELLAS, FLAGS } from './props/beach.js';
 import { SUBURB_BINS, SIDE_GATE } from './props/suburb.js';
 import { HOME, START, TRACK, ARENAS, BUSH_BINS, BUSH_LITTER } from './props/bush.js';
-import { CITY_BINS, LANE_GATE } from './props/city.js';
+import { CITY_BINS, CITY_BAGS, ALLEY_IBISES, LANE_GATE, THRONE, onKingsWay } from './props/city.js';
 import { OVAL_BINS, FIELD_GATE, STUMPS, PLOVER_NESTS, CRICKET_KIT } from './props/oval.js';
 import { DevMenu } from './devmenu.js';
 import { clamp, damp, rand, smoothstep, lerp, TAU } from './util.js';
@@ -82,18 +83,20 @@ for (const a of ARENAS) {
   barricade[a.at] = b;
 }
 // the locals: ibises everywhere (one to most of the backyards, and up and down the city's street and back
-// alley), giants by the key in the backyards and down the alley, and the King on his skip-bin throne by the
-// way out, with the city's key round his neck
+// alley), giants by the key in the backyards and down the alley, a gang of them big and small picking over
+// the bins down the bin alley, and at the end of it the King, on his throne of bins in front of the way
+// out, with the city's key round his neck
 for (const [x, z] of [[4, -58], [-28, -52], [26, -78], [4, -90]]) enemies.spawn('ibis', x, z);
 enemies.spawn('giant', -30, -80);
 for (const [x, z] of [[-22, -108], [16, -110], [12, -133], [38, -133], [22, -153]]) enemies.spawn('ibis', x, z);
 enemies.spawn('giant', -32, -133);
-enemies.spawn('king', -6, -157);
+for (const [kind, x, z] of ALLEY_IBISES) enemies.spawn(kind, x, z, 2.5); // (they don't stray far from their bins)
+enemies.spawn('king', THRONE.x, THRONE.z + THRONE.front);
 // snakes lurking in the litter, funnel-webs in their burrows (one each side of the way round the oval), and
 // Big Kev on his oval, raking it with the oval's key (a key rake)
-for (const [x, z] of [[34, -60], [38, -200]]) enemies.spawn('snake', x, z);
-for (const [x, z] of [[-4, -79], [-37, -198]]) enemies.spawn('spider', x, z);
-enemies.spawn('keeper', 0, -214);
+for (const [x, z] of [[34, -60], [38, -250]]) enemies.spawn('snake', x, z);
+for (const [x, z] of [[-4, -79], [-37, -248]]) enemies.spawn('spider', x, z);
+enemies.spawn('keeper', 0, -264);
 // on the oval: a pair of plovers to each nest, swooping anything that comes near (a taste of Big Kev), the
 // stumps to dig up, and the cricket gear left lying about
 for (const [x, z] of PLOVER_NESTS) {
@@ -108,10 +111,12 @@ game.barriers.spawnKeys();
 // and a shortcut or two, latched on the far side: open once you've made it round
 for (const s of [SIDE_GATE, LANE_GATE, FIELD_GATE]) game.barriers.addSideGate(s.a, s.b, s.latch, s.kind);
 // wheelie bins to knock over: green ones spill garden clippings, red ones rubbish, yellow ones recycling
+// (and down the city's bin alley, bin bags to tear open)
 for (const [kind, x, z, face] of [...BUSH_BINS, ...SUBURB_BINS, ...CITY_BINS, ...OVAL_BINS]) {
-  const overflowing = kind === 'red' && z < -98 && z > -170; // city bins are always overflowing
+  const overflowing = kind === 'red' && z < -98 && z > -220; // city bins are always overflowing
   enemies.list.push(new Bin(game, kind, x, z, face, overflowing));
 }
+for (const [x, z] of CITY_BAGS) enemies.list.push(new BinBag(game, x, z));
 // the backyard playground (and the washing line, which is basically a merry-go-round)
 game.toys.addTrampoline(30, -84);
 game.toys.addSwingSet(-7, -43, 0);
@@ -120,19 +125,19 @@ game.toys.addHoist(-26, -46);
 for (const r of world.roosts) game.toys.addRoost(r);
 
 // Bondi: a beach mound to feed with stolen gear, crabs, and the King Crab in his rock pool
-mounds.add(-22, -266, false, 'beach');
-for (const [x, z] of [[-6, -272], [6, -290], [-16, -306], [8, -318], [22, -280]]) enemies.spawn('crab', x, z);
-enemies.spawn('kingcrab', -6, -339);
+mounds.add(-22, -316, false, 'beach');
+for (const [x, z] of [[-6, -322], [6, -340], [-16, -356], [8, -368], [22, -330]]) enemies.spawn('crab', x, z);
+enemies.spawn('kingcrab', -6, -389);
 const loot = [
-  ['towel', -14, -262], ['ball', -8, -266], ['spade', -4, -270], ['bucket', -3, -269], ['thong', -18, -270], ['thong', -17.5, -271],
-  ['sunscreen', -12, -281], ['towel', -22, -283], ['sunnies', -21, -286], ['hat', -26, -276], ['noodle', 2, -278], ['boogie', 6, -276],
-  ['esky', -10, -296], ['umbrella', -26, -296], ['towel', -4, -304], ['ball', 0, -310], ['spade', -20, -300], ['bucket', -12, -316],
-  ['towel', 4, -322], ['thong', -8, -312], ['sunnies', -24, -310], ['hat', -2, -296], ['boogie', 10, -304], ['surfboard', 8, -268],
-  ['noodle', -28, -322], ['sunscreen', -16, -326],
+  ['towel', -14, -312], ['ball', -8, -316], ['spade', -4, -320], ['bucket', -3, -319], ['thong', -18, -320], ['thong', -17.5, -321],
+  ['sunscreen', -12, -331], ['towel', -22, -333], ['sunnies', -21, -336], ['hat', -26, -326], ['noodle', 2, -328], ['boogie', 6, -326],
+  ['esky', -10, -346], ['umbrella', -26, -346], ['towel', -4, -354], ['ball', 0, -360], ['spade', -20, -350], ['bucket', -12, -366],
+  ['towel', 4, -372], ['thong', -8, -362], ['sunnies', -24, -360], ['hat', -2, -346], ['boogie', 10, -354], ['surfboard', 8, -318],
+  ['noodle', -28, -372], ['sunscreen', -16, -376],
   // beach chairs set up under the umbrellas
-  ['chair', -12, -267], ['chair', -18.2, -287.2], ['chair', -4.4, -304.2], ['chair', -22.4, -322], ['chair', 1.8, -320.2],
+  ['chair', -12, -317], ['chair', -18.2, -337.2], ['chair', -4.4, -354.2], ['chair', -22.4, -372], ['chair', 1.8, -370.2],
   // things you need a swimmer to fetch
-  ['surfboard', 33, -299], ['esky', 31, -302], ['ball', -2, -289], ['sunnies', -1.5, -288], ['towel', 12, -331],
+  ['surfboard', 33, -349], ['esky', 31, -352], ['ball', -2, -339], ['sunnies', -1.5, -338], ['towel', 12, -381],
 ];
 for (const [type, x, z] of loot) enemies.list.push(new BeachItem(game, type, x, z));
 // the lifesaving flags have to be dug out first; the umbrellas are bouncy
@@ -145,14 +150,16 @@ game.grubs.spawn(START.x + 4.5, START.z - 2);
 player.pos.set(START.x, world.groundHeight(START.x, START.z), START.z);
 
 /* ------------------------------------------------------------------ camera */
-const cam = { yaw: 0, dist: 12, zoom: 12, pitch: 0.74, tilt: 0, target: new THREE.Vector3(START.x, 1, START.z) };
+const cam = { yaw: 0, dist: 12, zoom: 12, pitch: 0.74, tilt: 0, ahead: 0, target: new THREE.Vector3(START.x, 1, START.z) };
 game.cam = cam;
 const MIN_DIST = 3.2, MAX_DIST = 30;
 function updateCamera(dt) {
   // zooming in swings the camera down towards eye level so you can see his face
   cam.dist = damp(cam.dist, cam.zoom, 10, dt);
   const close = 1 - smoothstep(MIN_DIST, 11, cam.dist);
-  cam.pitch = clamp((cam.dist > 11 ? 0.74 + (cam.dist - 11) * 0.012 : lerp(0.74, 0.1, close)) + cam.tilt, 0.04, 1.45);
+  // (down the bin alley and in the King's court, it looks further ahead: there he is, on his throne at the end)
+  cam.ahead = damp(cam.ahead, enemies.king?.alive && onKingsWay(player.pos.x, player.pos.z) ? -0.22 : 0, 1.5, dt);
+  cam.pitch = clamp((cam.dist > 11 ? 0.74 + (cam.dist - 11) * 0.012 : lerp(0.74, 0.1, close)) + cam.tilt + cam.ahead, 0.04, 1.45);
   cam.target.x = damp(cam.target.x, player.pos.x, 8, dt);
   cam.target.y = damp(cam.target.y, player.pos.y + lerp(0.8, 1.55, close), 8, dt);
   cam.target.z = damp(cam.target.z, player.pos.z, 8, dt);
@@ -350,7 +357,7 @@ function updateTips(dt) {
 }
 
 /* ------------------------------------------------------------------ dev menu (~) */
-const ZONE_SPAWN = [[START.x, START.z], [6, -44], [-8, -104], [-20, -176], [-16, -256], [-30, -356]];
+const ZONE_SPAWN = [[START.x, START.z], [6, -44], [-8, -104], [-20, -226], [-16, -306], [-30, -406]];
 new DevMenu(game, {
   goto(v) {
     const zi = +v;

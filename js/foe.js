@@ -280,7 +280,7 @@ export class Foe {
       let ux = dx / dist, uz = dz / dist;
       const clear = this.clearWay(ux, uz); // round rocks, trees and fences
       if (clear) { ux = clear.x; uz = clear.z; }
-      if (this.pos.z < -249) { // (there's only water at Bondi)
+      if (this.pos.z < -299) { // (there's only water at Bondi)
         const dry = this.dryWay(ux, uz);
         if (dry) { ux = dry.x; uz = dry.z; }
         else if (this.strength(true) < d.weight) return; // stuck at the water's edge unless the swimmers can manage alone

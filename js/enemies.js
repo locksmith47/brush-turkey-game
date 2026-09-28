@@ -15,16 +15,16 @@ export class Enemies {
     this._v = new THREE.Vector3();
   }
 
-  /** `nest`: for a plover, the [x, z] of the nest it guards */
-  spawn(kind, x, z, nest = null) {
+  /** `arg`: for a plover, the [x, z] of the nest it guards; for an ibis, how far it wanders from (x, z) */
+  spawn(kind, x, z, arg = null) {
     const g = this.game;
     const e = kind === 'snake' ? new Snake(g, x, z)
-      : kind === 'plover' ? new Plover(g, x, z, nest ?? [x, z])
+      : kind === 'plover' ? new Plover(g, x, z, arg ?? [x, z])
       : kind === 'spider' ? new Spider(g, x, z)
         : kind === 'keeper' ? new Keeper(g, x, z)
           : kind === 'crab' ? new Crab(g, 'crab', x, z)
             : kind === 'kingcrab' ? new Crab(g, 'king', x, z)
-              : new Ibis(g, kind, x, z);
+              : new Ibis(g, kind, x, z, arg);
     this.list.push(e);
     if (kind === 'king') this.king = e;
     if (kind === 'keeper') this.keeper = e;

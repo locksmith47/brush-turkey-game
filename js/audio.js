@@ -325,4 +325,29 @@ export class Audio {
     const f = 620 + speed * 60;
     this.tone({ freq: f, freq2: f * 1.25, dur: 0.2, vol: 0.045, type: 'sawtooth', vib: 30, vibHz: 40, attack: 0.03 });
   }
+
+  /** a bin bag splitting open */
+  rip() {
+    if (!this.ok('rip', 150)) return;
+    this.noise({ dur: 0.22, vol: 0.2, type: 'highpass', f1: 1800, f2: 4000, q: 0.8 });
+    this.noise({ dur: 0.12, vol: 0.1, type: 'bandpass', f1: 900, q: 2, delay: 0.05 });
+  }
+
+  /**
+   * An ibis honking (the King's is a deep one, `size` being how big it is); `blast`: a double honk, fit to
+   * shake the windows, with a rumble under it. `vol` scales it (for one heard from down the alley)
+   */
+  honk(size = 1, blast = false, vol = 1) {
+    if (!this.ok('honk', 250)) return;
+    const f = 560 / Math.sqrt(size);
+    for (const [delay, k] of blast ? [[0, 1], [0.3, 0.84]] : [[0, 1]]) {
+      this.tone({ freq: f * k * 1.1, freq2: f * k * 0.86, dur: blast ? 0.42 : 0.3, vol: 0.24 * vol, type: 'sawtooth', vib: f * 0.04, vibHz: 26, attack: 0.02, delay });
+      this.tone({ freq: f * k * 1.62, freq2: f * k * 1.3, dur: blast ? 0.38 : 0.26, vol: 0.1 * vol, type: 'square', attack: 0.02, delay });
+      this.noise({ dur: 0.26, vol: 0.09 * vol, type: 'bandpass', f1: f * 2.6, q: 3, delay });
+    }
+    if (blast) {
+      this.tone({ freq: 72, freq2: 38, dur: 1.2, vol: 0.34 * vol, type: 'sine', attack: 0.03, delay: 0.05 });
+      this.noise({ dur: 0.9, vol: 0.16 * vol, type: 'lowpass', f1: 400, f2: 120, attack: 0.05 });
+    }
+  }
 }

@@ -3,29 +3,29 @@ import { part, merge, vcMesh, vcMat, toonMat, G, limb, rand, pick, clamp, smooth
 import { building } from './city.js';
 
 /* ------------------------------------------------------------------ layout & water */
-export const Z0 = -250; // the beach starts here and runs north to the wharf
+export const Z0 = -300; // the beach starts here and runs north to the wharf
 export const SEA = -0.3;
 export const POOLS = [
-  { x: -6, z: -339, r: 7, floor: -1.25, level: -0.22 }, // the King Crab's rock pool
-  { x: -2, z: -289, r: 3.3, floor: -1.0, level: -0.2 }, // a tidal pool on the sand
-  { x: 12, z: -331, r: 2.6, floor: -0.9, level: -0.2 },
-  { x: -26, z: -334, r: 2.8, floor: -0.9, level: -0.2 },
+  { x: -6, z: -389, r: 7, floor: -1.25, level: -0.22 }, // the King Crab's rock pool
+  { x: -2, z: -339, r: 3.3, floor: -1.0, level: -0.2 }, // a tidal pool on the sand
+  { x: 12, z: -381, r: 2.6, floor: -0.9, level: -0.2 },
+  { x: -26, z: -384, r: 2.8, floor: -0.9, level: -0.2 },
 ];
-export const PUDDLES = [{ x: -12, z: -274, r: 2.2 }, { x: 4, z: -306, r: 1.8 }, { x: -18, z: -314, r: 2.4 }];
-export const SANDBAR = { x: 33, z: -300, r: 4 };
+export const PUDDLES = [{ x: -12, z: -324, r: 2.2 }, { x: 4, z: -356, r: 1.8 }, { x: -18, z: -364, r: 2.4 }];
+export const SANDBAR = { x: 33, z: -350, r: 4 };
 // water shallower than this is wading; deeper and turkeys have to swim
 const WADE = 0.02, DEEP = 0.25;
 const DRY = { depth: 0, level: 0 }, SEA_DEEP = { depth: 2, level: SEA, sea: true }, SEA_WADE = { depth: 1, level: SEA, sea: true };
 const PUDDLE_LEVEL = -0.06, PUDDLE = { depth: 1, level: PUDDLE_LEVEL };
 for (const p of POOLS) { p.deep = { depth: 2, level: p.level }; p.wade = { depth: 1, level: p.level }; }
 
-export function shoreX(z) { return 15 + 2.5 * Math.sin(z * 0.045); }
-const onWharf = (x, z) => z < -351 && x < 8;
+export function shoreX(z) { return 15 + 2.5 * Math.sin((z + 50) * 0.045); }
+const onWharf = (x, z) => z < -401 && x < 8;
 
 // beach umbrellas (bouncy!) and the red-and-yellow lifesaving flags (dig them out and steal them);
 // both are set up by main.js as toys / loot
-export const UMBRELLAS = [[-20, -285, 0xe84a8a, 0xffffff], [-6, -302, 0x1fb5c9, 0xffffff], [-24, -320, 0xffd21f, 0x3a6ff0], [0, -318, 0xff6b35, 0xffffff]];
-export const FLAGS = [-282, -314].map((z) => [shoreX(z) - 5, z]);
+export const UMBRELLAS = [[-20, -335, 0xe84a8a, 0xffffff], [-6, -352, 0x1fb5c9, 0xffffff], [-24, -370, 0xffd21f, 0x3a6ff0], [0, -368, 0xff6b35, 0xffffff]];
+export const FLAGS = [-332, -364].map((z) => [shoreX(z) - 5, z]);
 
 /** the swell on the open sea (the ocean mesh uses the same formula, so floaters ride the waves) */
 export function seaWave(x, z, t) { return 0.07 * Math.sin(x * 0.28 + t * 1.3) + 0.05 * Math.sin(z * 0.21 - t * 1.05); }
@@ -36,8 +36,8 @@ export function beachHeight(x, z) {
   const db = Math.hypot(x - SANDBAR.x, z - SANDBAR.z);
   if (db < SANDBAR.r + 3) h = lerp(0.08, h, smoothstep(SANDBAR.r - 1, SANDBAR.r + 3, db));
   h += 0.35 * (1 - smoothstep(-33.5, -31, x)); // promenade up on the west side
-  const rock = smoothstep(-324, -334, z); // rocky headland at the north end
-  if (rock > 0) h = lerp(h, Math.max(h, 0.1) + 0.25 + 0.2 * Math.sin(x * 0.55) * Math.cos(z * 0.7), rock * (x < sx + 2 ? 1 : 0.35));
+  const rock = smoothstep(-374, -384, z); // rocky headland at the north end
+  if (rock > 0) h = lerp(h, Math.max(h, 0.1) + 0.25 + 0.2 * Math.sin(x * 0.55) * Math.cos((z + 50) * 0.7), rock * (x < sx + 2 ? 1 : 0.35));
   for (const p of POOLS) {
     const d = Math.hypot(x - p.x, z - p.z);
     if (d < p.r + 0.5) h = Math.min(h, lerp(p.floor, h, smoothstep(p.r * 0.5, p.r + 0.5, d)));
@@ -51,7 +51,7 @@ export function beachHeight(x, z) {
 }
 
 /** the ground as the world sees it (the beach blends in from the Oval's fence) */
-export function beachGround(x, z) { return beachHeight(x, z) * smoothstep(-250, -253, z); }
+export function beachGround(x, z) { return beachHeight(x, z) * smoothstep(-300, -303, z); }
 
 /**
  * { depth: 0 dry | 1 wading | 2 deep, level: still-water height, sea?: true }
@@ -84,7 +84,7 @@ export function shoreDir(x, z, out) {
 }
 
 export function isSand(x, z) {
-  return z < Z0 - 2 && z > -348 && x > -31 && waterAt(x, z).depth === 0;
+  return z < Z0 - 2 && z > -398 && x > -31 && waterAt(x, z).depth === 0;
 }
 
 /* ------------------------------------------------------------------ building bits */
@@ -115,7 +115,7 @@ export function buildBeach(world) {
   const s = world.scene;
 
   // --- ground: finer than the main plane so pools and the shoreline look right
-  const g = new THREE.PlaneGeometry(260, 132, 260, 132).rotateX(-Math.PI / 2).translate(0, 0, -316);
+  const g = new THREE.PlaneGeometry(260, 132, 260, 132).rotateX(-Math.PI / 2).translate(0, 0, -366);
   const pos = g.attributes.position, col = new Float32Array(pos.count * 3), c = new THREE.Color();
   const C = {
     sand: new THREE.Color(0xecd9a4), sand2: new THREE.Color(0xe2cc92), wet: new THREE.Color(0xc9b27a), floor: new THREE.Color(0xb39c6a),
@@ -135,7 +135,7 @@ export function buildBeach(world) {
       c.copy(C.sand).lerp(C.sand2, n);
       c.lerp(C.wet, smoothstep(sx - 4, sx - 0.5, x));
       c.lerp(C.floor, smoothstep(sx, sx + 3, x));
-      const rock = smoothstep(-326, -336, z) * (x < sx + 2 ? 1 : 0.5);
+      const rock = smoothstep(-376, -386, z) * (x < sx + 2 ? 1 : 0.5);
       if (rock > 0) c.lerp(Math.sin(x * 2.1 + z * 1.7) > 0 ? C.rock : C.rock2, rock);
       if (h < -0.35 && x < sx) c.lerp(C.floor, 0.6); // pool floors
     }
@@ -148,7 +148,7 @@ export function buildBeach(world) {
   s.add(ground);
 
   // --- the ocean: gently heaving, with foam rolling in to the shore
-  const ocean = new THREE.PlaneGeometry(240, 170, 60, 42).rotateX(-Math.PI / 2).translate(128, SEA, -318);
+  const ocean = new THREE.PlaneGeometry(240, 170, 60, 42).rotateX(-Math.PI / 2).translate(128, SEA, -368);
   const oceanMesh = new THREE.Mesh(ocean, toonMat({ color: 0x1fa3c8, transparent: true, opacity: 0.8, depthWrite: false }));
   s.add(oceanMesh);
   const opos = ocean.attributes.position;
@@ -156,14 +156,14 @@ export function buildBeach(world) {
   const foams = [];
   for (let i = 0; i < 4; i++) {
     const f = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 130).rotateX(-Math.PI / 2), foamMat.clone());
-    f.position.set(0, SEA + 0.03, -316);
+    f.position.set(0, SEA + 0.03, -366);
     f.userData.t = i / 4;
     s.add(f);
     foams.push(f);
   }
   // a wash line that hugs the curvy shore
   const wash = [];
-  for (let z = Z0 - 2; z > -382; z -= 2) {
+  for (let z = Z0 - 2; z > -432; z -= 2) {
     const x0 = shoreX(z), x1 = shoreX(z - 2);
     wash.push(part(new THREE.PlaneGeometry(0.9, Math.hypot(2, x1 - x0) + 0.1).rotateX(-Math.PI / 2), 0xffffff, [x0 + 0.1, SEA + 0.04, z - 1], [0, -Math.atan2(x1 - x0, 2), 0]));
   }
@@ -192,8 +192,8 @@ export function buildBeach(world) {
   }
 
   // --- promenade: kerb, Norfolk pines, the Pavilion and the hills of apartments
-  s.add(vcMesh(merge([part(G.box(0.35, 0.3, 98), 0xbdb7aa, [-32.2, 0.15, -300])]), { cast: false, receive: true }));
-  for (const z of [-262, -282, -302, -322, -342]) {
+  s.add(vcMesh(merge([part(G.box(0.35, 0.3, 98), 0xbdb7aa, [-32.2, 0.15, -350])]), { cast: false, receive: true }));
+  for (const z of [-312, -332, -352, -372, -392]) {
     const h = rand(9, 11);
     const m = vcMesh(norfolkPine(h));
     m.position.set(-40, world.groundHeight(-40, z), z);
@@ -204,9 +204,9 @@ export function buildBeach(world) {
   }
   const pav = [part(G.box(12, 5, 60), 0xefe2c4, [0, 2.5, 0]), part(G.box(13, 0.6, 61), 0xb5523b, [0, 5.3, 0])];
   for (let z = -27; z <= 27; z += 4.5) pav.push(part(G.box(0.3, 3.2, 2.4), 0x6e5a48, [6.05, 1.6, z]));
-  put(world, merge(pav), -60, -300, 0, [], 0.3);
+  put(world, merge(pav), -60, -350, 0, [], 0.3);
   const cols = [0xf1d9c9, 0xcfe0e8, 0xefe6cf, 0xdce8cf, 0xe8d0e0, 0xffffff];
-  for (let z = -250; z > -380; z -= 12) {
+  for (let z = -300; z > -430; z -= 12) {
     for (let k = 0; k < 2; k++) {
       const h = rand(7, 16) + k * 6;
       const b = building(10, h, 10, pick(cols));
@@ -224,7 +224,7 @@ export function buildBeach(world) {
     part(G.cyl(0.03, 0.03, 1.6, 6), 0x999999, [1.1, 4.2, 1.1]),
     part(G.box(0.7, 0.45, 0.02), 0xd9453b, [1.45, 4.7, 1.1]),
     part(G.box(0.7, 0.22, 0.021), 0xffd21f, [1.45, 4.59, 1.1]),
-  ]), -4, -262, 0.3, [[0, 0, 1.4]]);
+  ]), -4, -312, 0.3, [[0, 0, 1.4]]);
   put(world, merge([
     part(G.cyl(0.6, 0.75, 0.6, 10), 0xdcc588, [0, 0.3, 0]),
     part(G.cyl(0.22, 0.25, 0.9, 8), 0xdcc588, [0.45, 0.45, 0.2]),
@@ -232,15 +232,15 @@ export function buildBeach(world) {
     part(G.cyl(0.2, 0.22, 0.75, 8), 0xdcc588, [-0.4, 0.4, -0.2]),
     part(G.cone(0.22, 0.28, 8), 0xd2b87a, [-0.4, 0.92, -0.2]),
     part(G.box(0.02, 0.18, 0.28), 0xd9453b, [0.45, 1.35, 0.2]),
-  ]), -14, -294, 0, [[0, 0, 0.9]]);
+  ]), -14, -344, 0, [[0, 0, 0.9]]);
   for (let i = 0; i < 6; i++) {
-    const x = rand(-20, 30), z = rand(-338, -330);
+    const x = rand(-20, 30), z = rand(-388, -380);
     if (!world.isFree(x, z, 1.5) || waterAt(x, z).depth) continue;
     put(world, part(G.dodec(rand(0.8, 1.3)), 0x86837c, [0, 0.2, 0], [rand(0, 3), rand(0, 3), 0], [1.3, 0.7, 1]), x, z, 0, [[0, 0, 1.1]]);
   }
 
   // --- the wharf beyond the last gate: ferries to Circular Quay... coming soon
-  for (let x = -44; x < 8; x += 3) put(world, part(G.cyl(0.2, 0.2, 2.2, 8), 0x5a4632, [0, -0.6, 0]), x, -366, 0, [], 0.4);
+  for (let x = -44; x < 8; x += 3) put(world, part(G.cyl(0.2, 0.2, 2.2, 8), 0x5a4632, [0, -0.6, 0]), x, -416, 0, [], 0.4);
   const sign = canvasTexture(512, 256, (c2, w, h) => {
     c2.fillStyle = '#1d5f3a'; c2.fillRect(0, 0, w, h);
     c2.strokeStyle = '#fff'; c2.lineWidth = 10; c2.strokeRect(12, 12, w - 24, h - 24);
@@ -250,9 +250,9 @@ export function buildBeach(world) {
     c2.fillStyle = '#ffd21f'; c2.font = 'bold 40px sans-serif'; c2.fillText('COMING SOON', w / 2, 210);
   });
   const board = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 1.7), toonMat({ map: sign, side: THREE.DoubleSide }));
-  board.position.set(-20, 2.7, -357);
+  board.position.set(-20, 2.7, -407);
   s.add(board);
-  put(world, merge([part(G.box(0.15, 2.2, 0.15), 0x5a4632, [-1.5, 1.1, 0]), part(G.box(0.15, 2.2, 0.15), 0x5a4632, [1.5, 1.1, 0])]), -20, -357.1, 0, [[-1.5, 0, 0.2], [1.5, 0, 0.2]], 0.4);
+  put(world, merge([part(G.box(0.15, 2.2, 0.15), 0x5a4632, [-1.5, 1.1, 0]), part(G.box(0.15, 2.2, 0.15), 0x5a4632, [1.5, 1.1, 0])]), -20, -407.1, 0, [[-1.5, 0, 0.2], [1.5, 0, 0.2]], 0.4);
   const ferry = put(world, merge([
     part(G.box(5, 1.4, 15), 0x1d6b3a, [0, 0.4, 0]),
     part(G.box(4.6, 1.3, 11), 0xf3e9cf, [0, 1.7, 0]),
@@ -260,7 +260,7 @@ export function buildBeach(world) {
     part(G.box(3.2, 1.0, 4), 0xf3e9cf, [0, 3.0, 0]),
     part(G.cyl(0.45, 0.5, 1.6, 12), 0xffd21f, [0, 4.1, 0]),
     ...Array.from({ length: 8 }, (_, i) => part(G.box(0.05, 0.6, 0.9), 0x2c3e55, [2.31, 1.8, -4.5 + i * 1.3])),
-  ]), 32, -358, 0.05, [], SEA);
+  ]), 32, -408, 0.05, [], SEA);
   ferry.userData.bob = true;
 
   // --- animation: swell, foam rolling in, glinting pools
