@@ -57,6 +57,8 @@ export class Foe {
   onDamage() {}
   onDeath() {}
   onLatched() {}
+  /** turkey t is at whatever this is guarding: come and have a go (if it's not busy already) */
+  alert() {}
 
   /* ---------------------------------------------------------------- clinging */
   canLatch() { return this.targetable && this.latched.length < (this.def.maxLatch ?? 8); }
