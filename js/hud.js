@@ -1,8 +1,10 @@
+import { MAX_HP } from './player.js';
+
 export class HUD {
   constructor(game) {
     this.game = game;
     this.el = {};
-    for (const id of ['hud', 'help', 'toast', 'c-squad', 'c-field', 'c-sprouts', 'c-s0', 'c-s1', 'c-s2', 'throw-name', 'c-leaves', 'c-hatched', 'c-mounds', 'c-lost', 'boss', 'boss-name', 'boss-hp', 'boss-lag', 'banner', 'banner-text', 'zone-title', 'zone-name', 'boss-grip', 'boss-grip-fill', 'boss-grip-time', 'c-beach', 'tk-normal', 'tk-beach', 'throw-type', 'throw-kind', 'c-beach-box', 'help-tab', 'c-kit', 'c-kit-box', 'saved']) {
+    for (const id of ['health', 'hp-fill', 'hp-lag', 'hurt', 'hud', 'help', 'toast', 'c-squad', 'c-field', 'c-sprouts', 'c-s0', 'c-s1', 'c-s2', 'throw-name', 'c-leaves', 'c-hatched', 'c-mounds', 'c-lost', 'boss', 'boss-name', 'boss-hp', 'boss-lag', 'banner', 'banner-text', 'zone-title', 'zone-name', 'boss-grip', 'boss-grip-fill', 'boss-grip-time', 'c-beach', 'tk-normal', 'tk-beach', 'throw-type', 'throw-kind', 'c-beach-box', 'help-tab', 'c-kit', 'c-kit-box', 'saved']) {
       this.el[id] = document.getElementById(id);
     }
     this.toastT = 0;
@@ -11,6 +13,7 @@ export class HUD {
     this.bossShown = false;
     this.tick = 0;
     this.cache = {};
+    this.hurtK = 0; // (the red round the edges of the screen, flashing up when you're hurt)
   }
 
   show() { this.el.hud.classList.remove('hidden'); }
@@ -23,6 +26,12 @@ export class HUD {
     this.toastT = secs;
   }
 
+  /** whatever it was saying, it's gone (you've gone down: it'll only be in the way) */
+  clearToast() {
+    this.toastT = 0;
+    this.el.toast.classList.remove('show');
+  }
+
   /** a toast that won't repeat itself for a while */
   toastOnce(key, msg, secs = 3, every = 15) {
     this.onceT ??= {};
@@ -31,6 +40,9 @@ export class HUD {
     this.onceT[key] = now;
     this.toast(msg, secs);
   }
+
+  /** you've been hurt (`k`: how badly, as a share of your health): the edges of the screen flash red */
+  hurt(k) { this.hurtK = Math.min(1, this.hurtK + 0.45 + k * 2); }
 
   /** a little note in the corner that your progress has just been saved */
   saved() {
@@ -106,10 +118,24 @@ export class HUD {
       this.savedT -= dt;
       if (this.savedT <= 0) this.el.saved.classList.remove('show');
     }
+    // the red round the edges: a flash when you're hurt, and a slow throb while you're in a bad way
+    const p = this.game.player, hp = Math.max(0, p.hp) / MAX_HP;
+    this.hurtK = Math.max(0, this.hurtK - dt * 1.8);
+    const low = p.life === 'ok' && hp < 0.3 ? ((0.3 - hp) / 0.3) * 0.35 + 0.3 + Math.sin(this.game.time * 6.6) * 0.12 : 0;
+    const red = Math.round(Math.max(this.hurtK, low) * 100) / 100;
+    if (red !== this.cache.red) { this.cache.red = red; this.el.hurt.style.opacity = red; }
     this.tick -= dt;
     if (this.tick > 0) return;
     this.tick = 0.1;
     const g = this.game, c = g.turkeys.counts;
+    // your health (a pale chunk hangs on for a moment where you've just lost some)
+    const pct = (hp * 100).toFixed(1) + '%';
+    if (this.cache.hp !== pct) {
+      this.cache.hp = pct;
+      this.el['hp-fill'].style.width = pct;
+      this.el['hp-lag'].style.width = pct;
+    }
+    this.setClass('health', hp > 0.5 ? '' : hp > 0.25 ? 'mid' : 'low');
     this.set('c-squad', c.squad);
     this.set('c-field', c.field);
     this.set('c-sprouts', c.sprouts);

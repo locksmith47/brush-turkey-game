@@ -167,6 +167,49 @@ export class Audio {
     if (!this.ok('nope', 250)) return;
     this.tone({ freq: 180, freq2: 140, dur: 0.18, vol: 0.14, type: 'square' });
   }
+  /* ---------------------------------------------------------------- you: hurt, down and dug out */
+  /** a grunt when something gets you (a bigger one when it's the last straw) */
+  oof(last = false) {
+    if (!this.ok('oof', 120)) return;
+    const f = last ? 150 : 190 + Math.random() * 40;
+    this.tone({ freq: f, freq2: f * 0.6, dur: last ? 0.45 : 0.2, vol: 0.28, type: 'sawtooth', vib: 12, vibHz: 30 });
+    this.tone({ freq: f * 2.1, freq2: f * 1.2, dur: last ? 0.35 : 0.16, vol: 0.07, type: 'square' });
+    this.noise({ dur: 0.12, vol: 0.2, type: 'bandpass', f1: 900, q: 1.5 });
+  }
+
+  /** hitting the deck, flat on your back */
+  thud() {
+    if (!this.ctx) return;
+    this.tone({ freq: 110, freq2: 45, dur: 0.35, vol: 0.4 });
+    this.noise({ dur: 0.25, vol: 0.25, type: 'lowpass', f1: 600, f2: 120 });
+  }
+
+  /** WASTED: a swell of noise rushing in, then a deep boom (and a long low drone after) as the word comes up */
+  wasted() {
+    if (!this.ctx) return;
+    this.noise({ dur: 1.1, vol: 0.2, type: 'lowpass', f1: 250, f2: 1600, attack: 0.9 });
+    this.tone({ freq: 68, freq2: 30, dur: 2.4, vol: 0.5, delay: 0.95 });
+    this.noise({ dur: 1.6, vol: 0.3, type: 'lowpass', f1: 1000, f2: 80, delay: 0.95 });
+    this.tone({ freq: 196, freq2: 98, dur: 2.2, vol: 0.09, type: 'triangle', delay: 0.95, attack: 0.05 });
+    this.tone({ freq: 233, freq2: 116, dur: 2.2, vol: 0.06, type: 'triangle', delay: 0.95, attack: 0.05 });
+  }
+
+  /** your heart going, when you're in a bad way */
+  heartbeat() {
+    if (!this.ok('heart', 400)) return;
+    this.tone({ freq: 70, freq2: 42, dur: 0.14, vol: 0.34 });
+    this.noise({ dur: 0.07, vol: 0.08, type: 'lowpass', f1: 240 });
+    this.tone({ freq: 62, freq2: 40, dur: 0.14, vol: 0.24, delay: 0.2 });
+  }
+
+  /** out of the mound you pop: ta-da */
+  tada() {
+    if (!this.ctx) return;
+    [523, 659, 784, 1046].forEach((f, i) => {
+      this.tone({ freq: f, dur: i === 3 ? 0.5 : 0.14, vol: 0.12, type: 'square', delay: 0.05 + i * 0.08 });
+      this.tone({ freq: f / 2, dur: i === 3 ? 0.5 : 0.14, vol: 0.08, type: 'triangle', delay: 0.05 + i * 0.08 });
+    });
+  }
   /* ---------------------------------------------------------------- combat */
   peck() {
     if (!this.ok('peck', 70)) return;

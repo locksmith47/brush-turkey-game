@@ -118,16 +118,29 @@ export class Foe {
   }
 
   /* ---------------------------------------------------------------- AI helpers */
+  /** the nearest turkey on the ground within range of `from`, in plain sight and not too far from home: or you */
   findTarget(range = this.def.aggro ?? 6, from = this.pos) {
     const w = this.game.world, leash = (this.def.leash ?? 8) * 2;
     let best = null, bd = range;
-    for (const t of this.game.turkeys.list) {
-      if (!t.grounded || t.dead || w.zoneOf(t.pos.z) !== this.zone) continue;
+    const consider = (t) => {
+      if (!t.grounded || t.dead || w.zoneOf(t.pos.z) !== this.zone) return;
       const d = Math.hypot(t.pos.x - from.x, t.pos.z - from.z);
-      if (d >= bd || Math.hypot(t.pos.x - this.home.x, t.pos.z - this.home.z) >= leash) continue;
+      if (d >= bd || Math.hypot(t.pos.x - this.home.x, t.pos.z - this.home.z) >= leash) return;
       if (w.canSee(from.x, from.z, t.pos.x, t.pos.z)) { bd = d; best = t; } // (not through the scrub)
-    }
+    };
+    for (const t of this.game.turkeys.list) consider(t);
+    consider(this.game.player); // (you're fair game too, when you're up and about: whoever's nearest cops it)
     return best;
+  }
+
+  /**
+   * An attack landing within r of p gets you too, if you're in it: `amount` off your health, and knocked back
+   * away from `from` (this, by default). `opts`: { knock, stun } (see Player.hurt). True if it hurt you
+   */
+  hurtPlayer(p, r, amount, opts, from = this.pos) {
+    const pl = this.game.player;
+    if (Math.hypot(pl.pos.x - p.x, pl.pos.z - p.z) >= r + pl.radius) return false;
+    return pl.hurt(amount, from, opts);
   }
 
   turkeysNear(p, r) {

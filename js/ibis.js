@@ -6,11 +6,11 @@ import { part, merge, vcMesh, G, rand, damp, dampAngle, angleDiff, clamp, canvas
 
 const COMMON = { bodyY: 0.8, labelY: 1.35, carcassLabelY: 0.7 };
 export const IBIS_KINDS = {
-  ibis: { ...COMMON, name: 'Ibis', scale: 1.0, hp: 14, speed: 2.4, aggro: 7, leash: 7, reach: 0.8, peckR: 0.6, kills: 1, stompR: 0, radius: 0.35, maxLatch: 6, shakeAt: 4, shakeEvery: 5, value: 12, weight: 3, carryR: 0.75, slots: 8, cooldown: 1.6 },
-  big: { ...COMMON, name: 'Big Ibis', scale: 1.8, hp: 50, speed: 2.3, aggro: 8, leash: 7, reach: 1.35, peckR: 0.75, kills: 1, stompR: 1.1, radius: 0.62, maxLatch: 10, shakeAt: 6, shakeEvery: 5.5, value: 22, weight: 6, carryR: 1.3, slots: 12, cooldown: 1.7 },
-  giant: { ...COMMON, name: 'Giant Ibis', scale: 2.7, hp: 140, speed: 2.2, aggro: 10, leash: 9, reach: 2.0, peckR: 0.95, kills: 1, stompR: 1.8, radius: 0.95, maxLatch: 14, shakeAt: 8, shakeEvery: 6, value: 38, weight: 10, carryR: 1.9, slots: 16, cooldown: 1.9 },
+  ibis: { ...COMMON, name: 'Ibis', scale: 1.0, hp: 14, speed: 2.4, aggro: 7, leash: 7, reach: 0.8, peckR: 0.6, kills: 1, hurt: 10, stompR: 0, radius: 0.35, maxLatch: 6, shakeAt: 4, shakeEvery: 5, value: 12, weight: 3, carryR: 0.75, slots: 8, cooldown: 1.6 },
+  big: { ...COMMON, name: 'Big Ibis', scale: 1.8, hp: 50, speed: 2.3, aggro: 8, leash: 7, reach: 1.35, peckR: 0.75, kills: 1, hurt: 14, stompR: 1.1, radius: 0.62, maxLatch: 10, shakeAt: 6, shakeEvery: 5.5, value: 22, weight: 6, carryR: 1.3, slots: 12, cooldown: 1.7 },
+  giant: { ...COMMON, name: 'Giant Ibis', scale: 2.7, hp: 140, speed: 2.2, aggro: 10, leash: 9, reach: 2.0, peckR: 0.95, kills: 1, hurt: 18, stompR: 1.8, radius: 0.95, maxLatch: 14, shakeAt: 8, shakeEvery: 6, value: 38, weight: 10, carryR: 1.9, slots: 16, cooldown: 1.9 },
   king: {
-    ...COMMON, name: 'King Ibis', boss: true, scale: 4.2, hp: 520, speed: 2.0, aggro: 15, leash: 10, reach: 3.1, peckR: 1.3, kills: 2, stompR: 2.7, radius: 1.45,
+    ...COMMON, name: 'King Ibis', boss: true, scale: 4.2, hp: 520, speed: 2.0, aggro: 15, leash: 10, reach: 3.1, peckR: 1.3, kills: 2, hurt: 24, stompR: 2.7, radius: 1.45,
     maxLatch: 24, shakeAt: 10, shakeEvery: 4.5, value: 90, weight: 20, carryR: 2.8, slots: 28, cooldown: 1.5,
     grabR: 2.0, grabMax: 5, gripHP: 45, holdTime: 4.5, grabEvery: 9,
     // on his throne, he gets up for turkeys this close (or for anyone having a go at him); his honk blows
@@ -157,6 +157,7 @@ export class Ibis extends Foe {
     g.fx.dust(this.pos, 14);
     this.shakeOff();
     for (const t of this.turkeysNear(this.pos, d.honkR)) t.blastAway(this.pos, d.honkR + rand(1, 2.5), 2.4);
+    this.hurtPlayer(this.pos, d.honkR, 10, { knock: 12, stun: 0.6 }); // (and you, if you're that close)
   }
 
   /* ---------------------------------------------------------------- body */
@@ -333,6 +334,7 @@ export class Ibis extends Foe {
         if (this.t >= PECK_T && !this.struck) {
           this.struck = true;
           if (this.killNear(this.aimAt, d.peckR, d.kills, 'peck')) g.audio.squawk(this.s);
+          this.hurtPlayer(this.aimAt, d.peckR, d.hurt);
           g.fx.dust(this.aimAt, 3 + Math.round(this.s));
         }
         if (this.t >= PECK_T + 0.4) this.backToChase(d.cooldown);
@@ -349,6 +351,7 @@ export class Ibis extends Foe {
             else t.blastAway(foot, d.stompR + rand(2.5, 4), 2.2);
             squash = !squash;
           }
+          this.hurtPlayer(foot, d.stompR, d.hurt * 1.4, { knock: 7, stun: 0.45 });
           g.fx.ring(foot, 0xfff3c4, d.stompR * 1.3, 0.5);
           g.fx.dust(foot, 10);
           g.audio.stomp(this.s);
@@ -364,6 +367,7 @@ export class Ibis extends Foe {
           const sp = this.aimAt;
           g.fx.dust(sp, 10);
           this.turkeysNear(sp, d.grabR).slice(0, d.grabMax).forEach((t, i) => { t.grabbedBy(this, i); this.held.push(t); });
+          this.hurtPlayer(sp, d.grabR, d.hurt * 0.8, { knock: 5, stun: 0.3 }); // (you're too big for his beak: a nip)
           if (this.held.length) {
             this.state = 'hold';
             this.t = 0;

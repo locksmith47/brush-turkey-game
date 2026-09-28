@@ -23,7 +23,13 @@ export class DevMenu {
         <button data-a="unlockAll">Unlock all gates</button>
         <button data-a="killNearby">Clear nearby foes</button>
         <button data-a="hatch">Hatch nearest mound</button>
-        <button data-a="invincible" class="toggle">Invincible turkeys: off</button>
+        <button data-a="invincible" class="toggle">Invincible: off</button>
+      </div>
+      <div class="dev-lbl">You</div>
+      <div class="dev-row">
+        <button data-a="hurtMe">Hurt me (25)</button>
+        <button data-a="healMe">Heal me</button>
+        <button data-a="wasteMe">Get wasted</button>
       </div>
       <div class="dev-lbl">Saved game</div>
       <div class="dev-row">
@@ -34,7 +40,7 @@ export class DevMenu {
       const b = e.target.closest('button');
       if (!b) return;
       const res = actions[b.dataset.a]?.(b.dataset.v);
-      if (b.dataset.a === 'invincible') b.textContent = `Invincible turkeys: ${res ? 'on' : 'off'}`;
+      if (b.dataset.a === 'invincible') b.textContent = `Invincible: ${res ? 'on' : 'off'}`;
       b.blur();
     });
     document.body.appendChild(el);

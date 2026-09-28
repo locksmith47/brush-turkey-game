@@ -52,9 +52,17 @@ export class Cursor {
     this.t = 0;
   }
 
-  update(dt, target, whistle, camera) {
+  /** `show`: false while you're down (or being dug out), when there's nothing to aim */
+  update(dt, target, whistle, camera, show = true) {
     const g = this.game;
     this.t += dt;
+    this.reticle.visible = show;
+    if (!show) {
+      this.dots.count = 0;
+      this.marker.visible = this.whistleMesh.visible = false;
+      if (this.prompt.style.display !== 'none') this.prompt.style.display = 'none';
+      return;
+    }
     this.reticle.position.set(target.x, target.y + 0.06, target.z);
     this.reticle.rotation.y += dt * 1.5;
     const pulse = 1 + Math.sin(this.t * 6) * 0.06;

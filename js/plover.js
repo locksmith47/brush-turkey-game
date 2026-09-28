@@ -13,7 +13,7 @@ import { part, merge, vcMesh, G, limb, rand, damp, dampAngle, TAU } from './util
 const DEF = {
   name: 'Plover', hp: 16, scale: 1.15, radius: 0.26, bodyY: 0.42, labelY: 0.8, carcassLabelY: 0.45, dieTime: 0.6,
   alarmR: 9.5, maxLatch: 5, shakeAt: 3, shakeEvery: 3, value: 8, weight: 2, carryR: 0.55, slots: 6,
-  swoopR: 0.8, speed: 3.4,
+  swoopR: 0.8, speed: 3.4, hurt: 10,
 };
 const ALT = 3.2; // how high it gets before a dive
 // a swoop: sounding off, taking off, lining up (the spot's marked from here on), the dive, climbing away, landing
@@ -326,9 +326,7 @@ export class Plover extends Foe {
     const g = this.game, d = this.def, s = this.strike;
     const hit = this.turkeysNear(s, d.swoopR)[0];
     if (hit) { hit.die('swoop'); g.audio.squawk(0.5); }
-    const p = g.player;
-    if (Math.hypot(p.pos.x - s.x, p.pos.z - s.z) < d.swoopR + p.radius + 0.2) {
-      p.knock(_v.set(s.x - this.dir.x, 0, s.z - this.dir.z), 6);
+    if (this.hurtPlayer(s, d.swoopR + 0.2, d.hurt, { knock: 6, stun: 0.5 }, _v.set(s.x - this.dir.x, 0, s.z - this.dir.z))) {
       g.hud.toastOnce('plover-you', 'Swooped! Plovers go for your head too', 2.5, 60);
     }
     g.fx.dust(s, 5);

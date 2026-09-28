@@ -12,7 +12,7 @@ import { part, merge, vcMesh, G, tint, rand, clamp, damp, dampAngle, TAU } from 
 const DEF = {
   name: 'Black Snake', hp: 34, scale: 1, radius: 0.28, bodyY: 0.12, labelY: 0.9, carcassLabelY: 0.6,
   aggro: 6.5, leash: 7, maxLatch: 6, shakeAt: 3, shakeEvery: 4, value: 18, weight: 3, carryR: 0.9, slots: 8,
-  strikeLen: 2.6, digestTime: 6.5, whirlR: 3.4,
+  strikeLen: 2.6, digestTime: 6.5, whirlR: 3.4, bite: 25,
 };
 const N = 16, SPACING = 0.29;
 const BODY_LEN = N * SPACING + 0.6; // how much trail the head has to leave for the body to lie along
@@ -214,6 +214,11 @@ export class Snake extends Foe {
           this.t = 0;
           g.audio.gulp();
           g.hud.toast('A snake swallowed a turkey! Quick, beat it before it digests!', 3);
+        } else if (this.hurtPlayer(this.pos, 0.45, d.bite, { knock: 4, stun: 0.35 })) {
+          // (you're a bit big to swallow: a venomous bite will have to do)
+          this.state = 'recover';
+          this.t = 0;
+          g.audio.hiss();
         } else if (k >= 1) { this.state = 'recover'; this.t = 0; }
         break;
       }

@@ -11,7 +11,7 @@ import { part, merge, vcMesh, G, limb, rand, pick, damp, dampAngle, canvasTextur
 const DEF = {
   name: 'Funnel-web', hp: 45, scale: 1.4, radius: 0.75, bodyY: 0.34, labelY: 0.95, carcassLabelY: 0.6,
   aggro: 4.8, leash: 8, maxLatch: 8, shakeAt: 5, shakeEvery: 4, value: 27, weight: 4, carryR: 1.3, slots: 10,
-  webR: 4.8, reach: 1.5, biteR: 1.05, kills: 2,
+  webR: 4.8, reach: 1.5, biteR: 1.05, kills: 2, bite: 30,
 };
 const BLACK = 0x17161c, SHINE = 0x2c2a36;
 const _v = new THREE.Vector3();
@@ -290,6 +290,7 @@ export class Spider extends Foe {
           this.struck = true;
           const p = this.forward(_v).multiplyScalar(0.6 * this.s).add(this.pos);
           this.killNear(p, d.biteR, d.kills, 'bite');
+          this.hurtPlayer(p, d.biteR, d.bite, { knock: 4, stun: 0.4 });
           g.fx.dust(p, 4);
         }
         if (this.t >= 0.6) { this.state = 'rush'; this.cool = this.enraged ? 0.7 : 1.2; this.t = 0; }

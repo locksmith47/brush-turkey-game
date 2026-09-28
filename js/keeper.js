@@ -16,6 +16,7 @@ import { part, merge, vcMesh, G, limb, rand, randInt, pick, damp, dampAngle, ang
 const DEF = {
   name: 'Big Kev, Keeper of the Oval', boss: true, hp: 700, scale: 2.7, radius: 1.0, bodyY: 1.2, labelY: 2.1,
   aggro: 11, leash: 16, maxLatch: 20, shakeAt: 9, shakeEvery: 5, spinR: 6.2, sweepR: 1.6, speed: 2.4, dieTime: 1.2,
+  slam: 30, spinHurt: 22, // (what the rake does to you: slammed down on you, or swung round into you)
 };
 const SKIN = 0xe9a27f, VIS = 0xff7a1a, SILVER = 0xdfe3e6, KHAKI = 0xb89b6a, HAT = 0x7a5a3a;
 const SWEEP_T = 1.0; // the rake slam's wind-up (a red circle marks where it'll land)
@@ -313,7 +314,10 @@ export class Keeper extends Foe {
         const dx = tg.pos.x - this.pos.x, dz = tg.pos.z - this.pos.z, dist = Math.hypot(dx, dz) || 1;
         const want = 5.0;
         this.walk(tg.pos.x - (dx / dist) * want, tg.pos.z - (dz / dist) * want, d.speed, dt, 0.3, 3);
-        this.heading = dampAngle(this.heading, Math.atan2(dx, dz), 3, dt);
+        // (squaring up so the rake, not his nose, is lined up on it: he holds it out to his right)
+        this.rakeHead(_v);
+        const lean = angleDiff(this.heading, Math.atan2(_v.x - this.pos.x, _v.z - this.pos.z));
+        this.heading = dampAngle(this.heading, Math.atan2(dx, dz) - lean, 3, dt);
         if (this.cool <= 0 && Math.abs(dist - want) < 1.8) {
           this.state = 'sweep';
           this.t = 0;
@@ -334,6 +338,7 @@ export class Keeper extends Foe {
             else t.blastAway(p, d.sweepR + rand(2.5, 4.5), 2.6);
             squash = !squash;
           }
+          this.hurtPlayer(p, d.sweepR, d.slam, { knock: 9, stun: 0.5 });
           g.fx.dust(p, 12);
           g.fx.leafBits(p, 10);
           g.fx.ring(p, 0xfff3c4, d.sweepR * 1.4, 0.4);
@@ -360,7 +365,7 @@ export class Keeper extends Foe {
         const p = g.player;
         if (!this.knocked && Math.hypot(p.pos.x - this.pos.x, p.pos.z - this.pos.z) < d.spinR + p.radius) {
           this.knocked = true;
-          p.knock(this.pos, 14);
+          p.hurt(d.spinHurt, this.pos, { knock: 14, stun: 1.1 });
         }
         if (Math.random() < dt * 20) g.fx.leafBits(this.rakeHead(_v), 2);
         if (this.t >= 1.1) { this.state = 'dizzy'; this.t = 0; this.spinCool = 7; g.hud.toast("Kev's dizzy! Pile on!", 1.8); }
