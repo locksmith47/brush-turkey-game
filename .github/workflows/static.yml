@@ -1,12 +1,20 @@
-# Simple workflow for deploying static content to GitHub Pages
+# Deploys the game to GitHub Pages: master at the root, and every other branch alongside it under
+# branches/<branch name>/ (e.g. .../brush-turkey-game/branches/my-branch/), to try out before it's merged.
+# There's a list of them at .../branches/.
+#
+# Only master may deploy to the github-pages environment, so this always runs as master: on pushes to it,
+# when a branch is deleted (to take its copy down), and whenever the "Branch preview" workflow has run
+# (which it does on pushes to every other branch), so a push to any branch redeploys the lot
 name: Deploy static content to Pages
 
 on:
-  # Runs on pushes targeting the default branch
   push:
     branches: ["master"]
-
-  # Allows you to run this workflow manually from the Actions tab
+  delete:
+  workflow_run:
+    workflows: ["Branch preview"]
+    types: [completed]
+  # Allows you to run this workflow manually from the Actions tab (run it on master)
   workflow_dispatch:
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
@@ -31,13 +39,40 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # (every branch, to lay each one out)
+      - name: Lay out master, and every other branch under branches/
+        run: |
+          mkdir -p _site/branches
+          git archive origin/master | tar -x -C _site
+          : > branches.txt
+          git for-each-ref --format='%(refname:strip=3)' refs/remotes/origin | while read -r branch; do
+            if [ "$branch" = master ] || [ "$branch" = HEAD ]; then continue; fi
+            mkdir -p "_site/branches/$branch"
+            git archive "origin/$branch" | tar -x -C "_site/branches/$branch"
+            echo "$branch" >> branches.txt
+          done
+          {
+            echo '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
+            echo '<title>Branches</title><h1>Branches</h1><ul>'
+            while read -r branch; do echo "<li><a href=\"$branch/\">$branch</a></li>"; done < branches.txt
+            echo '</ul><p><a href="../">master</a></p>'
+          } > _site/branches/index.html
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Upload entire repository
-          path: '.'
+          path: '_site'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+      - name: List what's where
+        env:
+          SITE: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          {
+            echo "### Deployed"
+            echo "- master: ${SITE}"
+            while read -r branch; do echo "- ${branch}: ${SITE}branches/${branch}/"; done < branches.txt
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,18 @@
+# Pushing to any branch but master redeploys the Pages site with that branch in it, at
+# .../branches/<branch name>/. This just gets the ball rolling: static.yml does the deploying, as master
+# (it's the only branch allowed to deploy to the github-pages environment), once this has run
+name: Branch preview
+
+on:
+  push:
+    branches-ignore: ["master"]
+
+permissions:
+  contents: read
+
+jobs:
+  queue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Queue a Pages redeploy
+        run: echo "Pushed to ${GITHUB_REF_NAME}; the Pages deploy will put it at branches/${GITHUB_REF_NAME}/" >> "$GITHUB_STEP_SUMMARY"
