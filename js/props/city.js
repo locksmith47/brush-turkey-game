@@ -5,8 +5,9 @@ import { part, merge, vcMesh, G, limb, rand, pick, TAU, toonMat, canvasTexture }
  * The city: a street along the near side, a row of shops, a back alley behind them, another row of
  * buildings, and the King's plaza at the far end, with the gate out to the oval. Laneways run through the
  * rows: two from the street into the alley (and one more between them, gated off from the street: it only
- * opens from the alley side), and two on from the alley to the plaza, never in line with the first. The
- * key's down the far end of the alley, with a giant ibis, and the King holds court by the gate.
+ * opens from the alley side), and two on from the alley to the plaza, never in line with the first. A
+ * giant ibis lurks down the far end of the alley, and the King holds court by the gate, with the key to it
+ * round his neck.
  */
 const STREET = -118, ALLEY = [-128, -138], PLAZA = -148; // (where the rows of buildings start and end)
 // the laneways through each row: [name, x0, x1] (10 m across: room enough for the key and its carriers)

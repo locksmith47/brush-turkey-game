@@ -4,13 +4,14 @@ import { palingGeo, picketGeo, railGeo, wireGeo, wireMat, placeAlong } from './p
 import { BOUNDS, ZONES } from './world.js';
 import { Key } from './key.js';
 import { TRACK } from './props/bush.js';
+import { webTexture } from './spider.js';
 
 /* One giant key per area; each needs more turkeys to lift than the last. */
 const KEYS = [
-  { x: TRACK.clearings.key[0], z: TRACK.clearings.key[1], size: 1.0, weight: 4, slots: 8, heading: 0.6 }, // off to the right of the gate, behind its guards
+  { x: TRACK.clearings.key[0], z: TRACK.clearings.key[1], size: 1.0, weight: 4, slots: 8, heading: 0.6, buried: 18 }, // buried behind the funnel-web's web, off to the right of the gate
   { x: -34, z: -86, size: 1.6, weight: 10, slots: 14, heading: 2.2 }, // in the far yard on the left, the giant ibis's
-  { x: -41, z: -133, size: 2.3, weight: 20, slots: 24, heading: 0.2 }, // down the far end of the city's back alley
-  { x: 6, z: -228, size: 2.6, weight: 22, slots: 26, heading: 1.0 }, // on the pitch, under Big Kev's nose
+  { holder: 'king', size: 2.3, weight: 20, slots: 24 }, // round the King Ibis's neck
+  { holder: 'keeper', model: 'rake', size: 2.7, weight: 22, slots: 26 }, // Big Kev's rake is a key rake
   { x: -3, z: -337, size: 3.0, weight: 26, slots: 28, heading: 0.4 }, // sunk in the King Crab's rock pool
 ];
 
@@ -189,12 +190,30 @@ function logPileGeo(len) {
   return merge(p);
 }
 
+/**
+ * half of a web strung across the track (the funnel-web's, across the way to the bush's key), from its
+ * anchor in the scrub (0) along +x to the middle of the track (len), billowing a little
+ */
+function webHalf(len) {
+  const H = 3.4, g = new THREE.PlaneGeometry(len, H, 10, 8).translate(len / 2, H / 2, 0);
+  const pos = g.attributes.position, uv = g.attributes.uv;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i);
+    uv.setXY(i, (x / len) * 0.5, 0.06 + (y / H) * 0.88); // (the two halves make one web between them)
+    pos.setZ(i, Math.sin((x / len) * Math.PI * 0.5) * Math.sin((y / H) * Math.PI) * 0.35);
+  }
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: webTexture(), transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+  m.renderOrder = 2;
+  return m;
+}
+
 /*
- * A barricade of logs across the track out of one of the bush's clearings. Nothing gets past it (or is
- * thrown over it) while whatever's holding the clearing is still about; beat them all and it swings open.
+ * A barricade across the track out of one of the bush's clearings: logs, or for the funnel-web, its web.
+ * Nothing gets past it (or is thrown over it) while whatever's holding the clearing is still about; beat
+ * them all and it swings open (the web tears apart down the middle and shrivels away).
  */
 class Barricade {
-  constructor(game, edge, at, guards, name) {
+  constructor(game, edge, at, guards, name, kind = 'logs') {
     this.game = game;
     const track = game.world.track, a = track.nodes[edge.a], b = track.nodes[edge.b];
     const dx = (b.x - a.x) / edge.len, dz = (b.z - a.z) / edge.len; // (along the track, out of the clearing)
@@ -203,6 +222,7 @@ class Barricade {
     this.center = new THREE.Vector3(x, game.world.groundHeight(x, z), z);
     this.edge = edge;
     this.guards = guards;
+    this.kind = kind;
     this.seg = game.world.addSegment(x - px * hw, z - pz * hw, x + px * hw, z + pz * hw, 0.45, true);
     track.addWall(this.seg);
 
@@ -215,7 +235,7 @@ class Barricade {
       const pivot = new THREE.Group();
       pivot.position.x = side * hw;
       pivot.scale.x = -side;
-      pivot.add(vcMesh(logPileGeo(hw), { cast: true, receive: true }));
+      pivot.add(kind === 'web' ? webHalf(hw) : vcMesh(logPileGeo(hw), { cast: true, receive: true }));
       this.group.add(pivot);
       return pivot;
     });
@@ -243,10 +263,15 @@ class Barricade {
     // (anything given up on for being out of reach behind it is fair game again)
     for (const l of g.leaves.list) if (l.snubT > g.time && Math.hypot(l.pos.x - this.center.x, l.pos.z - this.center.z) < 20) l.snubT = 0;
     if (silent) return;
-    g.audio.clatter();
-    g.fx.dust(this.center, 14);
+    if (this.kind === 'web') {
+      g.audio.snip();
+      g.fx.burst(this.center.clone().setY(this.center.y + 1.6), { n: 24, colors: [0xffffff, 0xf2f2f2, 0xdde6ee], speed: [0.5, 2.2], up: [0.4, 1.8], grav: 1.2, drag: 1.5, size: [0.03, 0.07], life: [0.8, 1.6] });
+    } else {
+      g.audio.clatter();
+      g.fx.dust(this.center, 14);
+    }
     g.shake(0.2);
-    g.hud.toast('The way through is clear!', 2.5);
+    g.hud.toast(this.kind === 'web' ? 'The web tore apart! The way to the key is clear' : 'The way through is clear!', 2.5);
   }
 
   update(dt, camera, v) {
@@ -256,6 +281,14 @@ class Barricade {
       const k = clamp(this.t / 1.1, 0, 1), open = 1.65 * (1 - (1 - k) ** 3);
       this.leaves[0].rotation.y = open;
       this.leaves[1].rotation.y = -open;
+      if (this.kind === 'web') {
+        // (torn, the silk sags and shrivels away to nothing)
+        for (const l of this.leaves) {
+          l.children[0].material.opacity = 1 - k;
+          l.scale.y = 1 - k * 0.6;
+        }
+        if (k >= 1) this.group.visible = false;
+      }
       if (k >= 1) this.state = 'open';
     }
     // what it'll take to get past, when the player's close by
@@ -378,7 +411,7 @@ export class Barriers {
     this._v = new THREE.Vector3();
   }
 
-  /** drop each area's key into the world (needs game.enemies, which hauls them) */
+  /** drop each area's key into the world, or into its holder's hands (needs game.enemies, which hauls them) */
   spawnKeys() {
     this.keys = KEYS.map((spec, i) => {
       const k = new Key(this.game, spec, this.game.world.gates[i], i);
@@ -387,10 +420,13 @@ export class Barriers {
     });
   }
 
-  /** a barricade across the track out of clearing `at` (towards `to`), until all the `guards` are beaten */
-  addBarricade(at, to, guards, name) {
+  /**
+   * a barricade across the track out of clearing `at` (towards `to`), until all the `guards` are beaten:
+   * `kind` 'logs', or 'web' (strung across it by the funnel-web)
+   */
+  addBarricade(at, to, guards, name, kind = 'logs') {
     const track = this.game.world.track;
-    const b = new Barricade(this.game, track.firstEdge(at, to), track.node(at).r + 1.6, guards, name);
+    const b = new Barricade(this.game, track.firstEdge(at, to), track.node(at).r + 1.6, guards, name, kind);
     this.barricades.push(b);
     return b;
   }
@@ -402,11 +438,11 @@ export class Barriers {
     return s;
   }
 
-  /** debug helper: open gate i straight away (and tidy away its key) */
+  /** debug helper: open gate i straight away (and tidy away its key, wherever it is) */
   unlock(i, silent = false) {
     this.gates[i].unlock(silent);
     const k = this.keys?.[i];
-    if (k && !k.gone && k.state === 'carcass') k.dispose();
+    if (k && !k.gone && k.state !== 'unlock') k.dispose();
   }
 
   update(dt, camera) {

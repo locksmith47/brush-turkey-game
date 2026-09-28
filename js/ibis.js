@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { Foe } from './foe.js';
 import { createIbisRig } from './ibisModel.js';
-import { rand, damp, dampAngle } from './util.js';
+import { keyGeo } from './key.js';
+import { part, merge, vcMesh, G, rand, damp, dampAngle } from './util.js';
 
 const COMMON = { bodyY: 0.8, labelY: 1.35, carcassLabelY: 0.7 };
 export const IBIS_KINDS = {
@@ -17,6 +18,8 @@ const BODY = new THREE.Vector3(0, 0.8, -0.02);
 // wind-ups: a red circle marks the spot and fills in, then the attack lands there
 const PECK_T = 0.5, GRAB_T = 0.9, STOMP_T = 0.95;
 const _v = new THREE.Vector3(), _w = new THREE.Vector3();
+// the King's chain (in neck space: round the bottom of his neck, lower at the front) and the key hung on it
+const CHAIN = { y: 0.07, z: 0.022, r: 0.068, tilt: 0.35 }, PENDANT = 0.1;
 
 export class Ibis extends Foe {
   constructor(game, kind, x, z) {
@@ -31,6 +34,26 @@ export class Ibis extends Foe {
     this.held = [];
     this.grabCool = 4;
     this.gripDmg = 0;
+    if (kind === 'king') this.wearKey();
+  }
+
+  /** the King wears the key to the way out of the city on a gold chain round his neck (small enough to wear) */
+  wearKey() {
+    const neck = this.rig.neck, c = CHAIN;
+    const chain = vcMesh(merge([part(G.torus(c.r, 0.009, 5, 24), 0xf2c230, [0, 0, 0], [Math.PI / 2, 0, 0])]));
+    chain.position.set(0, c.y, c.z);
+    chain.rotation.x = c.tilt;
+    neck.add(chain);
+    // the key hangs off the front of the chain, bow up, face out (and it keeps hanging down whatever his neck's doing)
+    this.pendant = new THREE.Group();
+    this.pendant.position.set(0, c.y - c.r * Math.sin(c.tilt), c.z + c.r * Math.cos(c.tilt));
+    const key = vcMesh(keyGeo());
+    key.scale.setScalar(PENDANT);
+    key.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0)));
+    key.position.set(0, -1.31 * PENDANT - 0.01, 0.025);
+    this.pendant.add(key);
+    neck.add(this.pendant);
+    this.pendantKey = key;
   }
 
   /* ---------------------------------------------------------------- body */
@@ -95,6 +118,15 @@ export class Ibis extends Foe {
     if (this.kind === 'king') {
       g.hud.banner('KING IBIS FELLED');
       g.audio.fanfare();
+      // his key flies off its chain (growing back to full size on the way)
+      if (this.pendant?.visible) {
+        this.pendantKey.updateWorldMatrix(true, false);
+        if (this.key && !this.key.gone) {
+          this.key.release(this.pendantKey.matrixWorld, this.heading, 6.5);
+          g.hud.toast('The King\'s key flew off his neck! Carry it to the gate', 3.5);
+        }
+        this.pendant.visible = false;
+      }
     }
   }
 
@@ -298,6 +330,8 @@ export class Ibis extends Foe {
 
     r.neck.rotation.x = neckX;
     r.head.rotation.x = headX;
+    // (the King's key hangs straight down off its chain, swinging a little as he goes)
+    if (this.pendant) this.pendant.rotation.set(-neckX - 0.18 + Math.sin(this.phase * 2) * 0.12 * k, 0, Math.sin(this.phase) * 0.1 * k + rollZ * -0.5);
     r.bodyPivot.rotation.z = rollZ;
     r.bodyPivot.position.y = bodyY;
     r.legL.rotation.x = legLx;

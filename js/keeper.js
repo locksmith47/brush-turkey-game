@@ -1,14 +1,17 @@
 import * as THREE from 'three';
 import { Foe } from './foe.js';
-import { part, merge, vcMesh, G, limb, rand, pick, damp, dampAngle, clamp, TAU } from './util.js';
+import { keyRakeGeo } from './key.js';
+import { part, merge, vcMesh, G, limb, rand, randInt, pick, damp, dampAngle, angleDiff, clamp, TAU } from './util.js';
 
 /*
- * Big Kev, Keeper of the Oval: a larger-than-life groundskeeper with a leaf rake.
+ * Big Kev, Keeper of the Oval: a larger-than-life groundskeeper with a key rake (a rake that's the key to
+ * the gate out of the oval).
  *  - slams the rake down on turkeys in front of him
  *  - SPIN ATTACK: a red ring grows on the ground, then he whirls the rake round.
  *    Everything in the ring gets swept away: whistle your turkeys out!
  *  - after spinning he's dizzy (takes extra damage), and he swats off clingers
- *  - beaten, he nods off and drops a giant bag of leaves
+ *  - beaten, he drops the key rake and a giant bag of leaves, and goes down flat on his back, out cold
+ *    (stars round his head): his big belly makes a fine trampoline
  */
 const DEF = {
   name: 'Big Kev, Keeper of the Oval', boss: true, hp: 700, scale: 2.7, radius: 1.0, bodyY: 1.2, labelY: 2.1,
@@ -93,13 +96,7 @@ function geos() {
     limb([0, 0, 0], [0, -0.3, 0], 0.068, 0.06, SKIN, 8),
     part(G.sphere(0.08, 10, 8), SKIN, [0, -ARM2, 0], [0, 0, 0], [1, 1.05, 0.95]),
   ]);
-  const rake = [limb([0, 0.25, 0], [0, -1.9, 0], 0.035, 0.035, 0xc8a064, 8)];
-  for (let i = 0; i < 15; i++) {
-    const a = (i / 14 - 0.5) * 1.3;
-    rake.push(limb([0, -1.9, 0], [Math.sin(a) * 0.55, -1.9 - Math.cos(a) * 0.55, 0], 0.014, 0.01, 0x3fa34d, 4));
-  }
-  rake.push(part(G.torus(0.45, 0.02, 4, 20, 1.4), 0x2f8a3d, [0, -1.9, 0], [0, 0, -Math.PI / 2 - 0.7]));
-  GEO = { thigh, shin, torso: merge(torso), head: merge(head), upper, lower, rake: merge(rake) };
+  GEO = { thigh, shin, torso: merge(torso), head: merge(head), upper, lower };
   return GEO;
 }
 
@@ -123,7 +120,8 @@ function createKeeperRig(scale) {
   const legL = mkLeg(0.13), legR = mkLeg(-0.13);
   const torso = new THREE.Group();
   torso.position.y = 0.05;
-  torso.add(vcMesh(g.torso));
+  const belly = vcMesh(g.torso); // (it wobbles when he's bounced on)
+  torso.add(belly);
   hips.add(torso);
   const head = new THREE.Group();
   head.position.y = 0.74;
@@ -143,22 +141,26 @@ function createKeeperRig(scale) {
   const armL = mkArm(0.3), armR = mkArm(-0.3);
   const rake = new THREE.Group();
   rake.position.set(0, 0.4, 0.26);
-  rake.add(vcMesh(g.rake));
+  const rakeMesh = vcMesh(keyRakeGeo());
+  rake.add(rakeMesh);
   const tip = new THREE.Object3D();
   tip.position.set(0, -2.2, 0);
   rake.add(tip);
   torso.add(rake);
+  // dizzy (or out cold): stars going round his head
   const stars = new THREE.Group();
-  for (let i = 0; i < 3; i++) {
-    const st = new THREE.Mesh(new THREE.OctahedronGeometry(0.05, 0), new THREE.MeshBasicMaterial({ color: 0xffe066 }));
-    st.userData.a = (i / 3) * TAU;
+  const starGeo = new THREE.OctahedronGeometry(0.055, 0), starMat = new THREE.MeshBasicMaterial({ color: 0xffe066 });
+  for (let i = 0; i < 5; i++) {
+    const st = new THREE.Mesh(starGeo, starMat);
+    st.userData.a = (i / 5) * TAU;
     stars.add(st);
   }
   stars.position.y = 0.62;
   stars.visible = false;
   head.add(stars);
   root.scale.setScalar(scale);
-  return { root, bodyPivot: torso, hips, torso, head, legL, legR, armL, armR, rake, tip, stars };
+  root.rotation.order = 'YXZ'; // (so he can topple over backwards, whichever way he's facing)
+  return { root, bodyPivot: torso, hips, torso, belly, head, legL, legR, armL, armR, rake, rakeMesh, tip, stars };
 }
 
 export class Keeper extends Foe {
@@ -216,23 +218,64 @@ export class Keeper extends Foe {
   }
 
   onDeath() {
+    const g = this.game, r = this.rig;
     this.ring.visible = false;
-    this.game.hud.banner('GROUNDSKEEPER VANQUISHED');
-    this.game.audio.fanfare();
+    g.hud.banner('GROUNDSKEEPER VANQUISHED');
+    g.audio.fanfare();
+    // down he goes, flat on his back (turning a little as he topples, so as to land in the clear)...
+    this.fallFrom = this.heading;
+    this.fallTo = this.clearFall();
+    // ...and his key rake flies out of his hands, landing in front of him
+    r.rakeMesh.updateWorldMatrix(true, false);
+    if (this.key && !this.key.gone) this.key.release(r.rakeMesh.matrixWorld, this.fallTo, 4.8);
+    r.rake.visible = false;
   }
 
-  /** instead of being hauled away, Kev nods off and drops his leaf bag */
+  /** which way to face so as to fall flat on his back somewhere clear, as near as can be to the way he's facing */
+  clearFall() {
+    const w = this.game.world, s = this.s;
+    for (let i = 0; i < 9; i++) {
+      const h = this.heading + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.4, bx = -Math.sin(h), bz = -Math.cos(h);
+      if ([0.8, 1.6, 2.1].every((d) => w.isFree(this.pos.x + bx * d * s, this.pos.z + bz * d * s, 0.6))) return h;
+    }
+    return this.heading;
+  }
+
+  /** instead of being hauled away, Kev lies there out cold, with his leaf bag dropped beside him */
   becomeCarcass() {
-    this.state = 'asleep';
+    const g = this.game;
+    this.state = 'out';
     this.t = 0;
+    this.heading = this.fallTo ?? this.heading;
     const a = this.heading + Math.PI / 2;
-    const bag = new LeafBag(this.game, this.pos.x + Math.sin(a) * 3.2, this.pos.z + Math.cos(a) * 3.2);
-    this.game.enemies.list.push(bag);
-    this.game.fx.dust(bag.pos, 12);
-    this.game.hud.toast('Big Kev dropped his leaf bag! Haul it to a mound!', 3);
+    const bag = new LeafBag(g, this.pos.x + Math.sin(a) * 3.2, this.pos.z + Math.cos(a) * 3.2);
+    g.enemies.list.push(bag);
+    g.fx.dust(bag.pos, 12);
+    // (he hits the deck)
+    g.fx.dust(this.along(1.3, 0, _v), 16);
+    g.shake(0.35);
+    g.audio.stomp(3);
+    g.hud.toast(this.key && !this.key.gone ? 'Big Kev is out cold! His key rake opens the gate, and his leaf bag is for a mound' : 'Big Kev is out cold, and he dropped his leaf bag! Haul it to a mound!', 3.5);
+    // and his belly's a trampoline now
+    this.belly = new Belly(g, this);
+    g.toys.addBouncer(this.belly);
   }
 
-  colliderR() { return this.alive || this.state === 'asleep' ? this.def.radius : 0; }
+  /** the point `d` (in his own lengths) along him from his feet towards his head, lying down, `up` off the ground */
+  along(d, up, out) {
+    return out.set(this.pos.x - Math.sin(this.heading) * d * this.s, this.pos.y + up, this.pos.z - Math.cos(this.heading) * d * this.s);
+  }
+
+  colliderR() { return this.alive ? this.def.radius : 0; }
+
+  /** lying down he's long: his legs and his head are in the way (his belly's for bouncing on) */
+  moreColliders(list) {
+    if (this.state !== 'out') return;
+    for (const [d, r] of [[0.35, 0.75], [0.85, 0.85], [1.9, 0.65]]) {
+      this.along(d, 0, _v);
+      list.push({ x: _v.x, z: _v.z, r });
+    }
+  }
 
   /* ---------------------------------------------------------------- AI */
   think(dt) {
@@ -374,33 +417,62 @@ export class Keeper extends Foe {
         torsoY = Math.sin(t * 18) * 0.5; torsoX = 0.4; rakeX = -0.5 + Math.sin(t * 18) * 0.5;
         break;
     }
+    // beaten: over he goes backwards like a felled tree (bouncing once as he lands), and there he lies, arms
+    // flung out, out cold
+    let fall = 0, lift = 0, spread = 0;
     if (!this.alive) {
-      const sit = this.state === 'dying' ? Math.min(1, this.t / this.def.dieTime) : 1;
-      hipsY = 0.97 - 0.72 * sit; legL = legR = -1.5 * sit; kneeL = kneeR = 0.2 * sit;
-      torsoX = -0.35 * sit; headX = 0.35 * sit + Math.sin(this.game.time * 1.5) * 0.04; rakeX = -1.35; rakeZ = 0.35;
-      if (this.state === 'asleep' && Math.random() < dt * 0.8) {
-        this.rig.head.getWorldPosition(_v);
-        _v.y += 0.4 * this.s;
-        this.game.fx.burst(_v, { glow: true, n: 1, colors: [0xffffff], speed: [0.1, 0.3], up: [0.6, 0.9], grav: -0.3, drag: 0.5, size: [0.1, 0.14], life: [1.6, 2.2] });
-      }
+      const k = this.state === 'dying' ? Math.min(1, this.t / this.def.dieTime) : 1;
+      fall = k * k;
+      const bounce = this.state === 'out' ? Math.max(0, Math.sin(Math.min(1, this.t / 0.35) * Math.PI)) * 0.08 * Math.max(0, 1 - this.t / 0.35) : 0;
+      fall -= bounce;
+      lift = 0.21 * fall;
+      spread = Math.min(1, k * 1.4);
+      if (this.state === 'dying') this.heading = this.fallFrom + angleDiff(this.fallFrom, this.fallTo) * Math.min(1, k * 1.5);
+      hipsY = 0.97; legL = legR = 0.1 * spread; kneeL = kneeR = 0.12 * spread;
+      torsoX = 0; torsoY = 0; torsoZ = 0; headX = -0.25 * spread;
     }
     if (this.flinch > 0) torsoZ += Math.sin(this.t * 40) * 0.05 * this.flinch;
 
     r.hips.position.y = hipsY;
-    r.legL.hip.rotation.x = legL; r.legR.hip.rotation.x = legR;
+    r.legL.hip.rotation.set(legL, 0, 0.13 * spread); r.legR.hip.rotation.set(legR, 0, -0.13 * spread);
     r.legL.knee.rotation.x = kneeL; r.legR.knee.rotation.x = kneeR;
     r.torso.rotation.set(torsoX, torsoY, torsoZ);
     r.head.rotation.x = headX;
-    r.rake.rotation.set(rakeX, rakeY, rakeZ);
-    r.rake.updateMatrix();
-    solveArm(r.armL, _v.set(0, GRIPS[0], 0).applyMatrix4(r.rake.matrix), POLES[0]);
-    solveArm(r.armR, _v.set(0, GRIPS[1], 0).applyMatrix4(r.rake.matrix), POLES[1]);
-    r.root.position.copy(this.pos);
-    r.root.rotation.set(0, this.heading, 0);
+    if (this.alive) {
+      r.rake.rotation.set(rakeX, rakeY, rakeZ);
+      r.rake.updateMatrix();
+      solveArm(r.armL, _v.set(0, GRIPS[0], 0).applyMatrix4(r.rake.matrix), POLES[0]);
+      solveArm(r.armR, _v.set(0, GRIPS[1], 0).applyMatrix4(r.rake.matrix), POLES[1]);
+    } else {
+      // (arms thrown out above his head, flat on the ground)
+      r.armL.shoulder.rotation.set(0, 0.42 * spread, (Math.PI / 2 + 0.55) * spread);
+      r.armR.shoulder.rotation.set(0, -0.42 * spread, -(Math.PI / 2 + 0.55) * spread);
+      r.armL.elbow.rotation.set(-0.35 * spread, 0, 0);
+      r.armR.elbow.rotation.set(-0.35 * spread, 0, 0);
+    }
+    const pitch = -Math.PI / 2 * fall;
+    r.root.position.set(this.pos.x, this.pos.y + lift * this.s, this.pos.z);
+    r.root.rotation.set(pitch, this.heading, 0);
+
+    // his belly: breathing as he lies there, and squashing when something bounces on it
+    if (this.belly) {
+      const d = this.belly.dip, br = Math.sin(this.game.time * 1.7) * 0.025;
+      r.belly.scale.set(1 - d * 0.06, 1 - d * 0.03, 1 + d * 0.16 + br);
+    }
 
     const dizzy = this.state === 'dizzy' || !this.alive;
     r.stars.visible = dizzy;
-    if (dizzy) r.stars.children.forEach((st) => { const a = st.userData.a + this.game.time * 4; st.position.set(Math.cos(a) * 0.22, 0, Math.sin(a) * 0.22); });
+    if (dizzy) {
+      // (round and round, level whichever way his head's lying: above his face once he's down)
+      const spin = this.alive ? 4 : 2.6, rad = this.alive ? 0.22 : 0.3;
+      r.stars.position.set(0, 0.62 - 0.44 * fall, 0.4 * fall);
+      r.stars.rotation.x = -(pitch + torsoX + headX);
+      r.stars.children.forEach((st, i) => {
+        const a = st.userData.a + this.game.time * spin;
+        st.position.set(Math.cos(a) * rad, Math.sin(a * 2 + i) * 0.03, Math.sin(a) * rad);
+        st.rotation.y = this.game.time * 3;
+      });
+    }
 
     // a red circle where the rake's about to slam down
     if (this.alive && this.state === 'sweep' && !this.struck) {
@@ -424,6 +496,56 @@ export class Keeper extends Foe {
     super.dispose();
     this.game.scene.remove(this.ring);
     this.slamWarn?.dispose();
+  }
+}
+
+/*
+ * Knocked-out Kev's belly: turkeys bounce on it just like the backyard trampoline (walk onto it, get thrown
+ * at it, or hop up for a go), and it wobbles (he mutters in his sleep)
+ */
+class Belly {
+  constructor(game, kev) {
+    this.game = game;
+    this.kev = kev;
+    const c = kev.along(1.22, 0, new THREE.Vector3()); // (up from his feet: his hips, then his belly)
+    this.x = c.x;
+    this.z = c.z;
+    this.matR = 1.05;
+    this.matY = kev.pos.y + 0.53 * kev.s; // (the top of it, him lying down)
+    this.dip = 0;
+    this.dipV = 0;
+  }
+
+  kick(power = 1) { this.dipV -= 2.2 * power; }
+
+  bounce(t) {
+    const g = this.game;
+    if (!t.bounces) t.bounces = randInt(2, 4);
+    t.bounces--;
+    this.kick(0.7 + t.stage * 0.25);
+    g.audio.boing(t.stage);
+    if (Math.random() < 0.25) g.audio.oi();
+    t.squash = 1;
+    if (Math.random() < 0.4) g.fx.sparkle(t.pos, 3, [0xffe066, 0xffffff]);
+    g.hud.toastOnce('kev-belly', 'Boing! Big Kev makes a good trampoline', 2.5, 600);
+    if (t.bounces > 0) {
+      const a = rand(0, TAU), r = rand(0, 0.55);
+      t.hopTo(this.x + Math.cos(a) * r, this.z + Math.sin(a) * r, rand(0.8, 1.05), rand(2.6, 4.0), this.matY);
+      t.flight.spin = Math.random() < 0.45 ? pick([-1, 1]) : 0; // the odd flip
+    } else {
+      // ...and off, to one side of him or the other
+      const h = this.kev.heading + pick([-1, 1]) * Math.PI / 2 + rand(-0.5, 0.5), d = rand(3.2, 4.6);
+      t.hopTo(this.x + Math.sin(h) * d, this.z + Math.cos(h) * d, 1.1, 3.4);
+      t.flight.spin = pick([-1, 1]);
+      if (t.bounceRejoin) t.joinAfterHop = true;
+      t.bounceRejoin = false;
+    }
+  }
+
+  update(dt) {
+    // (a big soft belly: it gives, and wobbles back)
+    this.dipV += (-this.dip * 80 - this.dipV * 6) * dt;
+    this.dip += this.dipV * dt;
   }
 }
 

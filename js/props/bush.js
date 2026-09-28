@@ -48,9 +48,10 @@ const PERCHES = [0.42, 0.66, 0.88];
 /*
  * The bush is a long way through the scrub now: from the mound's grassy clearing, a dirt track winds north
  * through three little clearings, each held by something nasty with a barricade across the way out that
- * only comes down once they're beaten (an ibis; a funnel-web; two ibises), and up to the padlocked gate.
- * The key's off to the right of the gate, behind the snake and the ibis guarding it. The scrub either side
- * is far too thick to get through (or throw anything over): the track is the only way.
+ * only comes down once they're beaten (an ibis; a snake and an ibis together; two ibises), and up to the
+ * padlocked gate. The key's off to the right of the gate, buried behind a funnel-web's web: beat the spider
+ * and the web comes down, then the turkeys can dig it up. The scrub either side is far too thick to get
+ * through (or throw anything over): the track is the only way.
  */
 export const BUSH_SOUTH = 108; // the far (south) end of the bush
 export const HOME = { x: 4, z: 84 }; // the mound
@@ -61,7 +62,7 @@ export const TRACK = {
   clearings: {
     home: [4, 88, 15, 'grass'],
     ibis: [-24, 54, 10, 'dirt'],
-    spider: [28, 28, 11, 'dirt'],
+    snake: [28, 28, 11, 'dirt'],
     ibises: [-10, -4, 12, 'dirt'],
     gate: [6, -32, 6.5, 'dirt'],
     guards: [26, -20, 9, 'dirt'],
@@ -70,22 +71,23 @@ export const TRACK = {
   // from, any bends on the way ([x, z]), to
   paths: [
     ['home', [-12, 70], 'ibis'],
-    ['ibis', [-20, 36], [6, 40], 'spider'],
-    ['spider', [30, 8], [12, 6], 'ibises'],
+    ['ibis', [-20, 36], [6, 40], 'snake'],
+    ['snake', [30, 8], [12, 6], 'ibises'],
     ['ibises', [-8, -22], 'gate'],
     ['gate', 'guards'],
     ['guards', 'key'],
   ],
 };
 /**
- * The clearings you have to fight your way through: who's in each (offsets from its middle), and the
- * clearing its barricade shuts you off from until they're all beaten
+ * The clearings you have to fight your way through: who's in each (offsets from its middle), the clearing
+ * its barricade shuts you off from until they're all beaten, and what the barricade is (logs, bar the
+ * funnel-web's: its web, strung across the way to the key, with its burrow just this side of it)
  */
 export const ARENAS = [
-  { at: 'ibis', to: 'spider', foes: [['ibis', 0, 0]], name: 'the ibis' },
-  { at: 'spider', to: 'ibises', foes: [['spider', 0, 0]], name: 'the funnel-web' },
+  { at: 'ibis', to: 'snake', foes: [['ibis', 0, 0]], name: 'the ibis' },
+  { at: 'snake', to: 'ibises', foes: [['snake', 4, -3], ['ibis', -2, 2]], name: 'the snake and the ibis' },
   { at: 'ibises', to: 'gate', foes: [['ibis', -4, 1], ['ibis', 4, -1]], name: 'both ibises' },
-  { at: 'guards', to: 'key', foes: [['snake', 4, -3], ['ibis', -2, 2]], name: 'the snake and the ibis' },
+  { at: 'guards', to: 'key', foes: [['spider', 2.9, -1.9]], name: 'the funnel-web', barricade: 'web' },
 ];
 export const BUSH_BINS = [['green', -8.5, 83.5, Math.PI / 2], ['red', -7.5, 87.5, Math.PI / 2]];
 /** patches of leaf litter on the track, [x, z, leaves' worth, spread] (on top of what's under the gums) */
@@ -93,12 +95,12 @@ export const BUSH_LITTER = [
   [-2, 80, 14, 2], [13, 92, 12, 1.8], [10, 78, 10, 2], // round the mound
   [-7, 72, 6, 1.5], [-17, 63, 6, 1.5], // the way to the ibis
   [-28, 50, 8, 2], [-19, 58, 6, 1.5],
-  [-4, 39, 6, 1.5], [14, 36, 6, 1.5], // the way to the funnel-web
+  [-4, 39, 6, 1.5], [14, 36, 6, 1.5], // the way to the snake and the ibis
   [22, 30, 8, 2], [33, 22, 6, 1.5],
   [22, 7, 6, 1.5], // the way to the ibises
   [-14, -1, 8, 2], [-4, -9, 8, 2],
   [2, -27, 5, 1.5], // the gate
-  [22, -16, 8, 2], // the key's guards
+  [22, -16, 8, 2], // the funnel-web's clearing
 ];
 // the gums round the clearings' edges, [clearing, bearing from its middle] (well clear of where the paths
 // come in), and some beside the paths along the way, [x, z]; each has a low branch reaching in over the
@@ -106,7 +108,7 @@ export const BUSH_LITTER = [
 const GUMS = [
   ['home', -1.1], ['home', 0], ['home', 0.9], ['home', 1.9], ['home', 2.95],
   ['ibis', 2.4], ['ibis', -2.2],
-  ['spider', 0.45], ['spider', -2.0],
+  ['snake', 0.45], ['snake', -2.0],
   ['ibises', 2.2], ['ibises', -0.35], ['ibises', 0.9],
   ['guards', 1.7],
   [-5.8, 71.4], [-7.5, 41.6], [21.4, 3.4],

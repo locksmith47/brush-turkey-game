@@ -85,6 +85,7 @@ export class Enemies {
       e.updateLabel(camera, this._v);
       const r = e.colliderR();
       if (r) this.colliders.push({ x: e.pos.x, z: e.pos.z, r });
+      e.moreColliders?.(this.colliders); // (anything too long for one circle: Big Kev, flat on his back)
     }
     if (this.list.some((e) => e.gone)) this.list = this.list.filter((e) => !e.gone);
   }

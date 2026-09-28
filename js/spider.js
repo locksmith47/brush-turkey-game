@@ -18,7 +18,8 @@ const _v = new THREE.Vector3();
 let BODY = null, FANGS = null, LEG = null;
 let WEB_TEX = null, FUNNEL_TEX = null, HOLE_TEX = null;
 
-function webTexture() {
+/** a funnel-web's silk: trip lines, a sagging spiral and a sheen (also strung across the way to the bush's key) */
+export function webTexture() {
   WEB_TEX ??= canvasTexture(512, 512, (c, w, h) => {
     const cx = w / 2, cy = h / 2, R = w * 0.455; // the sheet is 2.2 web-radii wide
     const sheen = c.createRadialGradient(cx, cy, 20, cx, cy, R);

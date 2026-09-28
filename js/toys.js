@@ -465,6 +465,12 @@ export class Toys {
     return t;
   }
 
+  /** something else turkeys bounce on like the trampoline's mat (Big Kev's belly, once he's out cold) */
+  addBouncer(b) {
+    this.trampolines.push(b);
+    return b;
+  }
+
   addUmbrella(x, z, colA, colB) {
     const u = new Umbrella(this.game, x, z, colA, colB);
     this.umbrellas.push(u);

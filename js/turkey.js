@@ -255,13 +255,18 @@ export class Turkey {
   }
 
   /**
-   * Where a flight aimed at `to` really comes down: on top of a beach umbrella (which boings it off),
-   * on the surface of deep water (not the bottom), or on the ground.
+   * Where a flight aimed at `to` really comes down: on top of a beach umbrella (which boings it off), on
+   * a trampoline's mat (or Big Kev's belly), on the surface of deep water (not the bottom), or on the ground.
    */
   landingSpot(to) {
     const g = this.game, u = g.toys.canopyOver(to.x, to.z);
     if (u) {
       to.y = u.canopyY(Math.hypot(to.x - u.x, to.z - u.z));
+      return to;
+    }
+    const tr = g.toys.trampolineAt(to);
+    if (tr) {
+      to.y = tr.matY;
       return to;
     }
     const water = g.world.waterAt(to.x, to.z);

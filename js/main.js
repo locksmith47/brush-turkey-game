@@ -73,22 +73,24 @@ for (const s of world.treeSpots) leaves.spawnCluster(s.x, s.z, s.palette === 'gu
 for (const [x, z, n, r] of BUSH_LITTER) leaves.spawnCluster(x, z, n, r);
 
 // the bush's clearings, each held by something you'll have to beat to get any further (and a barricade
-// across the way on until you do): an ibis, a funnel-web, two ibises, then the key's guards
+// across the way on until you do): an ibis, a snake and an ibis, two ibises, then the funnel-web, whose
+// web's strung across the way to the buried key
 const barricade = {};
 for (const a of ARENAS) {
   const [cx, cz] = TRACK.clearings[a.at];
   const guards = a.foes.map(([kind, dx, dz]) => enemies.spawn(kind, cx + dx, cz + dz));
-  barricade[a.at] = game.barriers.addBarricade(a.at, a.to, guards, a.name);
+  barricade[a.at] = game.barriers.addBarricade(a.at, a.to, guards, a.name, a.barricade);
 }
 // the locals: ibises everywhere (one to most of the backyards, and up and down the city's street and back
-// alley), giants by the keys in the backyards and the alley, and the King on his skip-bin throne by the way out
+// alley), giants by the key in the backyards and down the alley, and the King on his skip-bin throne by the
+// way out, with the city's key round his neck
 for (const [x, z] of [[4, -58], [-28, -52], [26, -78], [4, -90]]) enemies.spawn('ibis', x, z);
 enemies.spawn('giant', -30, -80);
 for (const [x, z] of [[-22, -108], [16, -110], [12, -133], [38, -133], [22, -153]]) enemies.spawn('ibis', x, z);
 enemies.spawn('giant', -32, -133);
 enemies.spawn('king', -6, -157);
 // snakes lurking in the litter, funnel-webs in their burrows (one each side of the way round the oval), and
-// Big Kev on his oval
+// Big Kev on his oval, raking it with the oval's key (a key rake)
 for (const [x, z] of [[34, -60], [38, -200]]) enemies.spawn('snake', x, z);
 for (const [x, z] of [[-4, -79], [-37, -198]]) enemies.spawn('spider', x, z);
 enemies.spawn('keeper', 0, -214);
@@ -101,7 +103,7 @@ for (const [x, z] of PLOVER_NESTS) {
 }
 for (const [x, z] of STUMPS) enemies.list.push(new Stumps(game, x, z));
 for (const [type, x, z] of CRICKET_KIT) enemies.list.push(new CricketGear(game, type, x, z));
-// each area hides a giant key for the padlocked gate out of it
+// each area hides a giant key for the padlocked gate out of it (or someone's got it)
 game.barriers.spawnKeys();
 // and a shortcut or two, latched on the far side: open once you've made it round
 for (const s of [SIDE_GATE, LANE_GATE, FIELD_GATE]) game.barriers.addSideGate(s.a, s.b, s.latch, s.kind);
@@ -332,7 +334,7 @@ const tips = [
   { when: () => game.stats.hatched >= 1, text: 'Grubs make turkeys grow. Bins are worth knocking over, too' },
   { when: () => nearClearing('ibis'), text: 'An ibis holds the way on! Throw turkeys ON it: turkeys on the ground get pecked' },
   { when: () => nearClearing('gate'), text: 'The gate is padlocked. Find the giant golden key (look for the light beam)!' },
-  { when: () => !barricade.guards.up, text: 'Keys are heavy: throw enough turkeys at one and they will carry it to the gate' },
+  { when: () => !barricade.guards.up, text: "The key's buried! Throw turkeys at it to dig it up, then enough of them can carry it to the gate" },
   { when: () => world.gates[0].open && world.zoneOf(player.pos.z) === 1, text: 'Each key is bigger than the last: you will need a bigger flock!' },
   { when: () => world.zoneOf(player.pos.z) === 4, text: 'Bondi! Steal beach gear for the beach mound: it hatches BEACH turkeys' },
   { when: () => turkeys.list.some((t) => t.kind === 'beach' && t.state === 'follow'), text: 'Beach turkeys can swim! Others drown in deep water unless you whistle them out' },
@@ -386,9 +388,14 @@ new DevMenu(game, {
 const visited = new Set([0]);
 let zonePrompt = null; // { t, text }: a hint shown a moment after arriving somewhere new
 let farPrompted = false;
+// the bosses with a key on them: said the first time you're close to one
+const keyHolders = [
+  { boss: enemies.king, text: "The King Ibis wears the key to the gate round his neck! Fell him and it's yours" },
+  { boss: enemies.keeper, text: "Big Kev's rake is a key rake: it opens the gate out of the oval! Beat him and he'll drop it" },
+];
 function updateZones(dt) {
-  // the bush's track is a long walk: by the funnel-web's clearing, it's time for a mound closer to hand
-  if (!farPrompted && nearClearing('spider', 0)) {
+  // the bush's track is a long walk: by the second clearing, it's time for a mound closer to hand
+  if (!farPrompted && nearClearing('snake', 0)) {
     farPrompted = true;
     zonePrompt = { t: 2, text: `It's a long way back to the mound! Press M and ${BUILD_CREW} of your turkeys will scratch up a new one` };
   }
@@ -400,6 +407,11 @@ function updateZones(dt) {
     if (z === 1) zonePrompt = { t: 3.5, text: `Press M and ${BUILD_CREW} of your turkeys will scratch up a new mound here` };
   }
   if (zonePrompt && (zonePrompt.t -= dt) <= 0) { hud.toast(zonePrompt.text, 6); zonePrompt = null; }
+  for (const h of keyHolders) {
+    if (h.told || !h.boss?.alive || Math.hypot(h.boss.pos.x - player.pos.x, h.boss.pos.z - player.pos.z) > 24) continue;
+    h.told = true;
+    hud.toast(h.text, 5);
+  }
   hud.boss(enemies.engagedBoss());
 }
 

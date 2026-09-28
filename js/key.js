@@ -1,16 +1,24 @@
 import * as THREE from 'three';
 import { Foe } from './foe.js';
-import { part, merge, vcMesh, G, clamp, damp, dampAngle, TAU } from './util.js';
+import { part, merge, vcMesh, G, limb, clamp, dampAngle, rand, pick, TAU } from './util.js';
 
 /*
  * A giant golden key. Turkeys haul it (like a carcass) but its destination is the
- * padlocked gate out of its area. Each area's key is bigger than the last.
+ * padlocked gate out of its area. Each area's key is bigger than the last, and each
+ * is come by a different way:
+ *  - the bush's is buried: turkeys have to dig it up first (the dig bar fills as they do)
+ *  - the King Ibis wears the city's round his neck; felled, off it flies, back to full size
+ *  - Big Kev's rake IS the oval's key (a key rake), and he drops it when he's beaten
+ *  - the King Crab's lies sunk in his rock pool
  */
-const GOLD = 0xf2c230, DARK = 0xc8961e;
-let GEO = null;
-const _t = new THREE.Vector3(), _w = new THREE.Vector3();
+const GOLD = 0xf2c230, DARK = 0xc8961e, SOIL = [0x5e3e22, 0x7a5230, 0x8b6238];
+const FLY_T = 1.15; // seconds a key takes to fly out of its holder's grip and land
+let GEO = null, RAKE = null, HEAP = null;
+const _t = new THREE.Vector3(), _w = new THREE.Vector3(), _s = new THREE.Vector3();
+const _q = new THREE.Quaternion(), _m = new THREE.Matrix4(), _n = new THREE.Matrix4(), UP = new THREE.Vector3(0, 1, 0);
 
-function keyGeo() {
+/** the key, lying flat along +x: bow at -x, bit (teeth along +z) at +x */
+export function keyGeo() {
   if (GEO) return GEO;
   const p = [
     part(G.torus(0.42, 0.11, 8, 24), GOLD, [-0.78, 0, 0], [Math.PI / 2, 0, 0]),
@@ -29,19 +37,74 @@ function keyGeo() {
   return GEO;
 }
 
+/**
+ * Big Kev's key rake, built the way he holds it: the handle's the key's shaft (running down -y), with the
+ * key's bow on top and, at the bottom, a fan of tines cut to different lengths, like a key's teeth
+ */
+export function keyRakeGeo() {
+  if (RAKE) return RAKE;
+  const p = [
+    part(G.torus(0.17, 0.045, 8, 22), GOLD, [0, 0.52, 0]),
+    part(G.torus(0.085, 0.02, 6, 14), DARK, [0, 0.52, 0]),
+    part(G.box(0.25, 0.028, 0.03), DARK, [0, 0.52, 0], [0, 0, Math.PI / 4]),
+    part(G.box(0.25, 0.028, 0.03), DARK, [0, 0.52, 0], [0, 0, -Math.PI / 4]),
+    part(G.cyl(0.07, 0.07, 0.08, 12), GOLD, [0, 0.31, 0]),
+    part(G.cyl(0.058, 0.058, 0.05, 12), DARK, [0, 0.24, 0]),
+    part(G.cyl(0.04, 0.04, 2.2, 10), GOLD, [0, -0.85, 0]),
+    part(G.cyl(0.05, 0.065, 0.14, 10), DARK, [0, -1.92, 0]),
+    part(G.torus(0.3, 0.024, 5, 20, 1.3), DARK, [0, -1.9, 0], [0, 0, -Math.PI / 2 - 0.65]),
+  ];
+  const CUTS = [0.55, 0.46, 0.55, 0.37, 0.5, 0.55, 0.41, 0.55, 0.47, 0.36, 0.55, 0.5, 0.41, 0.55, 0.46];
+  CUTS.forEach((l, i) => {
+    const a = (i / 14 - 0.5) * 1.3;
+    p.push(limb([0, -1.9, 0], [Math.sin(a) * l, -1.9 - Math.cos(a) * l, 0], 0.018, 0.012, GOLD, 4));
+  });
+  RAKE = merge(p);
+  return RAKE;
+}
+
+/** the dirt dug up round a buried key (and the hole it leaves) */
+function heapGeo() {
+  if (HEAP) return HEAP;
+  const p = [
+    part(G.cyl(0.62, 0.78, 0.1, 16), SOIL[1], [0, 0.03, 0]),
+    part(G.cyl(0.3, 0.3, 0.02, 14), 0x2b1a0e, [0, 0.085, 0]),
+  ];
+  for (let i = 0; i < 13; i++) {
+    const a = (i / 13) * TAU + rand(-0.15, 0.15), r = rand(0.5, 0.78);
+    p.push(part(G.dodec(rand(0.09, 0.17)), pick(SOIL), [Math.cos(a) * r, 0.06, Math.sin(a) * r], [rand(0, 3), rand(0, 3), 0], [1, 0.7, 1]));
+  }
+  HEAP = merge(p);
+  return HEAP;
+}
+
+/** the key's own mesh, laid out flat along +x and centred on the key's weight */
+function keyMesh(model) {
+  if (model === 'rake') {
+    const m = vcMesh(keyRakeGeo());
+    m.rotation.set(Math.PI / 2, 0, Math.PI / 2); // (the handle along +x, the head flat on the ground)
+    m.position.x = -0.86;
+    return m;
+  }
+  const m = vcMesh(keyGeo());
+  m.position.x = -0.25;
+  return m;
+}
+
 export class Key extends Foe {
+  /** `spec`: { x, z, size, weight, slots, heading, buried (hp to dig it up), holder ('king' | 'keeper'), model } */
   constructor(game, spec, gate, index) {
-    const s = spec.size;
+    const s = spec.size, holder = spec.holder ? game.enemies[spec.holder] : null;
     super(game, {
-      name: 'Key', hp: 1, scale: s, radius: 0.8 * s, value: 0, weight: spec.weight, slots: spec.slots,
-      carryR: 1.05 * s + 0.2, carcassLabelY: 0.9, icon: '🔑', maxExtra: 14, loot: true,
-    }, spec.x, spec.z);
+      name: 'Key', hp: spec.buried ?? 1, scale: s, radius: 0.8 * s, value: 0, weight: spec.weight, slots: spec.slots,
+      carryR: 1.05 * s + 0.2, labelY: 0.8, carcassLabelY: 0.9, icon: '🔑', maxExtra: 14, loot: true,
+      ...(spec.buried ? { task: 'dig', bits: 'soil', dieTime: 0.9 } : {}),
+    }, holder ? holder.pos.x : spec.x, holder ? holder.pos.z : spec.z);
     this.gate = gate;
     this.index = index;
     const root = new THREE.Group();
-    const mesh = vcMesh(keyGeo());
-    mesh.position.x = -0.25; // centre the key's weight
-    root.add(mesh);
+    this.mesh = keyMesh(spec.model);
+    root.add(this.mesh);
     root.scale.setScalar(s);
     root.rotation.order = 'YXZ'; // so the key can twist about its own shaft in the lock
     this.setRig({ root });
@@ -53,15 +116,90 @@ export class Key extends Foe {
     );
     game.scene.add(this.beam);
     this.sparkleT = 0;
-    this.alive = false;
-    this.becomeCarcass();
+    if (spec.buried) {
+      // in the ground, bow up: turkeys dig round it till it comes loose (the dirt they throw up stays)
+      this.base = this.pos.clone();
+      this.heap = vcMesh(heapGeo(), { cast: false, receive: true });
+      this.heap.position.copy(this.base);
+      this.heap.rotation.y = rand(0, TAU);
+      game.scene.add(this.heap);
+      this.wob = 0;
+    } else if (holder) {
+      // round the King's neck, or in Big Kev's hands: it's theirs till they're beaten
+      holder.key = this;
+      this.alive = false;
+      this.state = 'held';
+      root.visible = false;
+      this.beam.visible = false;
+    } else {
+      this.alive = false;
+      this.becomeCarcass();
+    }
   }
 
-  get targetable() { return false; }
+  get targetable() { return this.alive; } // (only while it's buried, to be dug up)
+
+  bodyCenter(out) { return out.set(this.pos.x, this.pos.y + 0.15, this.pos.z); }
+  hitFx(p) { this.game.fx.burst(p, { n: 4, colors: SOIL, speed: [0.8, 2], up: [1.5, 3], size: [0.04, 0.08], life: [0.4, 0.7] }); }
+  onDamage() { this.wob = 1; }
+
+  onDeath() {
+    const g = this.game;
+    g.audio.thunk();
+    g.audio.clang();
+    g.fx.dirt(this.base, 14, 1.2);
+    g.hud.toastOnce('dug-key', 'Dug up the key! Now carry it to the gate', 3, 600);
+  }
 
   /** where the key has to be carried: right up to the padlock, on this side of the gate */
   lockPoint(out) {
     return out.set(this.gate.x, 0, this.gate.z + this.def.carryR * 0.7 + 0.5);
+  }
+
+  /**
+   * Its holder's been beaten: off it flies from where he had it (`from`, the world matrix of the key in
+   * his hands or round his neck, in its own shape) to land clear of him, about `dist` away towards `dir`,
+   * growing back to its proper size on the way
+   */
+  release(from, dir, dist) {
+    if (this.state !== 'held') return;
+    const g = this.game, root = this.rig.root;
+    this.mesh.updateMatrix();
+    _m.copy(from).multiply(_n.copy(this.mesh.matrix).invert());
+    this.flyFrom = { p: new THREE.Vector3(), q: new THREE.Quaternion(), s: 1 };
+    _m.decompose(this.flyFrom.p, this.flyFrom.q, _s);
+    this.flyFrom.s = _s.x;
+    const land = this.landingNear(this.pos.copy(this.flyFrom.p), dir, dist);
+    this.pos.set(land.x, g.world.groundHeight(land.x, land.z), land.z);
+    this.heading = dir + Math.PI / 2 + rand(-0.4, 0.4);
+    this.flyTo = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, this.heading, 0, 'YXZ'));
+    this.flyH = 2.2 + Math.hypot(this.pos.x - this.flyFrom.p.x, this.pos.z - this.flyFrom.p.z) * 0.25;
+    this.state = 'fly';
+    this.t = 0;
+    root.visible = true;
+    g.audio.clang();
+    g.fx.sparkle(this.flyFrom.p, 10, [0xffe066, 0xffffff]);
+  }
+
+  /** somewhere clear about `dist` from p (towards `dir` if it can be) that the key can be carried away from */
+  landingNear(p, dir, dist) {
+    const g = this.game, w = g.world, r = this.def.carryR * 0.7, lock = this.lockPoint(_w);
+    const clear = (x, z) => w.isFree(x, z, r) && !w.waterDepth(x, z) && !g.mounds.blocked(x, z, r)
+      && !g.enemies.colliders.some((c) => Math.hypot(x - c.x, z - c.z) < c.r + r)
+      && !!w.route(x, z, lock.x, lock.z, _t);
+    for (const d of [dist, dist * 0.7, dist * 1.35, dist * 0.45]) {
+      for (let i = 0; i < 14; i++) {
+        const a = dir + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.45;
+        const x = p.x + Math.sin(a) * d, z = p.z + Math.cos(a) * d;
+        if (clear(x, z)) return _t.set(x, 0, z);
+      }
+    }
+    return _t.set(p.x, 0, p.z);
+  }
+
+  becomeCarcass() {
+    super.becomeCarcass();
+    this.beam.visible = true;
   }
 
   updateCarcass(dt) {
@@ -103,6 +241,8 @@ export class Key extends Foe {
   }
 
   update(dt) {
+    if (this.state === 'held') return; // (nobody can get at it yet)
+    if (this.state === 'fly') { this.updateFly(dt); return; }
     if (this.state !== 'unlock') { super.update(dt); return; }
     // float up to the padlock, slot in, turn... click
     this.t += dt;
@@ -123,11 +263,49 @@ export class Key extends Foe {
     r.updateMatrixWorld(true);
   }
 
+  /** flying out of its holder's grip: up, over (turning as it goes, and growing to full size) and down */
+  updateFly(dt) {
+    const g = this.game, r = this.rig.root, f = this.flyFrom;
+    this.t += dt;
+    const k = Math.min(1, this.t / FLY_T), e = k * k * (3 - 2 * k);
+    r.position.lerpVectors(f.p, _t.set(this.pos.x, this.pos.y + 0.12 * this.s, this.pos.z), k);
+    r.position.y += Math.sin(k * Math.PI) * this.flyH;
+    r.quaternion.slerpQuaternions(f.q, this.flyTo, e).premultiply(_q.setFromAxisAngle(UP, (1 - e) * TAU));
+    r.scale.setScalar(f.s + (this.def.scale - f.s) * Math.min(1, k * 1.6));
+    if (Math.random() < dt * 14) g.fx.sparkle(r.position, 1, [0xffe066, 0xffffff]);
+    r.updateMatrixWorld(true);
+    if (k < 1) return;
+    this.flyFrom = null;
+    this.becomeCarcass();
+    g.fx.sparkle(this.pos, 12, [0xffe066, 0xffffff]);
+    g.shake(0.15);
+  }
+
   pose(dt) {
-    const r = this.rig.root;
+    const r = this.rig.root, s = this.s;
+    if (this.base && (this.alive || this.state === 'dying')) {
+      // stuck in the ground bit first, working looser (and more of it showing) as it's dug; then out it pops
+      // and flops down across its hole
+      this.wob = Math.max(0, this.wob - dt * 3);
+      const loose = 1 - Math.max(0, this.hp) / this.def.hp, pop = this.state === 'dying' ? this.roll : 0;
+      const tilt = (1.3 - loose * 0.35) * (1 - pop) + Math.sin(this.game.time * 34) * 0.06 * this.wob;
+      const inGround = (-0.2 + loose * 0.95) * (1 - pop); // (how far along the shaft the ground comes)
+      r.rotation.set(0, this.heading + pop * Math.PI * 0.5, -tilt);
+      r.position.copy(this.base).sub(_t.set(inGround, 0, 0).applyEuler(r.rotation).multiplyScalar(s));
+      r.position.y += Math.sin(pop * Math.PI) * 1.8 * s + pop * 0.12 * s;
+      this.heap.scale.setScalar(0.75 + loose * 0.4);
+      this.beam.position.copy(this.base);
+      this.beam.material.opacity = 0.12 + Math.sin(this.game.time * 2.5) * 0.05;
+      return;
+    }
+    if (this.base && this.state === 'carcass' && !this.popped) {
+      this.popped = true;
+      this.heading += Math.PI * 0.5; // (as it came down)
+    }
     const bob = this.carrying ? Math.sin(this.game.time * 9) * 0.04 : 0;
-    r.position.set(this.pos.x, this.pos.y + 0.12 * this.s + (this.carrying ? 0.25 : 0) + bob, this.pos.z);
+    r.position.set(this.pos.x, this.pos.y + 0.12 * s + (this.carrying ? 0.25 : 0) + bob, this.pos.z);
     r.rotation.set(0, this.heading, this.carrying ? Math.sin(this.game.time * 6) * 0.03 : 0);
+    r.scale.setScalar(s);
     this.beam.position.set(this.pos.x, this.pos.y, this.pos.z);
     this.beam.material.opacity = 0.12 + Math.sin(this.game.time * 2.5) * 0.05;
     this.sparkleT -= dt;
