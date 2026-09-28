@@ -162,6 +162,11 @@ export class Turkey {
   get radius() { return this.def.radius; }
   get grounded() { return WALKING.has(this.state) && !this.latched && !this.dead; }
   get busy() { return BUSY.has(this.state) && !this.dead; }
+  /** bouncing on a trampoline (or a beach umbrella, or Big Kev's belly), or on its way up onto one */
+  get bouncing() {
+    if (this.state !== S.THROWN || this.dead) return false;
+    return this.bounces > 0 || (!!this.flight && !this.flight.seat && !!this.game.toys.bouncerAt(this.flight.to));
+  }
   get canSwim() { return this.kind === 'beach'; }
 
   buildRig() {
@@ -204,6 +209,13 @@ export class Turkey {
   }
 
   joinSquad() {
+    if (this.bouncing) {
+      // one last boing (at the next landing), then off it hops back to you (it only needs telling once)
+      if (this.bounceRejoin && this.bounces === 1) return false;
+      this.bounces = 1;
+      this.bounceRejoin = true;
+      return true;
+    }
     if (!this.busy) return false;
     const drowning = this.state === S.DROWN;
     this.dropEverything();
@@ -226,6 +238,25 @@ export class Turkey {
     this.squash = 1;
     this.game.audio.peep(this.stage);
     return true;
+  }
+
+  /**
+   * Done bouncing on something at (x, z): off it hops, `d` away towards `a` (sin, cos) in a hop taking T and
+   * h high, or back towards you if it's rejoining the squad (whistled, or it only bounced on the way past,
+   * following you)
+   */
+  hopOff(x, z, a, d, T = 1.1, h = 3.4) {
+    const p = this.game.player.pos, back = this.bounceRejoin;
+    if (back) {
+      a = Math.atan2(p.x - x, p.z - z) + rand(-0.35, 0.35);
+      d = clamp(Math.hypot(p.x - x, p.z - z) - 1.2, 2.4, d);
+    }
+    this.hopTo(x + Math.sin(a) * d, z + Math.cos(a) * d, back ? Math.min(T, 0.85) : T, back ? Math.min(h, 2.6) : h);
+    this.flight.spin = Math.random() < 0.5 ? -1 : 1;
+    this.bounces = 0;
+    if (back) this.joinAfterHop = true;
+    this.bounceRejoin = false;
+    this.playCool = rand(4, 8); // (had its go: not straight back on)
   }
 
   dismissTo(x, z) {

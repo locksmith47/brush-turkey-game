@@ -103,7 +103,7 @@ export class Turkeys {
   whistle(center, radius) {
     let n = 0;
     for (const t of this.list) {
-      if (!t.busy) continue;
+      if (!t.busy && !t.bouncing) continue; // (bouncing on the trampoline's no excuse)
       if (Math.hypot(t.pos.x - center.x, t.pos.z - center.z) < radius + t.radius) {
         if (t.joinSquad()) n++;
       }

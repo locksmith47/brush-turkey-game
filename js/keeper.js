@@ -19,6 +19,9 @@ const DEF = {
 };
 const SKIN = 0xe9a27f, VIS = 0xff7a1a, SILVER = 0xdfe3e6, KHAKI = 0xb89b6a, HAT = 0x7a5a3a;
 const SWEEP_T = 1.0; // the rake slam's wind-up (a red circle marks where it'll land)
+// out cold, he's in the way like a fallen tree: [how far along him from his feet (his lengths), how wide
+// (metres)] for his legs, his hips, his belly (only a little: it's for bouncing on) and his head
+const LYING = [[0.35, 0.75], [0.85, 0.85], [1.22, 0.5], [1.9, 0.65]];
 const _v = new THREE.Vector3();
 let GEO = null;
 
@@ -256,7 +259,12 @@ export class Keeper extends Foe {
     g.shake(0.35);
     g.audio.stomp(3);
     g.hud.toast(this.key && !this.key.gone ? 'Big Kev is out cold! His key rake opens the gate, and his leaf bag is for a mound' : 'Big Kev is out cold, and he dropped his leaf bag! Haul it to a mound!', 3.5);
-    // and his belly's a trampoline now
+    // there he lies, in everyone's way (loads get carried round him, not over him)...
+    for (const [d, r] of LYING) {
+      this.along(d, 0, _v);
+      g.world.colliders.push({ x: _v.x, z: _v.z, r });
+    }
+    // ...and his belly's a trampoline now
     this.belly = new Belly(g, this);
     g.toys.addBouncer(this.belly);
   }
@@ -267,15 +275,6 @@ export class Keeper extends Foe {
   }
 
   colliderR() { return this.alive ? this.def.radius : 0; }
-
-  /** lying down he's long: his legs and his head are in the way (his belly's for bouncing on) */
-  moreColliders(list) {
-    if (this.state !== 'out') return;
-    for (const [d, r] of [[0.35, 0.75], [0.85, 0.85], [1.9, 0.65]]) {
-      this.along(d, 0, _v);
-      list.push({ x: _v.x, z: _v.z, r });
-    }
-  }
 
   /* ---------------------------------------------------------------- AI */
   think(dt) {
@@ -532,14 +531,7 @@ class Belly {
       const a = rand(0, TAU), r = rand(0, 0.55);
       t.hopTo(this.x + Math.cos(a) * r, this.z + Math.sin(a) * r, rand(0.8, 1.05), rand(2.6, 4.0), this.matY);
       t.flight.spin = Math.random() < 0.45 ? pick([-1, 1]) : 0; // the odd flip
-    } else {
-      // ...and off, to one side of him or the other
-      const h = this.kev.heading + pick([-1, 1]) * Math.PI / 2 + rand(-0.5, 0.5), d = rand(3.2, 4.6);
-      t.hopTo(this.x + Math.sin(h) * d, this.z + Math.cos(h) * d, 1.1, 3.4);
-      t.flight.spin = pick([-1, 1]);
-      if (t.bounceRejoin) t.joinAfterHop = true;
-      t.bounceRejoin = false;
-    }
+    } else t.hopOff(this.x, this.z, this.kev.heading + pick([-1, 1]) * Math.PI / 2 + rand(-0.5, 0.5), rand(3.2, 4.6)); // ...off to one side of him
   }
 
   update(dt) {
