@@ -123,6 +123,15 @@ export class Leaves {
     return l;
   }
 
+  /** nothing lying about at all (a save's about to put back what it had) */
+  clear() {
+    for (const l of this.list) {
+      l.state = 'off';
+      l.owner = l.mound = null;
+      l.dirty = true;
+    }
+  }
+
   /** a patch of leaf litter worth n leaves (so LEAF_SPLIT times that many on the ground) */
   spawnCluster(x, z, n, r, palette = 'gum') {
     const w = this.game.world;

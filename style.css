@@ -46,6 +46,8 @@ kbd {
 #stats b { color: #ffe066; }
 
 #help-mini { position: absolute; right: 18px; top: 16px; font-size: 14px; opacity: .9; }
+#saved { position: absolute; right: 18px; top: 42px; font-size: 13px; opacity: 0; transition: opacity .5s; text-shadow: 0 1px 2px #000; }
+#saved.show { opacity: .8; }
 
 #help {
   position: fixed; right: 18px; top: 48px; width: 360px; padding: 14px 18px; z-index: 5;
@@ -94,12 +96,17 @@ kbd {
 #splash .keys td { padding: 4px 10px; }
 #splash .keys td:first-child { white-space: nowrap; text-align: right; opacity: .9; }
 #splash button {
-  margin-top: 10px; padding: 12px 48px; font: bold 24px inherit; font-family: inherit; cursor: pointer;
+  margin-top: 10px; padding: 12px 48px; font-family: inherit; font-size: 24px; font-weight: bold; cursor: pointer;
   color: #3a2a10; background: #ffd21f; border: none; border-radius: 40px; box-shadow: 0 5px 0 #b8900c;
 }
 #splash button:hover { background: #ffe066; }
 #splash button:active { transform: translateY(3px); box-shadow: 0 2px 0 #b8900c; }
 #splash .hint { font-size: 13px; opacity: .7; margin-top: 16px; }
+#splash .buttons { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; }
+#splash button.second { padding: 12px 28px; font-size: 18px; color: #fff; background: rgba(255, 255, 255, .14); box-shadow: 0 5px 0 rgba(0, 0, 0, .35); }
+#splash button.second:hover { background: rgba(255, 255, 255, .24); }
+#splash button.second.sure { background: #c2261f; }
+#save-note { margin: 4px 0 0; font-size: 15px; opacity: .85; }
 
 #loading {
   position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 20;

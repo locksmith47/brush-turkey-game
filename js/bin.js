@@ -142,7 +142,7 @@ export class Bin extends Foe {
     this.pos.set(this.base.x + fx * KNOCKED_AT, this.pos.y, this.base.z + fz * KNOCKED_AT);
     const mouth = _v.set(this.base.x + fx * (EDGE + H + 0.1), this.base.y + 0.3, this.base.z + fz * (EDGE + H + 0.1)).clone();
     const p = new THREE.Vector3();
-    const n = c.shapes[0] === 'leaf' ? c.n * LEAF_SPLIT : c.n; // (clippings come in handfuls, like leaf litter)
+    const n = g.loading ? 0 : c.shapes[0] === 'leaf' ? c.n * LEAF_SPLIT : c.n; // (clippings come in handfuls, like leaf litter; none from a save, whose litter has them already)
     for (let i = 0; i < n; i++) {
       const a = this.fall + rand(-0.95, 0.95), d = rand(0.2, 2.2);
       p.set(mouth.x + Math.sin(a) * d, 0, mouth.z + Math.cos(a) * d);

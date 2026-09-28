@@ -30,6 +30,15 @@ export class Grubs {
     return g;
   }
 
+  /** none at all (a save's about to put back the ones it had) */
+  clear() {
+    for (const g of this.list) {
+      g.alive = false;
+      this.game.scene.remove(g.mesh);
+    }
+    this.list.length = 0;
+  }
+
   nearestFree(pos, maxDist) {
     let best = null, bd = maxDist;
     for (const g of this.list) {

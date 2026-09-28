@@ -171,6 +171,7 @@ export class FX {
   }
 
   burst(pos, o = {}) {
+    if (this.game.loading) return; // (nothing to see while a save's being put back)
     const pool = o.glow ? this.glow : this.solid;
     const n = o.n ?? 10;
     const colors = o.colors ?? [0x8b5a2b];
@@ -240,6 +241,7 @@ export class FX {
   }
 
   ring(pos, color = 0xffffff, r = 1.5, life = 0.45) {
+    if (this.game.loading) return;
     const ring = this.rings.find((x) => !x.m.visible);
     if (!ring) return;
     ring.m.visible = true;
