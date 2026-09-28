@@ -562,7 +562,6 @@ export class Mounds {
 
   /** returns an error string, or null if a mound can be started here */
   whyNot(x, z) {
-    if (this.list.length >= 5) return 'You already have 5 mounds!';
     for (const m of this.list) if (Math.hypot(m.pos.x - x, m.pos.z - z) < 12) return 'Too close to another mound';
     const w = this.game.world;
     if (!w.isFree(x, z, 2.2)) return 'Not enough room here';
