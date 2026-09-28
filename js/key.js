@@ -39,10 +39,13 @@ export function keyGeo() {
 
 /**
  * Big Kev's key rake, built the way he holds it: the handle's the key's shaft (running down -y), with the
- * key's bow on top and, at the bottom, a fan of tines cut to different lengths, like a key's teeth
+ * key's bow on top (he holds it by that) and, at the bottom, a fan of tines cut to different lengths, like a
+ * key's teeth
  */
+export const RAKE_HEAD = -1.46; // (where the tines fan out from, down the handle)
 export function keyRakeGeo() {
   if (RAKE) return RAKE;
+  const H = RAKE_HEAD;
   const p = [
     part(G.torus(0.17, 0.045, 8, 22), GOLD, [0, 0.52, 0]),
     part(G.torus(0.085, 0.02, 6, 14), DARK, [0, 0.52, 0]),
@@ -50,14 +53,14 @@ export function keyRakeGeo() {
     part(G.box(0.25, 0.028, 0.03), DARK, [0, 0.52, 0], [0, 0, -Math.PI / 4]),
     part(G.cyl(0.07, 0.07, 0.08, 12), GOLD, [0, 0.31, 0]),
     part(G.cyl(0.058, 0.058, 0.05, 12), DARK, [0, 0.24, 0]),
-    part(G.cyl(0.04, 0.04, 2.2, 10), GOLD, [0, -0.85, 0]),
-    part(G.cyl(0.05, 0.065, 0.14, 10), DARK, [0, -1.92, 0]),
-    part(G.torus(0.3, 0.024, 5, 20, 1.3), DARK, [0, -1.9, 0], [0, 0, -Math.PI / 2 - 0.65]),
+    part(G.cyl(0.04, 0.04, 0.25 - H, 10), GOLD, [0, (0.25 + H) / 2, 0]),
+    part(G.cyl(0.05, 0.065, 0.14, 10), DARK, [0, H - 0.02, 0]),
+    part(G.torus(0.3, 0.024, 5, 20, 1.3), DARK, [0, H, 0], [0, 0, -Math.PI / 2 - 0.65]),
   ];
   const CUTS = [0.55, 0.46, 0.55, 0.37, 0.5, 0.55, 0.41, 0.55, 0.47, 0.36, 0.55, 0.5, 0.41, 0.55, 0.46];
   CUTS.forEach((l, i) => {
     const a = (i / 14 - 0.5) * 1.3;
-    p.push(limb([0, -1.9, 0], [Math.sin(a) * l, -1.9 - Math.cos(a) * l, 0], 0.018, 0.012, GOLD, 4));
+    p.push(limb([0, H, 0], [Math.sin(a) * l, H - Math.cos(a) * l, 0], 0.018, 0.012, GOLD, 4));
   });
   RAKE = merge(p);
   return RAKE;
@@ -83,7 +86,7 @@ function keyMesh(model) {
   if (model === 'rake') {
     const m = vcMesh(keyRakeGeo());
     m.rotation.set(Math.PI / 2, 0, Math.PI / 2); // (the handle along +x, the head flat on the ground)
-    m.position.x = -0.86;
+    m.position.x = (0.735 + RAKE_HEAD - 0.55) / 2; // (centred: from the top of the bow to the tips of the tines)
     return m;
   }
   const m = vcMesh(keyGeo());
