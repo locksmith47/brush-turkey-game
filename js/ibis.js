@@ -130,6 +130,15 @@ export class Ibis extends Foe {
     }
   }
 
+  alert(t) {
+    if (!this.alive || this.state !== 'wander' || !t.grounded) return;
+    this.target = t;
+    this.state = 'chase';
+    this.t = 0;
+    this.engaged = true;
+    this.game.audio.squawk(this.s);
+  }
+
   /* ---------------------------------------------------------------- AI */
   think(dt) {
     const g = this.game, d = this.def;

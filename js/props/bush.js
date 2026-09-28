@@ -47,11 +47,11 @@ const PERCHES = [0.42, 0.66, 0.88];
 
 /*
  * The bush is a long way through the scrub now: from the mound's grassy clearing, a dirt track winds north
- * through three little clearings, each held by something nasty with a barricade across the way out that
- * only comes down once they're beaten (an ibis; a snake and an ibis together; two ibises), and up to the
- * padlocked gate. The key's off to the right of the gate, buried behind a funnel-web's web: beat the spider
- * and the web comes down, then the turkeys can dig it up. The scrub either side is far too thick to get
- * through (or throw anything over): the track is the only way.
+ * through three little clearings, each with a barricade across the way out for turkeys to knock down, and
+ * something nasty guarding it (an ibis; a snake and an ibis together; three ibises), and up to the
+ * padlocked gate. The key's off to the right of the gate, buried behind a funnel-web's web: tear the web
+ * down (the spider will have something to say about that) and the turkeys can dig it up. The scrub either
+ * side is far too thick to get through (or throw anything over): the track is the only way.
  */
 export const BUSH_SOUTH = 108; // the far (south) end of the bush
 export const HOME = { x: 4, z: 84 }; // the mound
@@ -79,15 +79,16 @@ export const TRACK = {
   ],
 };
 /**
- * The clearings you have to fight your way through: who's in each (offsets from its middle), the clearing
- * its barricade shuts you off from until they're all beaten, and what the barricade is (logs, bar the
- * funnel-web's: its web, strung across the way to the key, with its burrow just this side of it)
+ * The clearings you have to fight your way through: the clearing each one's barricade shuts you off from,
+ * how much shoving it takes to knock down, what it is (logs, bar the funnel-web's: its web, strung across
+ * the way to the key), and who guards it: [kind, metres back into the clearing from it, metres across]
+ * (the funnel-web's burrow is close enough that its silk reaches the web it's strung across the way)
  */
 export const ARENAS = [
-  { at: 'ibis', to: 'snake', foes: [['ibis', 0, 0]], name: 'the ibis' },
-  { at: 'snake', to: 'ibises', foes: [['snake', 4, -3], ['ibis', -2, 2]], name: 'the snake and the ibis' },
-  { at: 'ibises', to: 'gate', foes: [['ibis', -4, 1], ['ibis', 4, -1]], name: 'both ibises' },
-  { at: 'guards', to: 'key', foes: [['spider', 2.9, -1.9]], name: 'the funnel-web', barricade: 'web' },
+  { at: 'ibis', to: 'snake', hp: 40, foes: [['ibis', 4.5, 0]] },
+  { at: 'snake', to: 'ibises', hp: 60, foes: [['snake', 4.5, 2.5], ['ibis', 6, -2.5]] },
+  { at: 'ibises', to: 'gate', hp: 75, foes: [['ibis', 4.5, -3], ['ibis', 6, 0], ['ibis', 4.5, 3]] },
+  { at: 'guards', to: 'key', hp: 60, barricade: 'web', foes: [['spider', 4.6, 0]] },
 ];
 export const BUSH_BINS = [['green', -8.5, 83.5, Math.PI / 2], ['red', -7.5, 87.5, Math.PI / 2]];
 /** patches of leaf litter on the track, [x, z, leaves' worth, spread] (on top of what's under the gums) */

@@ -256,6 +256,14 @@ export class Snake extends Foe {
     }
   }
 
+  alert(t) {
+    if (!this.alive || (this.state !== 'lurk' && this.state !== 'slither') || !t.grounded) return;
+    this.target = t;
+    this.state = 'chase';
+    this.engaged = true;
+    this.game.audio.hiss();
+  }
+
   aware() {
     if (this.latched.length) { this.state = 'chase'; this.engaged = true; return; }
     const tg = this.findTarget();

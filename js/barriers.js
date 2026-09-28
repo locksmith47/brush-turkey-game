@@ -3,6 +3,7 @@ import { vcMesh, part, merge, tint, G, limb, clamp, rand, pick, pinLabel } from 
 import { palingGeo, picketGeo, railGeo, wireGeo, wireMat, placeAlong } from './props/fences.js';
 import { BOUNDS, ZONES } from './world.js';
 import { Key } from './key.js';
+import { Foe } from './foe.js';
 import { TRACK } from './props/bush.js';
 import { webTexture } from './spider.js';
 
@@ -209,92 +210,166 @@ function webHalf(len) {
 
 /*
  * A barricade across the track out of one of the bush's clearings: logs, or for the funnel-web, its web.
- * Nothing gets past it (or is thrown over it) while whatever's holding the clearing is still about; beat
- * them all and it swings open (the web tears apart down the middle and shrivels away).
+ * Nothing gets past it (or is thrown over it) till turkeys knock it down: throw them at it and they shove,
+ * lined up along its face (the dial fills as they go), while whatever's holding the clearing does its best
+ * to stop them. Over it goes at last, the two halves bursting open into the scrub (the web tears down the
+ * middle and shrivels away).
  */
-class Barricade {
-  constructor(game, edge, at, guards, name, kind = 'logs') {
-    this.game = game;
+class Barricade extends Foe {
+  /** `spec`: { hp: how much shoving it takes, kind: 'logs' | 'web' } */
+  constructor(game, edge, at, spec) {
     const track = game.world.track, a = track.nodes[edge.a], b = track.nodes[edge.b];
     const dx = (b.x - a.x) / edge.len, dz = (b.z - a.z) / edge.len; // (along the track, out of the clearing)
     const px = -dz, pz = dx, hw = track.width + 0.8; // (across it, and into the scrub either side)
-    const x = a.x + dx * at, z = a.z + dz * at;
+    const x = a.x + dx * at, z = a.z + dz * at, web = spec.kind === 'web';
+    // (it's got at from the clearing's side: that's where it counts as being, for turkeys looking for work)
+    super(game, {
+      name: web ? 'Web' : 'Barricade', hp: spec.hp, scale: 1, radius: track.width + 0.2, labelY: 2.2, task: 'push', dieTime: 0.8,
+    }, x - dx * 1.3, z - dz * 1.3);
     this.center = new THREE.Vector3(x, game.world.groundHeight(x, z), z);
     this.edge = edge;
-    this.guards = guards;
-    this.kind = kind;
+    this.kind = spec.kind ?? 'logs';
+    this.guards = [];
+    this.out = new THREE.Vector3(dx, 0, dz);
+    this.across = new THREE.Vector3(px, 0, pz);
+    this.reach = track.width - 0.4; // (how far along it turkeys can get at it: not into the scrub)
     this.seg = game.world.addSegment(x - px * hw, z - pz * hw, x + px * hw, z + pz * hw, 0.45, true);
     track.addWall(this.seg);
 
-    // two halves hinged in the scrub either side, meeting in the middle of the track; they swing open
-    // (away from the clearing) like a pair of gates
-    this.group = new THREE.Group();
-    this.group.position.copy(this.center);
-    this.group.rotation.y = Math.atan2(-pz, px);
+    // two halves anchored in the scrub either side, meeting in the middle of the track
+    const group = new THREE.Group();
+    group.position.copy(this.center);
+    group.rotation.y = Math.atan2(-pz, px);
     this.leaves = [-1, 1].map((side) => {
       const pivot = new THREE.Group();
       pivot.position.x = side * hw;
       pivot.scale.x = -side;
-      pivot.add(kind === 'web' ? webHalf(hw) : vcMesh(logPileGeo(hw), { cast: true, receive: true }));
-      this.group.add(pivot);
+      pivot.add(web ? webHalf(hw) : vcMesh(logPileGeo(hw), { cast: true, receive: true }));
+      group.add(pivot);
       return pivot;
     });
-    game.scene.add(this.group);
-
+    this.setRig({ root: group });
+    this.group = group;
     this.state = 'up';
-    this.t = 0;
-    this.label = document.createElement('div');
-    this.label.className = 'mound-label small';
-    this.label.innerHTML = `⚔️ Beat ${name} to get through`;
-    this.label.style.display = 'none';
-    document.getElementById('labels').appendChild(this.label);
+    this.wob = 0;
+    this.label.innerHTML = web ? '💪 Throw turkeys at the web to tear it down' : '💪 Throw turkeys at it to knock it down';
   }
 
-  get up() { return this.state === 'up'; }
+  get up() { return this.alive; }
 
-  open(silent = false) {
-    if (!this.up) return;
+  /** where along it the guards stand: `back` metres into the clearing from it, `side` metres across */
+  guardPost(back, side) {
+    return [this.center.x - this.out.x * back + this.across.x * side, this.center.z - this.out.z * back + this.across.z * side];
+  }
+
+  /**
+   * Where turkey t shoves: at its face (whichever side t's on), square on, wherever along it t's got to
+   * (so a crowd of them spreads out along it). Fills `stand` (where to be) and `face` (what to face)
+   */
+  attackSpot(t, stand, face) {
+    const c = this.center, rx = t.pos.x - c.x, rz = t.pos.z - c.z;
+    const u = clamp(rx * this.across.x + rz * this.across.z, -this.reach, this.reach);
+    const off = (rx * this.out.x + rz * this.out.z < 0 ? -1 : 1) * (this.seg.r + t.radius + 0.08);
+    face.set(c.x + this.across.x * u, 0, c.z + this.across.z * u);
+    stand.set(face.x + this.out.x * off, 0, face.z + this.out.z * off);
+  }
+
+  colliderR() { return 0; } // (it's a wall: the segment does the blocking)
+  bodyCenter(out) { return out.copy(this.center).addScaledVector(this.out, -0.45).setY(this.center.y + 0.8); }
+
+  hitFx(p) {
     const g = this.game;
-    this.state = 'opening';
-    this.t = 0;
+    if (this.kind === 'web') g.fx.burst(p, { n: 3, colors: [0xffffff, 0xeef2f5], speed: [0.4, 1.2], up: [0.3, 1.2], grav: 1, drag: 1.5, size: [0.03, 0.06], life: [0.6, 1.1] });
+    else {
+      g.fx.burst(p, { n: 3, colors: [0x7d5f40, 0x8b6a48, 0x6d8f4e], speed: [0.8, 2], up: [1, 2.5], size: [0.04, 0.08], life: [0.4, 0.8] });
+      g.audio.thunk();
+    }
+  }
+
+  /** being shoved: it rocks, and whoever's guarding it comes for whoever's doing the shoving */
+  onDamage(amount, attacker) {
+    this.wob = 1;
+    if (attacker) for (const f of this.guards) if (f.alive) f.alert(attacker);
+  }
+
+  /** knocked down: the way on is clear */
+  onDeath() {
+    const g = this.game;
     this.seg.active = false;
     g.world.track.plan();
-    this.label.style.display = 'none';
     // (anything given up on for being out of reach behind it is fair game again)
     for (const l of g.leaves.list) if (l.snubT > g.time && Math.hypot(l.pos.x - this.center.x, l.pos.z - this.center.z) < 20) l.snubT = 0;
-    if (silent) return;
+    if (this.silent) return;
     if (this.kind === 'web') {
       g.audio.snip();
       g.fx.burst(this.center.clone().setY(this.center.y + 1.6), { n: 24, colors: [0xffffff, 0xf2f2f2, 0xdde6ee], speed: [0.5, 2.2], up: [0.4, 1.8], grav: 1.2, drag: 1.5, size: [0.03, 0.07], life: [0.8, 1.6] });
     } else {
       g.audio.clatter();
-      g.fx.dust(this.center, 14);
+      g.audio.stomp(1.4);
+      g.fx.dust(this.center, 18);
+      g.fx.leafBits(this.center, 12);
     }
-    g.shake(0.2);
-    g.hud.toast(this.kind === 'web' ? 'The web tore apart! The way to the key is clear' : 'The way through is clear!', 2.5);
+    g.shake(0.25);
+    g.hud.toast(this.kind === 'web' ? 'The web is torn down! The way to the key is clear' : 'Knocked it down! The way on is clear', 2.5);
   }
 
-  update(dt, camera, v) {
+  /** debug helper: knock it down straight away */
+  open(silent = false) {
+    if (!this.alive) return;
+    this.silent = silent;
+    this.die();
+  }
+
+  /** (it doesn't move, or get hauled off: it just stands there till it's knocked down, then it's done with) */
+  update(dt) {
     this.t += dt;
-    if (this.up && this.guards.every((f) => !f.alive)) this.open();
-    if (this.state === 'opening') {
-      const k = clamp(this.t / 1.1, 0, 1), open = 1.65 * (1 - (1 - k) ** 3);
-      this.leaves[0].rotation.y = open;
-      this.leaves[1].rotation.y = -open;
-      if (this.kind === 'web') {
-        // (torn, the silk sags and shrivels away to nothing)
-        for (const l of this.leaves) {
-          l.children[0].material.opacity = 1 - k;
-          l.scale.y = 1 - k * 0.6;
-        }
-        if (k >= 1) this.group.visible = false;
-      }
-      if (k >= 1) this.state = 'open';
+    this.flinch = Math.max(0, this.flinch - dt * 3);
+    if (this.state === 'dying') {
+      this.roll = Math.min(1, this.t / this.def.dieTime);
+      if (this.t >= this.def.dieTime) this.becomeCarcass();
     }
-    // what it'll take to get past, when the player's close by
+    this.pose(dt);
+  }
+
+  /** down for good: it stays where it fell, but it's no longer anything anyone need bother with */
+  becomeCarcass() {
+    this.state = 'down';
+    this.roll = 1;
+    this.pose(0);
+    this.label.remove();
+    this.dial?.remove();
+    this.gone = true;
+  }
+
+  pose(dt) {
+    this.wob = Math.max(0, this.wob - dt * 3);
+    const [l, r] = this.leaves, web = this.kind === 'web';
+    let open, fade = 0;
+    if (this.alive) {
+      // giving way (and rattling as it's shoved) the further they get
+      const loose = 1 - Math.max(0, this.hp) / this.def.hp;
+      open = loose * 0.14 + Math.sin(this.game.time * 31) * 0.035 * this.wob;
+      fade = loose * 0.35;
+    } else {
+      // over it goes: the halves burst open into the scrub (a web sags and shrivels away to nothing)
+      const k = this.state === 'dying' ? this.roll : 1;
+      open = 0.14 + 1.55 * (1 - (1 - k) ** 3);
+      fade = web ? 0.35 + 0.65 * k : 0;
+      if (web && k >= 1) this.group.visible = false;
+    }
+    l.rotation.y = open;
+    r.rotation.y = -open;
+    if (web) for (const h of this.leaves) {
+      h.children[0].material.opacity = 1 - fade;
+      h.scale.y = 1 - fade * 0.6;
+    }
+  }
+
+  /** untouched, it says what it'll take (when you're close by); once turkeys are at it, the dial shows how far along they are */
+  updateLabel(camera, v) {
+    if (!this.alive || this.hp < this.def.hp) { super.updateLabel(camera, v); return; }
     const p = this.game.player.pos;
-    const near = this.up && Math.hypot(p.x - this.center.x, p.z - this.center.z) < 14;
-    if (!near) { if (this.label.style.display !== 'none') this.label.style.display = 'none'; return; }
+    if (Math.hypot(p.x - this.center.x, p.z - this.center.z) > 14) { if (this.label.style.display !== 'none') this.label.style.display = 'none'; return; }
     pinLabel(this.label, v.set(this.center.x, this.center.y + 2.3, this.center.z), camera);
   }
 }
@@ -421,13 +496,15 @@ export class Barriers {
   }
 
   /**
-   * a barricade across the track out of clearing `at` (towards `to`), until all the `guards` are beaten:
-   * `kind` 'logs', or 'web' (strung across it by the funnel-web)
+   * a barricade across the track out of clearing `at` (towards `to`), till turkeys knock it down: `spec` is
+   * { hp: how much shoving that takes, kind: 'logs' | 'web' (strung across it by the funnel-web) }. It's one
+   * of game.enemies too (it's something turkeys go at)
    */
-  addBarricade(at, to, guards, name, kind = 'logs') {
+  addBarricade(at, to, spec) {
     const track = this.game.world.track;
-    const b = new Barricade(this.game, track.firstEdge(at, to), track.node(at).r + 1.6, guards, name, kind);
+    const b = new Barricade(this.game, track.firstEdge(at, to), track.node(at).r + 1.6, spec);
     this.barricades.push(b);
+    this.game.enemies.list.push(b);
     return b;
   }
 
@@ -447,7 +524,6 @@ export class Barriers {
 
   update(dt, camera) {
     for (const g of this.gates) g.update(dt, camera, this._v);
-    for (const b of this.barricades) b.update(dt, camera, this._v);
-    for (const s of this.sideGates) s.update(dt, camera, this._v);
+    for (const s of this.sideGates) s.update(dt, camera, this._v); // (the barricades are updated with the enemies)
   }
 }

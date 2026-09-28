@@ -72,14 +72,14 @@ mounds.add(HOME.x, HOME.z, true);
 for (const s of world.treeSpots) leaves.spawnCluster(s.x, s.z, s.palette === 'gum' ? 18 : 14, 4.2, s.palette);
 for (const [x, z, n, r] of BUSH_LITTER) leaves.spawnCluster(x, z, n, r);
 
-// the bush's clearings, each held by something you'll have to beat to get any further (and a barricade
-// across the way on until you do): an ibis, a snake and an ibis, two ibises, then the funnel-web, whose
-// web's strung across the way to the buried key
+// the bush's clearings, each with a barricade across the way on for turkeys to knock down, and something
+// guarding it: an ibis, a snake and an ibis, three ibises, then the funnel-web, whose web's strung across
+// the way to the buried key
 const barricade = {};
 for (const a of ARENAS) {
-  const [cx, cz] = TRACK.clearings[a.at];
-  const guards = a.foes.map(([kind, dx, dz]) => enemies.spawn(kind, cx + dx, cz + dz));
-  barricade[a.at] = game.barriers.addBarricade(a.at, a.to, guards, a.name, a.barricade);
+  const b = game.barriers.addBarricade(a.at, a.to, { hp: a.hp, kind: a.barricade });
+  b.guards = a.foes.map(([kind, back, side]) => enemies.spawn(kind, ...b.guardPost(back, side)));
+  barricade[a.at] = b;
 }
 // the locals: ibises everywhere (one to most of the backyards, and up and down the city's street and back
 // alley), giants by the key in the backyards and down the alley, and the King on his skip-bin throne by the
@@ -332,7 +332,7 @@ const tips = [
   { when: () => game.stats.thrown >= 2, text: 'Turkeys rake the leaves back to the mound with their feet. Hold right-click to whistle them back' },
   { when: () => game.stats.leaves >= 4, text: 'Fill the mound to hatch more chicks!' },
   { when: () => game.stats.hatched >= 1, text: 'Grubs make turkeys grow. Bins are worth knocking over, too' },
-  { when: () => nearClearing('ibis'), text: 'An ibis holds the way on! Throw turkeys ON it: turkeys on the ground get pecked' },
+  { when: () => nearClearing('ibis'), text: 'A barricade blocks the way on! Throw turkeys at it to knock it down, and some ON the ibis guarding it' },
   { when: () => nearClearing('gate'), text: 'The gate is padlocked. Find the giant golden key (look for the light beam)!' },
   { when: () => !barricade.guards.up, text: "The key's buried! Throw turkeys at it to dig it up, then enough of them can carry it to the gate" },
   { when: () => world.gates[0].open && world.zoneOf(player.pos.z) === 1, text: 'Each key is bigger than the last: you will need a bigger flock!' },

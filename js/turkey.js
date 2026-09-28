@@ -95,6 +95,7 @@ const DROWN_TIME = 6; // seconds a landlubber lasts in deep water before it's a 
 const RESCUE_TIME = 6; // seconds a whistled turkey gets to paddle back out
 const _v = new THREE.Vector3(), _r = new THREE.Vector3(), _d = new THREE.Vector3(), _w = new THREE.Vector3();
 const _k = new THREE.Vector3(), _s = new THREE.Vector3(); // (which way a pile's being raked, and where to stand to do it)
+const _at = new THREE.Vector3(), _af = new THREE.Vector3(); // (where to stand to go at a foe, and what to face)
 const _pile = [];
 
 let nextId = 1;
@@ -315,9 +316,18 @@ export class Turkey {
     this.dropEverything();
     this.workCenter = null;
     const a = Math.atan2(this.pos.x - from.x, this.pos.z - from.z) + rand(-0.35, 0.35);
-    this.hopTo(from.x + Math.sin(a) * dist, from.z + Math.cos(a) * dist, 0.7 + dist * 0.04, h);
+    const to = this.thisSide(from.x + Math.sin(a) * dist, from.z + Math.cos(a) * dist, _w);
+    this.hopTo(to.x, to.z, 0.7 + dist * 0.04, h);
     this.flight.spin = 2;
     this.flung = true;
+  }
+
+  /** (x, z), pulled back if need be so that getting there doesn't take it over a fence, a barricade or the scrub */
+  thisSide(x, z, out) {
+    const k = this.game.world.throwClear(this.pos.x, this.pos.z, x, z);
+    if (k >= 1) return out.set(x, 0, z);
+    const t = Math.max(0, k - 0.5 / (Math.hypot(x - this.pos.x, z - this.pos.z) || 1));
+    return out.set(this.pos.x + (x - this.pos.x) * t, 0, this.pos.z + (z - this.pos.z) * t);
   }
 
   /* ---------------------------------------------------------------- rides: swings, the Hills Hoist, beach chairs */
@@ -436,7 +446,8 @@ export class Turkey {
     this.foe = null;
     const a = Math.atan2(this.pos.x - enemy.pos.x, this.pos.z - enemy.pos.z) + rand(-0.6, 0.6);
     const d = enemy.def.radius + rand(1.5, 3.5);
-    this.hopTo(enemy.pos.x + Math.sin(a) * d, enemy.pos.z + Math.cos(a) * d, rand(0.6, 0.8), 1.2 + enemy.s * 0.4);
+    const to = this.thisSide(enemy.pos.x + Math.sin(a) * d, enemy.pos.z + Math.cos(a) * d, _w);
+    this.hopTo(to.x, to.z, rand(0.6, 0.8), 1.2 + enemy.s * 0.4);
     this.flight.spin = 2;
     this.flung = true;
   }
@@ -610,7 +621,9 @@ export class Turkey {
     // (not out in the deep for a landlubber, and not behind a barricade that's still up)
     const reachable = (p) => (this.canSwim || g.world.waterDepth(p.x, p.z) < 2) && !!g.world.route(this.pos.x, this.pos.z, p.x, p.z, _d);
     const foe = g.enemies.nearestAlive(this.pos, near);
-    if (foe && foe.zone === zone && reachable(foe.pos)) { this.attack(foe); return true; }
+    // (something wide, like a barricade, is got at from whichever side of it this is on)
+    const at = foe?.attackSpot ? (foe.attackSpot(this, _at, _af), _at) : foe?.pos;
+    if (foe && foe.zone === zone && reachable(at)) { this.attack(foe); return true; }
     // beach turkeys out in the water go looking much further afield
     const swimming = this.canSwim && g.world.waterDepth(this.pos.x, this.pos.z) === 2;
     const carcass = g.enemies.nearestCarcass(this.pos, swimming ? 9 : near + 1);
@@ -1323,11 +1336,15 @@ export class Turkey {
     // on foot, pecking at its legs (landlubbers won't follow it into deep water)
     if (!this.canSwim && this.game.world.waterDepth(foe.pos.x, foe.pos.z) === 2) { this.foe = null; this.setState(S.IDLE); return; }
     if (Math.hypot(foe.pos.x - this.pos.x, foe.pos.z - this.pos.z) > 9) { this.foe = null; this.setState(S.IDLE); return; }
-    const dx = this.pos.x - foe.pos.x, dz = this.pos.z - foe.pos.z, dist = Math.hypot(dx, dz) || 1;
-    const ring = foe.def.radius + this.radius + 0.05;
-    const tx = foe.pos.x + (dx / dist) * ring, tz = foe.pos.z + (dz / dist) * ring;
-    const d = this.steer(tx, tz, sp, dt, 0.05);
-    this.faceToward(foe.pos.x, foe.pos.z, dt, 12);
+    if (foe.attackSpot) foe.attackSpot(this, _at, _af); // (something wide, like a barricade: a spot along its face)
+    else {
+      const dx = this.pos.x - foe.pos.x, dz = this.pos.z - foe.pos.z, dist = Math.hypot(dx, dz) || 1;
+      const ring = foe.def.radius + this.radius + 0.05;
+      _at.set(foe.pos.x + (dx / dist) * ring, 0, foe.pos.z + (dz / dist) * ring);
+      _af.copy(foe.pos);
+    }
+    const d = this.steer(_at.x, _at.z, sp, dt, 0.05);
+    this.faceToward(_af.x, _af.z, dt, 12);
     if (d < 0.3) {
       foe.damage(DPS[this.stage] * dt, this);
       this.hitting = true;

@@ -235,6 +235,15 @@ export class Spider extends Foe {
 
   onDeath() { this.game.audio.chitter(true); }
 
+  // (a turkey tearing at the web across the way: out it comes, as if it had stepped on a trip line)
+  alert(t) {
+    if (!this.alive || this.state !== 'hide' || !t.grounded) return;
+    this.target = t;
+    this.state = 'emerge';
+    this.t = 0;
+    this.game.audio.chitter();
+  }
+
   /* ---------------------------------------------------------------- AI */
   think(dt) {
     const g = this.game, d = this.def;
