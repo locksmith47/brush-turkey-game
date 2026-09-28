@@ -2,7 +2,7 @@ export class HUD {
   constructor(game) {
     this.game = game;
     this.el = {};
-    for (const id of ['hud', 'help', 'toast', 'c-squad', 'c-field', 'c-sprouts', 'c-s0', 'c-s1', 'c-s2', 'throw-name', 'c-leaves', 'c-hatched', 'c-mounds', 'c-lost', 'boss', 'boss-name', 'boss-hp', 'boss-lag', 'banner', 'banner-text', 'zone-title', 'zone-name', 'boss-grip', 'boss-grip-fill', 'boss-grip-time', 'c-beach', 'tk-normal', 'tk-beach', 'throw-type', 'throw-kind', 'c-beach-box', 'help-tab', 'c-kit', 'c-kit-box']) {
+    for (const id of ['hud', 'help', 'toast', 'c-squad', 'c-field', 'c-sprouts', 'c-s0', 'c-s1', 'c-s2', 'throw-name', 'c-leaves', 'c-hatched', 'c-mounds', 'c-lost', 'boss', 'boss-name', 'boss-hp', 'boss-lag', 'banner', 'banner-text', 'zone-title', 'zone-name', 'boss-grip', 'boss-grip-fill', 'boss-grip-time', 'c-beach', 'tk-normal', 'tk-beach', 'throw-type', 'throw-kind', 'c-beach-box', 'help-tab', 'c-kit', 'c-kit-box', 'saved']) {
       this.el[id] = document.getElementById(id);
     }
     this.toastT = 0;
@@ -17,6 +17,7 @@ export class HUD {
   toggleHelp() { this.el.help.classList.toggle('hidden'); }
 
   toast(msg, secs = 2) {
+    if (this.game.loading) return; // (a save being put back: nothing to announce)
     this.el.toast.textContent = msg;
     this.el.toast.classList.add('show');
     this.toastT = secs;
@@ -31,7 +32,14 @@ export class HUD {
     this.toast(msg, secs);
   }
 
+  /** a little note in the corner that your progress has just been saved */
+  saved() {
+    this.el.saved.classList.add('show');
+    this.savedT = 1.8;
+  }
+
   banner(text, secs = 4.5) {
+    if (this.game.loading) return;
     this.el['banner-text'].textContent = text;
     this.el.banner.classList.add('show');
     this.bannerT = secs;
@@ -93,6 +101,10 @@ export class HUD {
     if (this.toastT > 0) {
       this.toastT -= dt;
       if (this.toastT <= 0) this.el.toast.classList.remove('show');
+    }
+    if (this.savedT > 0) {
+      this.savedT -= dt;
+      if (this.savedT <= 0) this.el.saved.classList.remove('show');
     }
     this.tick -= dt;
     if (this.tick > 0) return;

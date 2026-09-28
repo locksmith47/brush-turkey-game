@@ -24,6 +24,11 @@ export class DevMenu {
         <button data-a="killNearby">Clear nearby foes</button>
         <button data-a="hatch">Hatch nearest mound</button>
         <button data-a="invincible" class="toggle">Invincible turkeys: off</button>
+      </div>
+      <div class="dev-lbl">Saved game</div>
+      <div class="dev-row">
+        <button data-a="saveNow">Save now</button>
+        <button data-a="wipeSave">Delete the save and start again</button>
       </div>`;
     el.addEventListener('click', (e) => {
       const b = e.target.closest('button');

@@ -80,7 +80,7 @@ export class BinBag extends Foe {
     this.t = 0;
     this.full.visible = false;
     this.torn.visible = true;
-    for (let i = 0; i < SPILL; i++) {
+    for (let i = 0; i < (g.loading ? 0 : SPILL); i++) { // (a save has what spilled out with its litter)
       const a = rand(0, TAU), d = rand(0.4, 1.6);
       p.set(this.pos.x + Math.cos(a) * d, 0, this.pos.z + Math.sin(a) * d);
       g.world.resolve(p, 0.15, g.mounds.colliders);

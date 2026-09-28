@@ -205,6 +205,19 @@ export class Key extends Foe {
     this.beam.visible = true;
   }
 
+  /** (from a save) dug up, or dropped by whoever had it, and lying at (x, z) ready to be carried */
+  restoreAt(x, z, heading) {
+    this.alive = false;
+    this.hp = 0;
+    this.flyFrom = null;
+    this.popped = true;
+    this.pos.set(x, this.game.world.groundHeight(x, z), z);
+    this.heading = heading;
+    this.rig.root.visible = true;
+    this.rig.root.quaternion.identity();
+    this.becomeCarcass();
+  }
+
   updateCarcass(dt) {
     const st = this.strength(), d = this.def;
     this.carrying = st >= d.weight;

@@ -104,6 +104,7 @@ export class Mound {
     this.converts = []; // turkeys that dived in ({ stage, hen, gear }), waiting to pop back out
     this.convertT = 0;
     this.trophies = []; // lifesaving flags (and stumps) planted in it
+    this.junkN = 0; // (how much rubbish is sticking out of it)
 
     DOME ??= domeGeometry();
     if (!SKIRT) {
@@ -261,7 +262,7 @@ export class Mound {
     this.group.add(f.group);
     // spread them round the mound, leaning outwards
     const a = this.trophies.length * 2.4 + rand(-0.3, 0.3);
-    this.trophies.push({ ...f, a, k: rand(0.3, 0.5), lean: rand(0.18, 0.3), spin: rand(0, TAU), ph: rand(0, TAU) });
+    this.trophies.push({ ...f, kind, a, k: rand(0.3, 0.5), lean: rand(0.18, 0.3), spin: rand(0, TAU), ph: rand(0, TAU) });
     this.placeTrophies();
   }
 
@@ -280,6 +281,7 @@ export class Mound {
     if (JUNK.has(palette)) {
       this.junk ??= { box: new DecalSet(this.game.scene, litterGeo('box'), 40, 0.02), can: new DecalSet(this.game.scene, litterGeo('can'), 40, 0.05) };
       this.junk[Math.random() < 0.5 ? 'box' : 'can'].add(pick(PALETTES[palette]));
+      this.junkN++;
     } else this.decals.add(pick(this.beach ? LOOT : PALETTES[palette] ?? LEAF_COLS));
   }
 
@@ -370,6 +372,42 @@ export class Mound {
     d.icon(this.beach ? '🏖️' : '🍂');
     d.note('');
     d.set(hatching ? 1 : this.fill / this.threshold, 0, hatching ? 'hot' : '');
+  }
+
+  /* ---------------------------------------------------------------- saving */
+  /** what a save needs to put it back (see Saves) */
+  saveState() {
+    const r = (v) => Math.round(v * 1000) / 1000;
+    return {
+      x: r(this.pos.x), z: r(this.pos.z), home: this.home, kind: this.kind, build: r(this.buildK),
+      total: r(this.total), fill: r(this.fill), threshold: this.threshold, hatches: this.hatches, purple: r(this.purple), junk: this.junkN,
+      trophies: this.trophies.map((t) => t.kind), state: this.state, toLaunch: this.toLaunch,
+      converts: this.converts.map((c) => [c.stage, c.hen ? 1 : 0, (c.gear?.helmet ? 1 : 0) + (c.gear?.pads ? 2 : 0)]),
+    };
+  }
+
+  /** ...and put it back: as full as it was, as big, with what went into it stuck all over it */
+  loadState(d) {
+    if (this.building) { this.buildK = d.build; this.applyBuild(); }
+    Object.assign(this, { total: d.total, fill: d.fill, threshold: d.threshold, hatches: d.hatches, purple: d.purple });
+    for (let i = 0; i < Math.min(DECALS, Math.round(d.total)); i++) this.decals.add(pick(this.beach ? LOOT : LEAF_COLS));
+    for (let i = 0; i < d.junk; i++) this.addDecal('rubbish');
+    for (const k of d.trophies) this.addTrophy(k);
+    // (in the middle of hatching: it carries on)
+    if (d.state !== 'idle') { this.state = d.state; this.stateT = 0; this.toLaunch = d.toLaunch; this.launchT = 0; }
+    this.converts = d.converts.map(([stage, hen, gear]) => ({ stage, hen: !!hen, gear: gear ? { helmet: !!(gear & 1), pads: !!(gear & 2) } : null }));
+    this.convertT = 0.8;
+    this.purpleK = this.total ? clamp((this.purple / Math.max(8, this.total)) * 1.15, 0, 1) * 0.6 : 0;
+    this.recolor();
+    this.resize();
+    this.refreshLabel();
+  }
+
+  dispose() {
+    const s = this.game.scene;
+    s.remove(this.group, this.decals.mesh);
+    if (this.junk) s.remove(this.junk.box.mesh, this.junk.can.mesh);
+    this.dial.remove();
   }
 
   update(dt) {
@@ -503,6 +541,13 @@ export class Mounds {
     const m = new Mound(this.game, x, z, home, kind, building);
     this.list.push(m);
     return m;
+  }
+
+  /** the mounds a save had, in place of the ones a new game starts with */
+  restore(list) {
+    for (const m of this.list) m.dispose();
+    this.list.length = 0;
+    for (const d of list) this.add(d.x, d.z, d.home, d.kind, d.build < 1).loadState(d);
   }
 
   /** a mound being built nearby that could use another pair of feet */

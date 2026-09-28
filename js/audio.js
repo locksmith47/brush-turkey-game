@@ -5,6 +5,7 @@ export class Audio {
     this.master = null;
     this.whistleOsc = null;
     this.last = {};
+    this.muted = false; // (while a save's being put back)
   }
 
   init() {
@@ -22,7 +23,7 @@ export class Audio {
   }
 
   ok(name, ms) {
-    if (!this.ctx) return false;
+    if (!this.ctx || this.muted) return false;
     const now = performance.now();
     if (name && this.last[name] && now - this.last[name] < ms) return false;
     if (name) this.last[name] = now;
@@ -30,6 +31,7 @@ export class Audio {
   }
 
   tone({ freq = 440, freq2 = null, type = 'sine', dur = 0.15, vol = 0.3, attack = 0.005, delay = 0, vib = 0, vibHz = 0 }) {
+    if (!this.ctx || this.muted) return;
     const c = this.ctx, t0 = c.currentTime + delay;
     const o = c.createOscillator(), g = c.createGain();
     o.type = type;
@@ -49,6 +51,7 @@ export class Audio {
   }
 
   noise({ dur = 0.2, vol = 0.2, type = 'bandpass', f1 = 1000, f2 = null, q = 1, delay = 0, attack = 0.01 }) {
+    if (!this.ctx || this.muted) return;
     const c = this.ctx, t0 = c.currentTime + delay;
     const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
     s.buffer = this.noiseBuf;

@@ -25,6 +25,7 @@ import { HOME, START, TRACK, ARENAS, BUSH_BINS, BUSH_LITTER } from './props/bush
 import { CITY_BINS, CITY_BAGS, ALLEY_IBISES, LANE_GATE, THRONE, onKingsWay } from './props/city.js';
 import { OVAL_BINS, FIELD_GATE, STUMPS, PLOVER_NESTS, CRICKET_KIT } from './props/oval.js';
 import { DevMenu } from './devmenu.js';
+import { Saves } from './save.js';
 import { clamp, damp, rand, smoothstep, lerp, TAU } from './util.js';
 
 const THROW_RANGE = 11;
@@ -48,7 +49,7 @@ const game = { scene, camera, renderer, time: 0, started: false, stats: { leaves
 // nothing about beach turkeys shows up until the gate into Bondi is open (or you've got some anyway)
 game.bondiOpen = () => game.world.gates[3].open || game.turkeys.counts.beach > 0 || game.turkeys.list.some((t) => t.kind === 'beach');
 let shakeAmt = 0;
-game.shake = (a) => { shakeAmt = Math.min(1.2, shakeAmt + a); };
+game.shake = (a) => { if (!game.loading) shakeAmt = Math.min(1.2, shakeAmt + a); };
 game.audio = new Audio();
 game.world = new World(game);
 game.barriers = new Barriers(game);
@@ -148,6 +149,20 @@ for (const [x, z, a, b] of UMBRELLAS) game.toys.addUmbrella(x, z, a, b);
   .forEach(([x, z, s]) => { const t = turkeys.spawnSprout(START.x + x, START.z + z, s); t.growT = 0; });
 game.grubs.spawn(START.x + 4.5, START.z - 2);
 player.pos.set(START.x, world.groundHeight(START.x, START.z), START.z);
+
+// saving your progress (see Saves): all of the above is what a new game starts out with, and a save says
+// what's changed since. (Plus how far along you are: the areas you've been to, the tips you've been given)
+const saves = new Saves(game, {
+  get: () => ({ visited: [...visited], tip: tipIdx, told: keyHolders.map((h) => !!h.told), far: farPrompted }),
+  set: (d) => {
+    for (const z of d.visited ?? []) visited.add(z);
+    tipIdx = Math.max(tipIdx, d.tip ?? 0);
+    keyHolders.forEach((h, i) => { h.told ||= !!d.told?.[i]; });
+    farPrompted ||= !!d.far;
+  },
+});
+saves.register();
+game.saves = saves;
 
 /* ------------------------------------------------------------------ camera */
 const cam = { yaw: 0, dist: 12, zoom: 12, pitch: 0.74, tilt: 0, ahead: 0, target: new THREE.Vector3(START.x, 1, START.z) };
@@ -389,6 +404,12 @@ new DevMenu(game, {
     if (m) m.addLeaves(m.threshold - m.fill, null);
   },
   invincible() { game.dev.invincible = !game.dev.invincible; return game.dev.invincible; },
+  saveNow() { hud.toast(saves.write() ? 'Saved' : 'Not saved (start playing first)', 2); },
+  wipeSave() {
+    Saves.clear();
+    saves.on = false;
+    location.reload();
+  },
 });
 
 /* ------------------------------------------------------------------ zones & boss */
@@ -443,6 +464,7 @@ function step(dt) {
   leaves.update(dt);
   game.grubs.update(dt, game.time);
   world.update(dt, game.time);
+  saves.update(dt);
   fx.update(dt);
   game.cursor.update(dt, target, whistle, camera);
   hud.update(dt);
@@ -466,11 +488,47 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 
-document.getElementById('play').addEventListener('click', (e) => {
-  e.currentTarget.blur();
+/* ------------------------------------------------------------------ play: a new game, or carry on */
+const save = Saves.read();
+const playBtn = document.getElementById('play'), newBtn = document.getElementById('new-game');
+if (save) {
+  playBtn.textContent = 'Continue';
+  newBtn.classList.remove('hidden');
+  const note = document.getElementById('save-note');
+  const where = ZONES[world.zoneOf(save.player[1])].name, when = new Date(save.at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  note.textContent = `Carry on in ${where} (saved ${when})`;
+  note.classList.remove('hidden');
+}
+
+function start() {
   audio.init();
   document.getElementById('splash').classList.add('hidden');
   hud.show();
+  saves.on = true; // (from now on, it saves as you go)
   setTimeout(() => { input.endFrame(); input.lmb = false; game.started = true; }, 50);
-  setTimeout(() => hud.zoneTitle(ZONES[0].name), 400);
+  setTimeout(() => hud.zoneTitle(ZONES[world.zoneOf(player.pos.z)].name), 400);
+}
+
+playBtn.addEventListener('click', (e) => {
+  e.currentTarget.blur();
+  const ok = !save || saves.load(save);
+  start();
+  if (!ok) hud.toast("Some of your saved game couldn't be loaded", 5);
 });
+
+// (starting again means losing the save: one more click to be sure)
+newBtn.addEventListener('click', (e) => {
+  e.currentTarget.blur();
+  if (!newBtn.classList.contains('sure')) {
+    newBtn.classList.add('sure');
+    newBtn.textContent = 'Sure? Your save will be lost';
+    setTimeout(() => { newBtn.classList.remove('sure'); newBtn.textContent = 'New game'; }, 4000);
+    return;
+  }
+  Saves.clear();
+  start();
+});
+
+// (and whenever you leave the page, or switch away from it)
+addEventListener('visibilitychange', () => { if (document.hidden) saves.write(); });
+addEventListener('pagehide', () => saves.write());
