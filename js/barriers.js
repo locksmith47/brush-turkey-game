@@ -13,7 +13,7 @@ const KEYS = [
   { x: -34, z: -86, size: 1.6, weight: 10, slots: 14, heading: 2.2 }, // in the far yard on the left, the giant ibis's
   { holder: 'king', size: 2.3, weight: 20, slots: 24 }, // round the King Ibis's neck
   { holder: 'keeper', model: 'rake', size: 2.7, weight: 22, slots: 26 }, // Big Kev's rake is a key rake
-  { x: -3, z: -337, size: 3.0, weight: 26, slots: 28, heading: 0.4 }, // sunk in the King Crab's rock pool
+  { x: -3, z: -387, size: 3.0, weight: 26, slots: 28, heading: 0.4 }, // sunk in the King Crab's rock pool
 ];
 
 function leafGeo(kind, w) {

@@ -8,21 +8,21 @@ import { buildOval, FIELD } from './props/oval.js';
 import { buildBeach, beachGround, waterAt, shoreDir, seaWave, isSand } from './props/beach.js';
 
 /* The map is a long strip running north (-z): bush -> backyards -> city -> oval -> Bondi. */
-export const BOUNDS = { xMin: -46, xMax: 46, zMin: -366, zMax: BUSH_SOUTH };
+export const BOUNDS = { xMin: -46, xMax: 46, zMin: -416, zMax: BUSH_SOUTH };
 export const ZONES = [
   { name: 'The Bush', zMin: -38 },
   { name: 'The Backyards', zMin: -98 },
-  { name: 'The City', zMin: -170 },
-  { name: 'The Oval', zMin: -250 },
-  { name: 'Bondi Beach', zMin: -350 },
-  { name: 'The Wharf', zMin: -366 },
+  { name: 'The City', zMin: -220 },
+  { name: 'The Oval', zMin: -300 },
+  { name: 'Bondi Beach', zMin: -400 },
+  { name: 'The Wharf', zMin: -416 },
 ];
 export const FENCES = [
   { z: -38, kind: 'wood', gateX: 6, gateHW: 2.6 },
   { z: -98, kind: 'wire', gateX: -8, gateHW: 2.6 },
-  { z: -170, kind: 'picket', gateX: -20, gateHW: 2.6 },
-  { z: -250, kind: 'rail', gateX: -16, gateHW: 2.6 },
-  { z: -350, kind: 'rail', gateX: -30, gateHW: 2.6 },
+  { z: -220, kind: 'picket', gateX: -20, gateHW: 2.6 },
+  { z: -300, kind: 'rail', gateX: -16, gateHW: 2.6 },
+  { z: -400, kind: 'rail', gateX: -30, gateHW: 2.6 },
 ];
 
 export class World {
@@ -46,7 +46,7 @@ export class World {
     this.buildGround();
     buildBush(this);
     buildSuburb(this);
-    buildCity(this);
+    this.city = buildCity(this);
     buildOval(this);
     this.beach = buildBeach(this);
   }
@@ -67,7 +67,7 @@ export class World {
   }
 
   groundHeight(x, z) {
-    if (z < -250) return beachGround(x, z);
+    if (z < -300) return beachGround(x, z);
     // bumpy bush that flattens out towards the suburbs, rising into a rim at the edges
     const bush = smoothstep(-38, -26, z);
     if (bush <= 0) return 0;
@@ -115,8 +115,8 @@ export class World {
   }
 
   buildGround() {
-    const W = 280, D = 410, cz = -45; // stops at the Oval; the beach has its own finer ground
-    const g = new THREE.PlaneGeometry(W, D, 140, 205);
+    const W = 280, D = 460, cz = -70; // stops at the Oval; the beach has its own finer ground
+    const g = new THREE.PlaneGeometry(W, D, 140, 230);
     g.rotateX(-Math.PI / 2);
     g.translate(0, 0, cz);
     const pos = g.attributes.position;
@@ -330,6 +330,7 @@ export class World {
 
   update(dt, t) {
     this.beach.update(dt, t);
+    this.city.update(dt, t);
     for (const s of this.swayers) {
       s.m.rotation.z = Math.sin(t * 0.7 + s.ph) * 0.012;
       s.m.rotation.x = Math.cos(t * 0.53 + s.ph) * 0.01;

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Foe } from './foe.js';
 import { LEAF_SPLIT } from './leaves.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { part, merge, vcMesh, G, rand, pick, clamp, dampAngle, TAU } from './util.js';
 
 /*
@@ -44,6 +45,31 @@ function binGeo(kind, overflowing) {
   };
   return GEO[key];
 }
+
+/**
+ * A bin that's just part of the scenery (in the King's throne, say): standing on its base, front towards
+ * +z, the lid `lid` radians open, all in one geometry (it's the caller's to dispose of)
+ */
+export function staticBinGeo(kind, lid = 0, overflowing = false) {
+  const g = binGeo(kind, overflowing);
+  const l = g.lid.clone().rotateX(-lid).translate(0, H, -D / 2 - 0.035);
+  const out = mergeGeometries([g.body.clone(), l], false);
+  l.dispose();
+  return out;
+}
+
+/**
+ * One that was knocked over (and picked clean) long before anyone got here, lying just as a bin you'd tipped
+ * over would (see Bin's pose): it faced `facing`, and fell towards `fell`, about its base. Its middle (where
+ * it's in the way) is KNOCKED_AT along the way it fell
+ */
+export function knockedBinGeo(kind, facing, fell) {
+  const m = new THREE.Matrix4(), step = new THREE.Matrix4();
+  m.makeRotationY(fell).multiply(step.makeTranslation(0, 0, EDGE)).multiply(step.makeRotationX(Math.PI / 2));
+  m.multiply(step.makeTranslation(0, 0, -EDGE)).multiply(step.makeRotationY(facing - fell));
+  return staticBinGeo(kind, 1.9).applyMatrix4(m);
+}
+export const KNOCKED_AT = EDGE + H * 0.45;
 
 export class Bin extends Foe {
   constructor(game, kind, x, z, facing = rand(0, TAU), overflowing = false) {
@@ -113,7 +139,7 @@ export class Bin extends Foe {
     this.state = 'spilt';
     this.t = 0;
     const fx = Math.sin(this.fall), fz = Math.cos(this.fall);
-    this.pos.set(this.base.x + fx * (EDGE + H * 0.45), this.pos.y, this.base.z + fz * (EDGE + H * 0.45));
+    this.pos.set(this.base.x + fx * KNOCKED_AT, this.pos.y, this.base.z + fz * KNOCKED_AT);
     const mouth = _v.set(this.base.x + fx * (EDGE + H + 0.1), this.base.y + 0.3, this.base.z + fz * (EDGE + H + 0.1)).clone();
     const p = new THREE.Vector3();
     const n = c.shapes[0] === 'leaf' ? c.n * LEAF_SPLIT : c.n; // (clippings come in handfuls, like leaf litter)

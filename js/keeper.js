@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Foe } from './foe.js';
-import { keyRakeGeo } from './key.js';
+import { keyRakeGeo, RAKE_HEAD } from './key.js';
 import { part, merge, vcMesh, G, limb, rand, randInt, pick, damp, dampAngle, angleDiff, clamp, TAU } from './util.js';
 
 /*
@@ -28,6 +28,7 @@ let GEO = null;
 /* --- two-bone IK so both hands stay wrapped around the rake handle --- */
 const ARM1 = 0.28, ARM2 = 0.35; // shoulder->elbow, elbow->hand
 const GRIPS = [0.08, -0.18]; // where the left & right hands hold the handle (rake space)
+const RAKE_AT = [-0.12, 0.3, 0.4], RAKE_LEAN = 0.45; // (where he holds it, in front of him, and how far it leans to his right)
 const POLES = [new THREE.Vector3(1, -0.4, -0.7), new THREE.Vector3(-1, -0.4, -0.7)]; // elbows out & back
 const _t = new THREE.Vector3(), _u = new THREE.Vector3(), _f = new THREE.Vector3(), _p = new THREE.Vector3();
 const _bx = new THREE.Vector3(), _by = new THREE.Vector3(), _bz = new THREE.Vector3(), _m = new THREE.Matrix4();
@@ -143,11 +144,13 @@ function createKeeperRig(scale) {
   };
   const armL = mkArm(0.3), armR = mkArm(-0.3);
   const rake = new THREE.Group();
-  rake.position.set(0, 0.4, 0.26);
+  rake.position.set(...RAKE_AT);
+  // (he holds it by its bow: that's at his top hand, so the rake head's where a plain rake's would be)
   const rakeMesh = vcMesh(keyRakeGeo());
+  rakeMesh.position.y = GRIPS[0] - 0.52;
   rake.add(rakeMesh);
   const tip = new THREE.Object3D();
-  tip.position.set(0, -2.2, 0);
+  tip.position.set(0, rakeMesh.position.y + RAKE_HEAD - 0.3, 0); // (the middle of the rake head)
   rake.add(tip);
   torso.add(rake);
   // dizzy (or out cold): stars going round his head
@@ -438,6 +441,7 @@ export class Keeper extends Foe {
     r.torso.rotation.set(torsoX, torsoY, torsoZ);
     r.head.rotation.x = headX;
     if (this.alive) {
+      if (this.state !== 'spinWind' && this.state !== 'spin') rakeZ += RAKE_LEAN;
       r.rake.rotation.set(rakeX, rakeY, rakeZ);
       r.rake.updateMatrix();
       solveArm(r.armL, _v.set(0, GRIPS[0], 0).applyMatrix4(r.rake.matrix), POLES[0]);
