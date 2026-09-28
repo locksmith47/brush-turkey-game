@@ -17,9 +17,11 @@ const DPS = [1.0, 1.5, 2.2];
 const WORK_R = 8;
 // seconds in the ground to grow from a chick into a juvenile, and from a juvenile into an adult
 const GROW_TIME = [27, 62];
-// raking litter home: how much a turkey can shift in one clump (in leaves' worth), and how far back
+// raking litter home: how much a turkey can shift in one clump (in leaves' worth), how far round the first
+// bit of it it'll reach for the rest (thin litter, like under a tree, is spread about), and how far back
 // one good kick flings it
-const RAKE_WORTH = [5 / 3, 3, 13 / 3];
+const RAKE_WORTH = [5, 9, 13];
+const RAKE_R = [2.4, 3, 3.6];
 const KICK_REACH = [3.3, 4.05, 4.8];
 // ...and the further the pile has to go, the harder it gets kicked: as usual near the mound, building up
 // to twice as far for a pile a long way off (so a bin tipped over at the far end of the yard is worth it)
@@ -29,6 +31,10 @@ const RAKE_TRIES = 3; // goes at a pile that get it nowhere before a turkey give
 const SET_TIMEOUT = 6; // seconds trying to get in behind a pile before that counts as a wasted go
 const BACK_UP = 5.5; // a pile landed further off than this and it turns and runs after it, rather than backing up
 const SNUB_TIME = 45; // seconds everyone leaves a pile alone once it's been given up on
+// brush turkeys have minds of their own: one that's got to a pile near a gum with a free spot on its
+// branch will, one time in ten, forget all about raking and flap up to roost there instead (there's
+// nearly always litter under a gum to be raking, so otherwise they'd hardly ever go up)
+const ROOST_WHIM = 0.1, ROOST_NEAR = 7;
 // easing into and out of a walk (a raking turkey scurrying after its pile, one settling into its spot)
 const EASE_ACCEL = 8, EASE_DECEL = 5;
 // turning with a bit of weight to it: it gets going into a turn and eases out of it (rad/s, rad/s²)
@@ -82,6 +88,9 @@ function segDist(px, pz, ax, az, bx, bz) {
   return Math.hypot(ax + vx * t - px, az + vz * t - pz);
 }
 const BODY_MID = 0.45; // height of the middle of the body in the rig (what a somersault turns about)
+// (cricket kit, on a turkey hatched on the oval, is a second life: the first time it's hurt, whether pecked,
+// swooped on, bitten, raked, stomped on or even swallowed, the kit takes it and comes off, and the turkey
+// lives on without it. It's no help to one that's drowning, though)
 const DROWN_TIME = 6; // seconds a landlubber lasts in deep water before it's a goner
 const RESCUE_TIME = 6; // seconds a whistled turkey gets to paddle back out
 const _v = new THREE.Vector3(), _r = new THREE.Vector3(), _d = new THREE.Vector3(), _w = new THREE.Vector3();
@@ -96,6 +105,7 @@ export class Turkey {
     this.id = nextId++;
     this.stage = stage;
     this.kind = kind; // 'normal' or 'beach' (boardshorts, snorkel, swims)
+    this.gear = null; // cricket kit it's wearing, if it hatched on the oval: { helmet, pads }
     this.variant = Math.floor(Math.random() * 6);
     this.hen = Math.random() < 0.5; // (it only shows once it's grown up)
     this.rescued = 0; // seconds a whistled non-swimmer may paddle through deep water
@@ -152,11 +162,16 @@ export class Turkey {
   get radius() { return this.def.radius; }
   get grounded() { return WALKING.has(this.state) && !this.latched && !this.dead; }
   get busy() { return BUSY.has(this.state) && !this.dead; }
+  /** bouncing on a trampoline (or a beach umbrella, or Big Kev's belly), or on its way up onto one */
+  get bouncing() {
+    if (this.state !== S.THROWN || this.dead) return false;
+    return this.bounces > 0 || (!!this.flight && !this.flight.seat && !!this.game.toys.bouncerAt(this.flight.to));
+  }
   get canSwim() { return this.kind === 'beach'; }
 
   buildRig() {
     if (this.rig) this.game.scene.remove(this.rig.root);
-    this.rig = createRig(this.stage, this.kind, this.variant, this.hen);
+    this.rig = createRig(this.stage, this.kind, this.variant, this.hen, this.gear);
     this.game.scene.add(this.rig.root);
     this.applyVisibility();
     this.pose(0);
@@ -194,6 +209,13 @@ export class Turkey {
   }
 
   joinSquad() {
+    if (this.bouncing) {
+      // one last boing (at the next landing), then off it hops back to you (it only needs telling once)
+      if (this.bounceRejoin && this.bounces === 1) return false;
+      this.bounces = 1;
+      this.bounceRejoin = true;
+      return true;
+    }
     if (!this.busy) return false;
     const drowning = this.state === S.DROWN;
     this.dropEverything();
@@ -216,6 +238,25 @@ export class Turkey {
     this.squash = 1;
     this.game.audio.peep(this.stage);
     return true;
+  }
+
+  /**
+   * Done bouncing on something at (x, z): off it hops, `d` away towards `a` (sin, cos) in a hop taking T and
+   * h high, or back towards you if it's rejoining the squad (whistled, or it only bounced on the way past,
+   * following you)
+   */
+  hopOff(x, z, a, d, T = 1.1, h = 3.4) {
+    const p = this.game.player.pos, back = this.bounceRejoin;
+    if (back) {
+      a = Math.atan2(p.x - x, p.z - z) + rand(-0.35, 0.35);
+      d = clamp(Math.hypot(p.x - x, p.z - z) - 1.2, 2.4, d);
+    }
+    this.hopTo(x + Math.sin(a) * d, z + Math.cos(a) * d, back ? Math.min(T, 0.85) : T, back ? Math.min(h, 2.6) : h);
+    this.flight.spin = Math.random() < 0.5 ? -1 : 1;
+    this.bounces = 0;
+    if (back) this.joinAfterHop = true;
+    this.bounceRejoin = false;
+    this.playCool = rand(4, 8); // (had its go: not straight back on)
   }
 
   dismissTo(x, z) {
@@ -245,13 +286,18 @@ export class Turkey {
   }
 
   /**
-   * Where a flight aimed at `to` really comes down: on top of a beach umbrella (which boings it off),
-   * on the surface of deep water (not the bottom), or on the ground.
+   * Where a flight aimed at `to` really comes down: on top of a beach umbrella (which boings it off), on
+   * a trampoline's mat (or Big Kev's belly), on the surface of deep water (not the bottom), or on the ground.
    */
   landingSpot(to) {
     const g = this.game, u = g.toys.canopyOver(to.x, to.z);
     if (u) {
       to.y = u.canopyY(Math.hypot(to.x - u.x, to.z - u.z));
+      return to;
+    }
+    const tr = g.toys.trampolineAt(to);
+    if (tr) {
+      to.y = tr.matY;
       return to;
     }
     const water = g.world.waterAt(to.x, to.z);
@@ -261,6 +307,11 @@ export class Turkey {
 
   /** knocked flying by a big attack (a rake spin, a snake's whirl): lands dazed but alive */
   blastAway(from, dist, h = 2.5) {
+    // (leg guards on, it stands its ground: knocked back a step or two, no more)
+    if (this.gear?.pads) {
+      dist = Math.min(dist, Math.hypot(this.pos.x - from.x, this.pos.z - from.z) + 1.2);
+      h *= 0.45;
+    }
     this.dropEverything();
     this.workCenter = null;
     const a = Math.atan2(this.pos.x - from.x, this.pos.z - from.z) + rand(-0.35, 0.35);
@@ -472,6 +523,7 @@ export class Turkey {
 
   die(cause = 'peck') {
     if (this.dead) return;
+    if (cause !== 'drown' && (this.gear?.helmet || this.gear?.pads)) { this.loseGear(); return; }
     if (this.game.dev?.invincible) {
       // dev mode: nobody dies, they just get bounced clear
       this.dropEverything();
@@ -491,6 +543,30 @@ export class Turkey {
     if (cause === 'squash') g.fx.dust(this.pos, 4);
     g.audio.die(this.stage);
     g.stats.lost++;
+  }
+
+  /** its cricket kit took a blow that would have done for it: off it all flies, and the turkey lives on without it */
+  loseGear() {
+    const g = this.game, r = this.rig;
+    this.gear = null;
+    for (const m of [r.helmet, ...(r.pads ?? [])]) {
+      if (!m) continue;
+      const a = rand(0, TAU);
+      g.fx.fling(m, _w.set(Math.cos(a) * rand(0.8, 1.8), rand(3, 4.5), Math.sin(a) * rand(0.8, 1.8)), _s.set(rand(-9, 9), rand(-9, 9), rand(-9, 9)));
+    }
+    r.helmet = r.pads = null;
+    g.audio.clonk();
+    g.fx.sparkle(_v.set(this.pos.x, this.pos.y + 0.6 * this.scale, this.pos.z), 8, [0xffffff, 0xc9ced4, 0xffe066]);
+    g.stats.saved++;
+    g.hud.toastOnce('kit', 'Clonk! Its cricket kit took that one (and came off: the next one counts)', 2.5, 30);
+    // (knocked back a step, and a bit dazed)
+    this.dropEverything();
+    this.workCenter = null;
+    this.holder = null;
+    const a = rand(0, TAU);
+    this.hopTo(this.pos.x + Math.sin(a) * 0.9, this.pos.z + Math.cos(a) * 0.9, 0.4, 0.5);
+    this.flight.spin = 1;
+    this.flung = true;
   }
 
   dropEverything() {
@@ -531,7 +607,8 @@ export class Turkey {
   findWork(near = 3.5) {
     const g = this.game;
     const zone = g.world.zoneOf(this.pos.z);
-    const reachable = (p) => this.canSwim || g.world.waterDepth(p.x, p.z) < 2;
+    // (not out in the deep for a landlubber, and not behind a barricade that's still up)
+    const reachable = (p) => (this.canSwim || g.world.waterDepth(p.x, p.z) < 2) && !!g.world.route(this.pos.x, this.pos.z, p.x, p.z, _d);
     const foe = g.enemies.nearestAlive(this.pos, near);
     if (foe && foe.zone === zone && reachable(foe.pos)) { this.attack(foe); return true; }
     // beach turkeys out in the water go looking much further afield
@@ -542,7 +619,7 @@ export class Turkey {
     const site = g.mounds.siteNear(this.pos, near + 2);
     if (site && g.world.zoneOf(site.pos.z) === zone && this.joinBuild(site)) return true;
     const grub = g.grubs.nearestFree(this.pos, 3);
-    if (grub && this.stage < 2) {
+    if (grub && this.stage < 2 && reachable(grub.pos)) {
       this.grub = grub;
       g.grubs.claim(grub, this);
       this.setState(S.EAT);
@@ -553,9 +630,12 @@ export class Turkey {
     const leaf = this.workCenter
       ? g.leaves.nearestFree(this.pos, 200, this.workCenter, WORK_R)
       : g.leaves.nearestFree(this.pos, 3.5);
-    if (leaf && g.world.zoneOf(leaf.pos.z) === zone && this.startRake(leaf)) {
-      this.workCenter ??= leaf.pos.clone();
-      return true;
+    if (leaf && g.world.zoneOf(leaf.pos.z) === zone) {
+      if (!reachable(leaf.pos)) leaf.snubT = g.time + SNUB_TIME; // (no way to it for now: leave it be)
+      else if (this.startRake(leaf)) {
+        this.workCenter ??= leaf.pos.clone();
+        return true;
+      }
     }
     // nothing to do? go and play (a swing, the Hills Hoist, a roost up a gum), or lie down for a sunbake
     if (this.state !== S.IDLE || this.sunT > 0) return false;
@@ -949,12 +1029,18 @@ export class Turkey {
    * kicks fling it up onto the heap.
    */
 
-  /** claim a clump of litter (starting at `first`) to rake home; false if there's no mound to take it to */
+  /**
+   * Off to rake a clump of litter home, starting at `first`; false if there's no mound to take it to. (It
+   * only lays claim to the rest of the clump once it's got there, so while it's on its way, nobody else
+   * nearer is kept off the litter, and if it can't get there after all, it's only the one bit given up on)
+   */
   startRake(first) {
     const g = this.game;
     const m = g.mounds.nearestReachable(first.pos);
     if (!m) return false;
-    this.clump = g.leaves.gather(first, 1.3, RAKE_WORTH[this.stage], this);
+    this.clump.length = 0;
+    this.clump.push(first);
+    first.owner = this;
     this.rakeTo = m;
     this.rakeTries = 0;
     this.rakeStall = 0;
@@ -1015,6 +1101,15 @@ export class Turkey {
     this.scanT = rand(0.8, 1.5);
   }
 
+  /** got to its pile, but fancies a roost up the gum instead? (whatever it was thrown there to do) True if it's off */
+  roostWhim() {
+    if (this.playCool > 0 || Math.random() >= ROOST_WHIM) return false;
+    const seat = this.game.toys.freeRoostNear(this.pos, ROOST_NEAR);
+    if (!seat) return false;
+    this.goPlay(seat);
+    return true;
+  }
+
   /** a go that got nowhere; a few of those and it gives up on this pile. True if it's given up */
   failedTry() {
     if (++this.rakeTries < RAKE_TRIES) return false;
@@ -1032,6 +1127,7 @@ export class Turkey {
     out.set(c.x - dir.x * back - dir.z * side, 0, c.z - dir.z * back + dir.x * side);
     for (let i = 0; i < 4 && !this.canSwim && w.waterDepth(out.x, out.z) === 2; i++) out.set((out.x + c.x) / 2, 0, (out.z + c.z) / 2);
     w.resolve(out, this.radius + 0.03, this.game.mounds.colliders); // (out of the rocks, trees and fences)
+    w.resolve(out, this.radius + 0.03, this.game.enemies.colliders); // (and whatever's lying about, like a tipped-over bin)
     return out;
   }
 
@@ -1045,6 +1141,9 @@ export class Turkey {
     const st = this.standSpot(_v, dir, _s);
     const d = this.steer(st.x, st.z, sp, dt, 0.04, true);
     if (d < 0.5) {
+      if (this.roostWhim()) return;
+      // there: it rakes in the rest of what's lying about, as much as it can shift
+      this.game.leaves.gather(this.clump, _v.x, _v.z, RAKE_R[this.stage], RAKE_WORTH[this.stage], this);
       this.setState(S.RAKE);
       this.rakePhase = 'set'; // (it settles in, turns its back on the mound, then kicks)
       this.setT = 0;
@@ -1096,7 +1195,7 @@ export class Turkey {
     let cx = 0, cz = 0;
     for (const l of this.clump) {
       if (l.owner !== this || l.state !== 'ground') continue; // (anything still in the air: wait for it)
-      if (Math.hypot(l.pos.x - this.pos.x, l.pos.z - this.pos.z) > 2.8) { g.leaves.release(l); continue; } // left behind
+      if (Math.hypot(l.pos.x - this.pos.x, l.pos.z - this.pos.z) > RAKE_R[this.stage] + 1.5) { g.leaves.release(l); continue; } // left behind
       _pile.push(l);
       cx += l.pos.x; cz += l.pos.z;
     }
@@ -1233,7 +1332,7 @@ export class Turkey {
       foe.damage(DPS[this.stage] * dt, this);
       this.hitting = true;
       // sand flies out behind a turkey digging something out
-      if (foe.def.task === 'dig' && this.scratchTick(dt)) this.scrapeDust(_v.set(-Math.sin(this.heading), 0, -Math.cos(this.heading)), SAND_BITS);
+      if (foe.def.task === 'dig' && this.scratchTick(dt)) this.scrapeDust(_v.set(-Math.sin(this.heading), 0, -Math.cos(this.heading)), foe.def.bits === 'soil' ? SOIL_BITS : SAND_BITS);
     }
   }
 

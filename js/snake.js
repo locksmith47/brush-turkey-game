@@ -164,8 +164,7 @@ export class Snake extends Foe {
         this.stateT -= dt;
         if (this.stateT <= 0) {
           this.state = 'slither';
-          const a = rand(0, TAU), r = rand(1, d.leash);
-          this.wanderTo = new THREE.Vector3(this.home.x + Math.cos(a) * r, 0, this.home.z + Math.sin(a) * r);
+          this.wanderTo = this.wanderPoint(1, d.leash, new THREE.Vector3());
         }
         this.aware(dt);
         break;
@@ -176,7 +175,7 @@ export class Snake extends Foe {
       case 'chase': {
         if (this.wantsShake()) { this.state = 'thrash'; this.t = 0; break; }
         const tg = this.target;
-        if (!tg || tg.dead || !tg.grounded || Math.hypot(this.home.x - this.pos.x, this.home.z - this.pos.z) > d.leash * 2) {
+        if (!tg || tg.dead || !tg.grounded || Math.hypot(this.home.x - this.pos.x, this.home.z - this.pos.z) > d.leash * 2 || !this.sees(tg)) {
           this.target = this.findTarget(d.aggro * 1.4);
           if (!this.target) { this.state = 'slither'; this.wanderTo = this.home.clone(); this.engaged = false; }
           break;

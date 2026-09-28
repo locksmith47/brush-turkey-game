@@ -17,7 +17,7 @@ export class Turkeys {
     this.nbrs = [];
     this.preferred = 'normal'; // which kind Tab has picked to throw (the biggest of that kind always goes first)
     this.candidate = null;
-    this.counts = { squad: 0, field: 0, sprouts: 0, stages: [0, 0, 0], beach: 0, normal: 0 };
+    this.counts = { squad: 0, field: 0, sprouts: 0, stages: [0, 0, 0], beach: 0, normal: 0, kit: 0 };
   }
 
   spawnSprout(x, z, stage = 0, kind = 'normal') {
@@ -27,10 +27,17 @@ export class Turkeys {
     return t;
   }
 
-  /** `hen` keeps a turkey that's coming back out of a mound the bird it was (otherwise it's pot luck) */
-  launchChick(from, tx, tz, kind = 'normal', stage = 0, hen = undefined) {
+  /**
+   * `hen` keeps a turkey that's coming back out of a mound the bird it was (otherwise it's pot luck);
+   * `gear`: the cricket kit it comes out in, if any
+   */
+  launchChick(from, tx, tz, kind = 'normal', stage = 0, hen = undefined, gear = null) {
     const t = new Turkey(this.game, stage, from.x, from.z, S.LAUNCHED, kind);
-    if (hen !== undefined && hen !== t.hen) { t.hen = hen; t.buildRig(); }
+    if ((hen !== undefined && hen !== t.hen) || gear) {
+      t.hen = hen ?? t.hen;
+      t.gear = gear;
+      t.buildRig();
+    }
     t.launchFrom(from, new THREE.Vector3(tx, this.game.world.groundHeight(tx, tz), tz));
     this.list.push(t);
     return t;
@@ -96,7 +103,7 @@ export class Turkeys {
   whistle(center, radius) {
     let n = 0;
     for (const t of this.list) {
-      if (!t.busy) continue;
+      if (!t.busy && !t.bouncing) continue; // (bouncing on the trampoline's no excuse)
       if (Math.hypot(t.pos.x - center.x, t.pos.z - center.z) < radius + t.radius) {
         if (t.joinSquad()) n++;
       }
@@ -136,10 +143,15 @@ export class Turkeys {
     const g = this.game, p = g.player;
     const c = this.counts;
     c.squad = c.field = c.sprouts = 0;
-    c.stages[0] = c.stages[1] = c.stages[2] = c.beach = c.normal = 0;
+    c.stages[0] = c.stages[1] = c.stages[2] = c.beach = c.normal = c.kit = 0;
     for (const t of this.list) {
       if (t.dead) continue;
-      if (t.state === S.FOLLOW) { c.squad++; c.stages[t.stage]++; if (t.kind === 'beach') c.beach++; else c.normal++; }
+      if (t.state === S.FOLLOW) {
+        c.squad++;
+        c.stages[t.stage]++;
+        if (t.kind === 'beach') c.beach++; else c.normal++;
+        if (t.gear?.helmet || t.gear?.pads) c.kit++;
+      }
       if (t.state === S.SPROUT || t.state === S.BURROW || t.state === S.LAUNCHED) c.sprouts++;
       else c.field++;
     }

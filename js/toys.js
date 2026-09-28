@@ -62,13 +62,7 @@ class Trampoline {
       const a = rand(0, TAU), r = rand(0, 0.9);
       t.hopTo(this.x + Math.cos(a) * r, this.z + Math.sin(a) * r, rand(0.85, 1.1), rand(2.8, 4.3), this.matY);
       t.flight.spin = Math.random() < 0.45 ? pick([-1, 1]) : 0; // the odd flip
-    } else {
-      const a = rand(0, TAU), d = rand(3.2, 5);
-      t.hopTo(this.x + Math.cos(a) * d, this.z + Math.sin(a) * d, 1.1, 3.4);
-      t.flight.spin = pick([-1, 1]);
-      if (t.bounceRejoin) t.joinAfterHop = true;
-      t.bounceRejoin = false;
-    }
+    } else t.hopOff(this.x, this.z, rand(0, TAU), rand(3.2, 5));
   }
 
   update(dt) {
@@ -140,14 +134,7 @@ class Umbrella {
       const x = this.x + Math.cos(a) * r, z = this.z + Math.sin(a) * r;
       t.hopTo(x, z, rand(0.7, 0.9), rand(1.8, 2.8), this.canopyY(r));
       t.flight.spin = Math.random() < 0.4 ? pick([-1, 1]) : 0;
-    } else {
-      // ...and off the edge it goes
-      const a = Math.atan2(t.pos.z - this.z, t.pos.x - this.x) + rand(-0.6, 0.6), d = rand(2.6, 4);
-      t.hopTo(this.x + Math.cos(a) * d, this.z + Math.sin(a) * d, 0.9, 1.6);
-      t.flight.spin = pick([-1, 1]);
-      if (t.bounceRejoin) t.joinAfterHop = true;
-      t.bounceRejoin = false;
-    }
+    } else t.hopOff(this.x, this.z, Math.atan2(t.pos.x - this.x, t.pos.z - this.z) + rand(-0.6, 0.6), rand(2.6, 4), 0.9, 1.6); // ...and off the edge
   }
 
   update(dt) {
@@ -383,11 +370,12 @@ class HillsHoist {
  * for a while (a look round, a stretch, a little doze), then flutter back down.
  */
 class TreeRoost {
-  constructor(game, { tree, x, z, perches }) {
+  constructor(game, { tree, x, z, perches, spot }) {
     this.game = game;
     this.tree = tree;
     this.x = x;
     this.z = z;
+    this.spot = spot; // (the tree's patch of litter)
     this.perches = perches; // (in the tree's own space, so they sway with it)
     this.seatPose = 'roost';
     this.seats = perches.map(() => ({ rider: null, face: 1 }));
@@ -430,12 +418,12 @@ class TreeRoost {
   rideTime() { return rand(12, 28); }
   canLeave() { return true; }
 
-  /** landing on the branch shakes a leaf or two loose */
+  /** landing on the branch shakes a leaf or two loose (not while the tree's resting after being raked bare) */
   onMount(t, i) {
     this.seats[i].face = Math.random() < 0.5 ? 1 : -1;
     const g = this.game;
     this.seatPos(i, _v);
-    for (let k = 0; k < 2; k++) g.leaves.dropFromTree(this.x, this.z, _v.y - this.tree.position.y + 1.5, 'gum');
+    if (!g.leaves.resting(this.spot)) for (let k = 0; k < 2; k++) g.leaves.dropFromTree(this.x, this.z, _v.y - this.tree.position.y + 1.5, 'gum');
     g.audio.leaf();
   }
 
@@ -462,6 +450,12 @@ export class Toys {
     const t = new Trampoline(this.game, x, z);
     this.trampolines.push(t);
     return t;
+  }
+
+  /** something else turkeys bounce on like the trampoline's mat (Big Kev's belly, once he's out cold) */
+  addBouncer(b) {
+    this.trampolines.push(b);
+    return b;
   }
 
   addUmbrella(x, z, colA, colB) {
@@ -500,12 +494,19 @@ export class Toys {
   /**
    * The nearest free seat on any ride within r, as { set, i }. `toysOnly` (for a turkey that's just landed
    * next to one) skips beach chairs, which are loot, and the roosts up the gums, which are for idling in:
-   * a turkey thrown at the leaves under a tree is there to rake them
+   * a turkey thrown at the leaves under a tree is there to rake them (if it doesn't take a fancy to the tree)
    */
   freeSeatNear(p, r, toysOnly = false) {
+    return this.seatNear(p, r, (ride) => !(toysOnly && (ride.haulable || ride.seatPose === 'roost')));
+  }
+
+  /** the nearest free spot on a gum's roosting branch within r, as { set, i } */
+  freeRoostNear(p, r) { return this.seatNear(p, r, (ride) => ride.seatPose === 'roost'); }
+
+  seatNear(p, r, ok) {
     let best = null, bd = r;
     for (const ride of this.rides) {
-      if (toysOnly && (ride.haulable || ride.seatPose === 'roost')) continue;
+      if (!ok(ride)) continue;
       const s = ride.nearestSeat(p);
       if (s && s.d < bd) { bd = s.d; best = { set: ride, i: s.i }; }
     }
@@ -515,12 +516,16 @@ export class Toys {
   update(dt) {
     for (const t of this.trampolines) {
       t.update(dt);
-      // anyone wandering onto the mat gets bounced
+      // anyone wandering onto the mat gets bounced (bar one that's only just got off it); one that's
+      // following you only goes boing the once, and hops back after you
       for (const tk of this.game.turkeys.list) {
-        if (tk.dead || (tk.state !== S.FOLLOW && tk.state !== S.IDLE && tk.state !== S.GOTO)) continue;
-        if (Math.hypot(tk.pos.x - t.x, tk.pos.z - t.z) < t.matR + 0.1) {
+        if (tk.dead || tk.playCool > 0 || (tk.state !== S.FOLLOW && tk.state !== S.IDLE && tk.state !== S.GOTO)) continue;
+        const dx = tk.pos.x - t.x, dz = tk.pos.z - t.z, d = Math.hypot(dx, dz);
+        if (d < t.matR + 0.1) {
           tk.bounceRejoin = tk.state === S.FOLLOW;
-          tk.hopTo(tk.pos.x, tk.pos.z, 0.35, 0.7, t.matY);
+          tk.bounces = tk.bounceRejoin ? 1 : 0;
+          const k = Math.min(1, (t.matR - 0.45) / (d || 1)); // (up onto the mat itself, not its rim)
+          tk.hopTo(t.x + dx * k, t.z + dz * k, 0.35, 0.7, t.matY);
         }
       }
     }

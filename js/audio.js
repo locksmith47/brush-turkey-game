@@ -200,6 +200,24 @@ export class Audio {
     this.noise({ dur: 0.05, vol: 0.1, type: 'bandpass', f1: 900, q: 2 });
   }
 
+  /** a hard knock off a helmet */
+  clonk() {
+    if (!this.ok('clonk', 120)) return;
+    this.tone({ freq: 520, freq2: 380, dur: 0.12, vol: 0.2, type: 'triangle' });
+    this.noise({ dur: 0.06, vol: 0.14, type: 'bandpass', f1: 1800, q: 3 });
+    this.tone({ freq: 1560, dur: 0.1, vol: 0.04, type: 'square', delay: 0.01 });
+  }
+
+  /** a plover sounding off: kek-kek-kek-kek */
+  kek() {
+    if (!this.ok('kek', 700)) return;
+    for (let i = 0; i < 5; i++) {
+      const f = 2300 + Math.random() * 300;
+      this.tone({ freq: f, freq2: f * 0.8, dur: 0.07, vol: 0.13, type: 'sawtooth', delay: i * 0.11 });
+      this.noise({ dur: 0.05, vol: 0.05, type: 'bandpass', f1: f * 1.4, q: 5, delay: i * 0.11 });
+    }
+  }
+
   clang() {
     if (!this.ok('clang', 120)) return;
     this.tone({ freq: 1300, freq2: 1250, dur: 0.18, vol: 0.07, type: 'square' });

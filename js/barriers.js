@@ -1,19 +1,33 @@
 import * as THREE from 'three';
-import { vcMesh, part, merge, G, clamp, pinLabel } from './util.js';
+import { vcMesh, part, merge, tint, G, limb, clamp, rand, pick, pinLabel } from './util.js';
 import { palingGeo, picketGeo, railGeo, wireGeo, wireMat, placeAlong } from './props/fences.js';
 import { BOUNDS, ZONES } from './world.js';
 import { Key } from './key.js';
+import { TRACK } from './props/bush.js';
+import { webTexture } from './spider.js';
 
 /* One giant key per area; each needs more turkeys to lift than the last. */
 const KEYS = [
-  { x: 22, z: -18, size: 1.0, weight: 4, slots: 8, heading: 0.6 },
-  { x: 22, z: -86, size: 1.6, weight: 10, slots: 14, heading: 2.2 },
-  { x: 6, z: -158, size: 2.3, weight: 20, slots: 24, heading: 0.2 },
-  { x: 6, z: -228, size: 2.6, weight: 22, slots: 26, heading: 1.0 }, // on the pitch, under Big Kev's nose
+  { x: TRACK.clearings.key[0], z: TRACK.clearings.key[1], size: 1.0, weight: 4, slots: 8, heading: 0.6, buried: 18 }, // buried behind the funnel-web's web, off to the right of the gate
+  { x: -34, z: -86, size: 1.6, weight: 10, slots: 14, heading: 2.2 }, // in the far yard on the left, the giant ibis's
+  { holder: 'king', size: 2.3, weight: 20, slots: 24 }, // round the King Ibis's neck
+  { holder: 'keeper', model: 'rake', size: 2.7, weight: 22, slots: 26 }, // Big Kev's rake is a key rake
   { x: -3, z: -337, size: 3.0, weight: 26, slots: 28, heading: 0.4 }, // sunk in the King Crab's rock pool
 ];
 
 function leafGeo(kind, w) {
+  if (kind === 'painted') {
+    // (a side gate painted up, so it stands out from the fence it's in, with its latch where the leaves meet)
+    const green = new THREE.Color(0x3f6e4e);
+    return {
+      solid: merge([
+        tint(palingGeo(w, { height: 1.75 }), (x, y, z, c) => c.lerp(green, 0.85)),
+        part(G.box(Math.hypot(w, 1.1), 0.1, 0.05), 0x2f5540, [w / 2, 0.9, -0.1], [0, 0, Math.atan2(1.1, w)]),
+        part(G.box(0.34, 0.07, 0.05), 0x222222, [w - 0.2, 1.12, 0.05]),
+        part(G.box(0.34, 0.07, 0.05), 0x222222, [w - 0.2, 1.12, -0.12]),
+      ]),
+    };
+  }
   if (kind === 'wood') {
     return { solid: merge([palingGeo(w), part(G.box(Math.hypot(w, 1.1), 0.1, 0.05), 0x8a6a4a, [w / 2, 0.9, -0.1], [0, 0, Math.atan2(1.1, w)])]) };
   }
@@ -157,9 +171,217 @@ class Gate {
   }
 }
 
+/** half of a barricade: logs piled up, built along +x from its hinge (0) to the middle of the track (len) */
+function logPileGeo(len) {
+  const barks = [0x7d5f40, 0x8b6a48, 0x74563a], cut = 0xd2b48c, greens = [0x6d8f4e, 0x5f8045, 0x7f9f5c];
+  const p = [];
+  for (const [y, z, r, l] of [[0.34, 0.36, 0.34, len], [0.34, -0.36, 0.33, len - 0.15], [0.92, 0, 0.3, len - 0.4]]) {
+    p.push(part(G.cyl(r, r * 1.08, l, 10), pick(barks), [l / 2, y, z], [0, 0, Math.PI / 2]));
+    p.push(part(G.cyl(r * 0.85, r * 0.85, 0.02, 10), cut, [l + 0.005, y, z], [0, 0, Math.PI / 2]));
+    p.push(part(G.cyl(r * 0.85, r * 0.85, 0.02, 10), cut, [-0.005, y, z], [0, 0, Math.PI / 2]));
+  }
+  // snapped-off branches poking out, still in leaf
+  for (let i = 0; i < 3; i++) {
+    const x = rand(0.6, len - 0.6), side = i % 2 ? 1 : -1;
+    const end = [x + rand(-0.4, 0.4), rand(1.4, 1.9), side * rand(0.2, 0.6)];
+    p.push(limb([x, 0.9, side * 0.1], end, 0.07, 0.04, pick(barks), 5));
+    p.push(part(G.ico(rand(0.3, 0.45), 1), pick(greens), end, [rand(0, 3), rand(0, 3), 0], [1, 0.7, 1]));
+  }
+  return merge(p);
+}
+
+/**
+ * half of a web strung across the track (the funnel-web's, across the way to the bush's key), from its
+ * anchor in the scrub (0) along +x to the middle of the track (len), billowing a little
+ */
+function webHalf(len) {
+  const H = 3.4, g = new THREE.PlaneGeometry(len, H, 10, 8).translate(len / 2, H / 2, 0);
+  const pos = g.attributes.position, uv = g.attributes.uv;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i);
+    uv.setXY(i, (x / len) * 0.5, 0.06 + (y / H) * 0.88); // (the two halves make one web between them)
+    pos.setZ(i, Math.sin((x / len) * Math.PI * 0.5) * Math.sin((y / H) * Math.PI) * 0.35);
+  }
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: webTexture(), transparent: true, depthWrite: false, side: THREE.DoubleSide }));
+  m.renderOrder = 2;
+  return m;
+}
+
+/*
+ * A barricade across the track out of one of the bush's clearings: logs, or for the funnel-web, its web.
+ * Nothing gets past it (or is thrown over it) while whatever's holding the clearing is still about; beat
+ * them all and it swings open (the web tears apart down the middle and shrivels away).
+ */
+class Barricade {
+  constructor(game, edge, at, guards, name, kind = 'logs') {
+    this.game = game;
+    const track = game.world.track, a = track.nodes[edge.a], b = track.nodes[edge.b];
+    const dx = (b.x - a.x) / edge.len, dz = (b.z - a.z) / edge.len; // (along the track, out of the clearing)
+    const px = -dz, pz = dx, hw = track.width + 0.8; // (across it, and into the scrub either side)
+    const x = a.x + dx * at, z = a.z + dz * at;
+    this.center = new THREE.Vector3(x, game.world.groundHeight(x, z), z);
+    this.edge = edge;
+    this.guards = guards;
+    this.kind = kind;
+    this.seg = game.world.addSegment(x - px * hw, z - pz * hw, x + px * hw, z + pz * hw, 0.45, true);
+    track.addWall(this.seg);
+
+    // two halves hinged in the scrub either side, meeting in the middle of the track; they swing open
+    // (away from the clearing) like a pair of gates
+    this.group = new THREE.Group();
+    this.group.position.copy(this.center);
+    this.group.rotation.y = Math.atan2(-pz, px);
+    this.leaves = [-1, 1].map((side) => {
+      const pivot = new THREE.Group();
+      pivot.position.x = side * hw;
+      pivot.scale.x = -side;
+      pivot.add(kind === 'web' ? webHalf(hw) : vcMesh(logPileGeo(hw), { cast: true, receive: true }));
+      this.group.add(pivot);
+      return pivot;
+    });
+    game.scene.add(this.group);
+
+    this.state = 'up';
+    this.t = 0;
+    this.label = document.createElement('div');
+    this.label.className = 'mound-label small';
+    this.label.innerHTML = `⚔️ Beat ${name} to get through`;
+    this.label.style.display = 'none';
+    document.getElementById('labels').appendChild(this.label);
+  }
+
+  get up() { return this.state === 'up'; }
+
+  open(silent = false) {
+    if (!this.up) return;
+    const g = this.game;
+    this.state = 'opening';
+    this.t = 0;
+    this.seg.active = false;
+    g.world.track.plan();
+    this.label.style.display = 'none';
+    // (anything given up on for being out of reach behind it is fair game again)
+    for (const l of g.leaves.list) if (l.snubT > g.time && Math.hypot(l.pos.x - this.center.x, l.pos.z - this.center.z) < 20) l.snubT = 0;
+    if (silent) return;
+    if (this.kind === 'web') {
+      g.audio.snip();
+      g.fx.burst(this.center.clone().setY(this.center.y + 1.6), { n: 24, colors: [0xffffff, 0xf2f2f2, 0xdde6ee], speed: [0.5, 2.2], up: [0.4, 1.8], grav: 1.2, drag: 1.5, size: [0.03, 0.07], life: [0.8, 1.6] });
+    } else {
+      g.audio.clatter();
+      g.fx.dust(this.center, 14);
+    }
+    g.shake(0.2);
+    g.hud.toast(this.kind === 'web' ? 'The web tore apart! The way to the key is clear' : 'The way through is clear!', 2.5);
+  }
+
+  update(dt, camera, v) {
+    this.t += dt;
+    if (this.up && this.guards.every((f) => !f.alive)) this.open();
+    if (this.state === 'opening') {
+      const k = clamp(this.t / 1.1, 0, 1), open = 1.65 * (1 - (1 - k) ** 3);
+      this.leaves[0].rotation.y = open;
+      this.leaves[1].rotation.y = -open;
+      if (this.kind === 'web') {
+        // (torn, the silk sags and shrivels away to nothing)
+        for (const l of this.leaves) {
+          l.children[0].material.opacity = 1 - k;
+          l.scale.y = 1 - k * 0.6;
+        }
+        if (k >= 1) this.group.visible = false;
+      }
+      if (k >= 1) this.state = 'open';
+    }
+    // what it'll take to get past, when the player's close by
+    const p = this.game.player.pos;
+    const near = this.up && Math.hypot(p.x - this.center.x, p.z - this.center.z) < 14;
+    if (!near) { if (this.label.style.display !== 'none') this.label.style.display = 'none'; return; }
+    pinLabel(this.label, v.set(this.center.x, this.center.y + 2.3, this.center.z), camera);
+  }
+}
+
+/*
+ * A side gate in a fence, latched on the far side. From this side there's no way through it (or throwing
+ * over it); come up to it from the other side, though, and you can let yourself through, and it stays open:
+ * a shortcut back the way you came.
+ */
+class SideGate {
+  /** the opening runs from a to b ([x, z]); `latch` is which side of it ([x, z] direction) it opens from */
+  constructor(game, a, b, latch, kind = 'wood') {
+    this.game = game;
+    const w = game.world;
+    let [ax, az] = a, [bx, bz] = b;
+    // (the leaves swing open towards the latch side, the way the zone gates open outwards)
+    if ((bz - az) * latch[0] - (bx - ax) * latch[1] < 0) [ax, az, bx, bz] = [bx, bz, ax, az];
+    const len = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / len, uz = (bz - az) / len, hw = len / 2;
+    this.center = new THREE.Vector3((ax + bx) / 2, 0, (az + bz) / 2);
+    this.latch = latch;
+    this.seg = w.addSegment(ax, az, bx, bz, 0.25, true);
+    this.track = w.trackAt(this.center.z);
+    this.track?.addWall(this.seg);
+    this.group = new THREE.Group();
+    this.group.position.copy(this.center);
+    this.group.rotation.y = Math.atan2(-uz, ux);
+    this.leaves = [-1, 1].map((side) => {
+      const pivot = new THREE.Group();
+      pivot.position.x = side * hw;
+      pivot.scale.x = -side;
+      const g = leafGeo(kind, hw);
+      pivot.add(vcMesh(g.solid, { cast: true, receive: true }));
+      if (g.mesh) pivot.add(new THREE.Mesh(g.mesh, wireMat()));
+      this.group.add(pivot);
+      return pivot;
+    });
+    game.scene.add(this.group);
+    this.state = 'shut';
+    this.t = 0;
+    this.label = document.createElement('div');
+    this.label.className = 'mound-label small';
+    this.label.innerHTML = '🔒 Latched on the other side';
+    this.label.style.display = 'none';
+    document.getElementById('labels').appendChild(this.label);
+  }
+
+  get shut() { return this.state === 'shut'; }
+
+  open(silent = false) {
+    if (!this.shut) return;
+    const g = this.game;
+    this.state = 'opening';
+    this.t = 0;
+    this.seg.active = false;
+    this.track?.plan();
+    this.label.style.display = 'none';
+    if (silent) return;
+    g.audio.unlock();
+    g.fx.sparkle(this.center.clone().setY(1.2), 14);
+    g.hud.toast('You unlatched the side gate: a shortcut back!', 3);
+  }
+
+  update(dt, camera, v) {
+    this.t += dt;
+    const p = this.game.player.pos, dx = p.x - this.center.x, dz = p.z - this.center.z, d = Math.hypot(dx, dz);
+    // (up to it on the latch side: let yourself through)
+    const onLatchSide = dx * this.latch[0] + dz * this.latch[1] > 0;
+    if (this.shut && d < 3.2 && onLatchSide) this.open();
+    if (this.state === 'opening') {
+      const k = clamp(this.t / 1.1, 0, 1), open = 1.7 * (1 - (1 - k) ** 3);
+      this.leaves[0].rotation.y = open;
+      this.leaves[1].rotation.y = -open;
+      if (k >= 1) this.state = 'open';
+    }
+    // (what it'll take to get through, from whichever side the player's on)
+    if (!this.shut || d > 10) { if (this.label.style.display !== 'none') this.label.style.display = 'none'; return; }
+    const text = onLatchSide ? '🔓 Unlatch it: a shortcut back' : '🔒 Latched on the other side';
+    if (this.label.innerHTML !== text) this.label.innerHTML = text;
+    pinLabel(this.label, v.set(this.center.x, 2.4, this.center.z), camera);
+  }
+}
+
 export class Barriers {
   constructor(game) {
     this.game = game;
+    this.barricades = [];
+    this.sideGates = [];
     this.gates = [];
     const w = game.world;
     w.gates.forEach((gate, i) => {
@@ -189,7 +411,7 @@ export class Barriers {
     this._v = new THREE.Vector3();
   }
 
-  /** drop each area's key into the world (needs game.enemies, which hauls them) */
+  /** drop each area's key into the world, or into its holder's hands (needs game.enemies, which hauls them) */
   spawnKeys() {
     this.keys = KEYS.map((spec, i) => {
       const k = new Key(this.game, spec, this.game.world.gates[i], i);
@@ -198,14 +420,34 @@ export class Barriers {
     });
   }
 
-  /** debug helper: open gate i straight away (and tidy away its key) */
+  /**
+   * a barricade across the track out of clearing `at` (towards `to`), until all the `guards` are beaten:
+   * `kind` 'logs', or 'web' (strung across it by the funnel-web)
+   */
+  addBarricade(at, to, guards, name, kind = 'logs') {
+    const track = this.game.world.track;
+    const b = new Barricade(this.game, track.firstEdge(at, to), track.node(at).r + 1.6, guards, name, kind);
+    this.barricades.push(b);
+    return b;
+  }
+
+  /** a side gate across the opening a->b in a fence, that only opens from its `latch` side */
+  addSideGate(a, b, latch, kind) {
+    const s = new SideGate(this.game, a, b, latch, kind);
+    this.sideGates.push(s);
+    return s;
+  }
+
+  /** debug helper: open gate i straight away (and tidy away its key, wherever it is) */
   unlock(i, silent = false) {
     this.gates[i].unlock(silent);
     const k = this.keys?.[i];
-    if (k && !k.gone && k.state === 'carcass') k.dispose();
+    if (k && !k.gone && k.state !== 'unlock') k.dispose();
   }
 
   update(dt, camera) {
     for (const g of this.gates) g.update(dt, camera, this._v);
+    for (const b of this.barricades) b.update(dt, camera, this._v);
+    for (const s of this.sideGates) s.update(dt, camera, this._v);
   }
 }
