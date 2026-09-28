@@ -6,9 +6,9 @@ export const S = {
   SPROUT: 'sprout', POP: 'pop', FOLLOW: 'follow', THROWN: 'thrown', IDLE: 'idle', GOTO: 'goto',
   SEEK: 'seek', RAKE: 'rake', EAT: 'eat', LAUNCHED: 'launched', BURROW: 'burrow',
   ATTACK: 'attack', HAUL: 'haul', DYING: 'dying', HELD: 'held', EATEN: 'eaten', TOY: 'toy', SWING: 'swing', DROWN: 'drown',
-  BUILD: 'build',
+  BUILD: 'build', DIGOUT: 'digout',
 };
-const WALKING = new Set([S.FOLLOW, S.IDLE, S.GOTO, S.SEEK, S.RAKE, S.EAT, S.HAUL, S.ATTACK, S.TOY, S.BUILD]);
+const WALKING = new Set([S.FOLLOW, S.IDLE, S.GOTO, S.SEEK, S.RAKE, S.EAT, S.HAUL, S.ATTACK, S.TOY, S.BUILD, S.DIGOUT]);
 const BUSY = new Set([S.IDLE, S.GOTO, S.SEEK, S.RAKE, S.EAT, S.ATTACK, S.HAUL, S.TOY, S.SWING, S.DROWN, S.BUILD]);
 const SOIL_BITS = [0x7a5230, 0x8b6238, 0x5e3e22, 0x9c7a4f], SAND_BITS = [0xecd9a4, 0xe2cc92, 0xd8c286];
 const HIDDEN_BODY = new Set([S.SPROUT, S.BURROW]);
@@ -431,6 +431,55 @@ export class Turkey {
     if (this.scratchTick(dt)) this.scrapeDust(_r.set(m.pos.x - this.pos.x, 0, m.pos.z - this.pos.z).normalize(), m.beach ? SAND_BITS : SOIL_BITS);
   }
 
+  /* ---------------------------------------------------------------- digging you out */
+  /**
+   * You went down, and you're buried in mound m: this one's in the crew digging you out. It's put straight in
+   * its spot round the mound, at (x, z) (the screen's gone black: nobody sees it get there), facing in, and at it
+   */
+  digOut(m, x, z) {
+    this.dropEverything();
+    this.flight = null;
+    this.bounces = 0;
+    this.bounceRejoin = false;
+    this.holder = null;
+    this.workCenter = null;
+    this.rescued = 0;
+    this.digSite = m;
+    this.digSpot = new THREE.Vector3(x, 0, z);
+    this.pos.set(x, this.game.world.groundHeight(x, z), z);
+    this.vel.set(0, 0, 0);
+    this.heading = Math.atan2(m.pos.x - x, m.pos.z - z);
+    this.scrapeClock = rand(0, CYCLE); // (they don't all scratch in step)
+    this.setState(S.DIGOUT);
+  }
+
+  /** you're out: it's with you now, and pleased about it */
+  digDone() {
+    this.digSite = null;
+    this.scratching = false;
+    this.setState(S.FOLLOW);
+    this.squash = 1;
+    this.game.audio.peep(this.stage);
+  }
+
+  /** at its spot, facing into the mound, scratching the dirt out behind it (it wanders back if it gets shoved off) */
+  updateDigOut(dt, sp) {
+    const m = this.digSite, s = this.digSpot;
+    if (!m) { this.setState(S.IDLE); return; }
+    const d = Math.hypot(s.x - this.pos.x, s.z - this.pos.z), face = Math.atan2(m.pos.x - this.pos.x, m.pos.z - this.pos.z);
+    if (this.scratching ? d > 0.45 : d > 0.12 || this.vel.lengthSq() > 0.09) {
+      this.scratching = false;
+      this.steer(s.x, s.z, sp, dt, 0.04, true);
+      if (d < 1) this.turnTo(face, dt);
+      else if (this.vel.lengthSq() > 0.04) this.turnTo(Math.atan2(this.vel.x, this.vel.z), dt, 9);
+      return;
+    }
+    this.scratching = true;
+    this.brake(dt, 25);
+    this.turnTo(face, dt);
+    if (this.scratchTick(dt)) this.scrapeDust(_r.set(this.pos.x - m.pos.x, 0, this.pos.z - m.pos.z).normalize(), m.beach ? SAND_BITS : SOIL_BITS);
+  }
+
   /** gone without a trace: dived into a beach mound, which spits it back out in boardshorts */
   vanish() {
     this.dropEverything();
@@ -591,6 +640,7 @@ export class Turkey {
     this.latched = false;
     if (this.obj) { this.obj.leaveCarry(this); this.obj = null; this.slot = -1; }
     if (this.site) { this.site.leaveCrew(this); this.site = null; }
+    this.digSite = null;
     this.scratching = false;
     this.leaveSeat();
     this.peck = 0;
@@ -856,6 +906,7 @@ export class Turkey {
           break;
         case S.DROWN: this.updateDrown(dt, water); break;
         case S.BUILD: this.updateBuild(dt, sp); break;
+        case S.DIGOUT: this.updateDigOut(dt, sp); break;
       }
     }
 
@@ -865,8 +916,8 @@ export class Turkey {
       this.pos.z += this.vel.z * dt;
       g.world.resolve(this.pos, this.radius, g.mounds.colliders);
       const v2 = this.vel.x * this.vel.x + this.vel.z * this.vel.z;
-      // (fighting, raking and building turkeys see to which way they face themselves)
-      if (v2 > 0.04 && this.state !== S.ATTACK && this.state !== S.RAKE && this.state !== S.BUILD) this.turnTo(Math.atan2(this.vel.x, this.vel.z), dt, 9);
+      // (fighting, raking, building and digging turkeys see to which way they face themselves)
+      if (v2 > 0.04 && this.state !== S.ATTACK && this.state !== S.RAKE && this.state !== S.BUILD && this.state !== S.DIGOUT) this.turnTo(Math.atan2(this.vel.x, this.vel.z), dt, 9);
       const w2 = g.world.waterAt(this.pos.x, this.pos.z);
       if (!this.canSwim) {
         // a landlubber that wanders out of its depth starts to drown (a whistled one gets a few seconds' grace)
@@ -1437,9 +1488,10 @@ export class Turkey {
     r.bodyPivot.position.y = Math.abs(Math.cos(this.phase)) * 0.03 * k;
     r.bodyPivot.rotation.z = Math.sin(this.phase) * 0.06 * k;
 
-    // chores: scratching (digging out a flag, raking litter home, scratching up a new mound) and shoving (tipping over a bin)
+    // chores: scratching (digging out a flag, raking litter home, scratching up a new mound, digging you out) and
+    // shoving (tipping over a bin)
     const task = this.state === S.ATTACK && this.hitting && !this.latched ? this.foe?.def.task : null;
-    const scratching = task === 'dig' || ((this.state === S.BUILD || this.state === S.RAKE) && this.scratching);
+    const scratching = task === 'dig' || ((this.state === S.BUILD || this.state === S.RAKE || this.state === S.DIGOUT) && this.scratching);
     const pushing = task === 'push';
     const scr = scratching ? scrapeAt(this.scrapeClock ?? 0) : null; // mid-scrape, changing feet, or having a breather
     const kicking = !!scr?.leg;

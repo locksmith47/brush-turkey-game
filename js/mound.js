@@ -14,7 +14,7 @@ const BUILD_WORK = 60; // turkey-seconds of scratching it takes (ten turkeys: si
 // a bit more again after every hatching (up to a point)
 const HATCH_AT = { home: 12, other: 9, more: 3, max: 24 };
 const PADDED = 0.5; // chance a chick hatched on the oval comes out padded up for cricket (helmet and leg guards)
-const _c = new THREE.Color(), _v = new THREE.Vector3();
+const _c = new THREE.Color(), _v = new THREE.Vector3(), _p = new THREE.Vector3(), _wp = new THREE.Vector3();
 
 /* One kind of thing stuck in a mound's surface (leaves, beach loot, rubbish): an InstancedMesh spread over the dome. */
 class DecalSet {
@@ -520,8 +520,9 @@ export class Mound {
 
   updateLabel(camera, v) {
     const g = this.game, p = g.player.pos;
-    // (nothing about beach turkeys shows until Bondi's open, and nothing far away shows at all)
-    if (this.beach && !g.bondiOpen()) { this.dial.hide(); return; }
+    // (nothing about beach turkeys shows until Bondi's open, and nothing far away shows at all; nor while
+    // you're buried in it, being dug out)
+    if ((this.beach && !g.bondiOpen()) || (g.player.digSite === this && g.player.life !== 'ok')) { this.dial.hide(); return; }
     v.copy(this.pos);
     v.y += this.h * this.group.scale.y + 0.8;
     // (only shows when you're nearby: it fades out quickly as you walk off)
@@ -570,23 +571,42 @@ export class Mounds {
     return best;
   }
 
+  /** how far it is to walk from pos to mound m (through open gates, round the bush's track), or Infinity if there's no way there yet */
+  walk(pos, m) {
+    const w = this.game.world, p = _p.set(pos.x, 0, pos.z);
+    let len = 0;
+    for (let i = 0; i < 24; i++) { // (the way round the bush's track takes a fair few turns)
+      if (!w.route(p.x, p.z, m.pos.x, m.pos.z, _wp)) return Infinity;
+      len += Math.hypot(_wp.x - p.x, _wp.z - p.z);
+      if (_wp.x === m.pos.x && _wp.z === m.pos.z) return len;
+      p.copy(_wp);
+    }
+    return Infinity;
+  }
+
   /** nearest mound you can walk to from pos (through open gates), or null */
   nearestReachable(pos, kind = 'leaf') {
-    const w = this.game.world, p = new THREE.Vector3(), wp = new THREE.Vector3();
     let best = null, bd = Infinity;
     for (const m of this.list) {
       if (m.kind !== kind || m.building) continue;
-      p.set(pos.x, 0, pos.z);
-      let len = 0, ok = false;
-      for (let i = 0; i < 24; i++) { // (the way round the bush's track takes a fair few turns)
-        if (!w.route(p.x, p.z, m.pos.x, m.pos.z, wp)) break;
-        len += Math.hypot(wp.x - p.x, wp.z - p.z);
-        if (wp.x === m.pos.x && wp.z === m.pos.z) { ok = true; break; }
-        p.copy(wp);
-      }
-      if (ok && len < bd) { bd = len; best = m; }
+      const len = this.walk(pos, m);
+      if (len < bd) { bd = len; best = m; }
     }
     return best;
+  }
+
+  /**
+   * Where you come back to when you go down at pos: the nearest finished mound (of either kind), as the crow
+   * flies, of the ones you could walk to from there (never one past a gate you've not got through yet)
+   */
+  refuge(pos) {
+    let best = null, bd = Infinity;
+    for (const m of this.list) {
+      if (m.building) continue;
+      const d = Math.hypot(m.pos.x - pos.x, m.pos.z - pos.z);
+      if (d < bd && this.walk(pos, m) < Infinity) { bd = d; best = m; }
+    }
+    return best ?? this.list.find((m) => m.home) ?? this.nearest(pos);
   }
 
   /** the mound a flying turkey at p has just plopped into, if any */

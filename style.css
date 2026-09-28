@@ -40,7 +40,7 @@ kbd {
 #throw-kind kbd { margin-left: 4px; }
 
 #stats {
-  position: absolute; left: 18px; top: 16px; padding: 8px 14px; font-size: 15px; line-height: 1.5;
+  position: absolute; left: 18px; top: 58px; padding: 8px 14px; font-size: 15px; line-height: 1.5;
   background: rgba(33, 44, 25, .5); border-radius: 12px;
 }
 #stats b { color: #ffe066; }
@@ -226,3 +226,47 @@ kbd {
   30% { transform: scale(1) rotate(-2deg); opacity: 1; }
   100% { transform: translateY(-34px) scale(1.08); opacity: 0; }
 }
+
+/* ---------------------------------------------------------------- your health, and going down */
+#health {
+  position: absolute; left: 18px; top: 16px; display: flex; align-items: center; gap: 8px; padding: 7px 12px 7px 9px;
+  background: rgba(33, 44, 25, .55); border-radius: 12px;
+}
+#health .heart { width: 22px; height: 22px; fill: #ff5a5a; filter: drop-shadow(0 1px 1px rgba(0,0,0,.5)); }
+#health.low .heart { animation: heart-beat .95s ease-in-out infinite; }
+@keyframes heart-beat { 0%, 36%, 100% { transform: scale(1); } 12% { transform: scale(1.24); } 24% { transform: scale(1.1); } }
+.hp-bar {
+  position: relative; width: 190px; height: 12px; border-radius: 6px; overflow: hidden;
+  background: rgba(0, 0, 0, .45); box-shadow: inset 0 1px 2px rgba(0,0,0,.5);
+}
+.hp-bar i { position: absolute; left: 0; top: 0; bottom: 0; width: 100%; border-radius: 6px; }
+#hp-lag { background: #f4f1e4; transition: width .8s ease .4s; }
+#hp-fill { background: #7bd34f; transition: width .12s linear, background-color .3s; }
+#health.mid #hp-fill { background: #ffc53d; }
+#health.low #hp-fill { background: #ff5a3d; }
+
+/* red round the edges when you're hurt */
+#hurt {
+  position: fixed; inset: 0; pointer-events: none; z-index: 3; opacity: 0;
+  background: radial-gradient(ellipse closest-side at center, rgba(200, 0, 0, 0) 62%, rgba(190, 12, 12, .42) 86%, rgba(140, 0, 0, .8) 100%);
+}
+
+/* WASTED (the colour drains out of the game itself: see Wasted.look) */
+#wasted-shade {
+  position: fixed; inset: 0; pointer-events: none; z-index: 7; opacity: 0;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, .55) 100%);
+}
+#wasted { position: fixed; left: 0; right: 0; top: 50%; transform: translateY(-50%); z-index: 8; pointer-events: none; opacity: 0; }
+#wasted .band {
+  display: flex; justify-content: center; padding: 12px 0 6px;
+  background: linear-gradient(90deg, rgba(0,0,0,.15), rgba(0,0,0,.72) 20%, rgba(0,0,0,.72) 80%, rgba(0,0,0,.15));
+}
+#wasted-word {
+  display: block; font-family: 'Passion One', Impact, 'Arial Black', sans-serif; font-weight: 700;
+  font-size: clamp(64px, 12vw, 150px); line-height: .9; letter-spacing: 3px; color: #d0261f;
+  -webkit-text-stroke: 3px #1c0200; paint-order: stroke fill; text-shadow: 0 4px 0 #3b0503, 0 0 26px rgba(0, 0, 0, .75);
+}
+#blackout { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 9; }
+/* (everything else gets out of the way) */
+body.wasted #hud, body.wasted #labels, body.wasted #boss, body.wasted #toast, body.wasted #banner,
+body.wasted #zone-title, body.wasted #help, body.wasted #hurt { opacity: 0 !important; transition: opacity .5s; }

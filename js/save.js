@@ -66,7 +66,7 @@ export class Saves {
 
   /** every EVERY seconds while you play (and whenever you leave the page: see main.js) */
   update(dt) {
-    if (!this.on || (this.t -= dt) > 0) return;
+    if (!this.on || this.game.wasted.active || (this.t -= dt) > 0) return; // (not while you're down: see snapshot)
     this.t = EVERY;
     this.write();
   }
@@ -86,11 +86,13 @@ export class Saves {
   /* ---------------------------------------------------------------- what's saved */
   snapshot() {
     const g = this.game, w = g.world, b = g.barriers, p = g.player, keys = b.keys;
+    // (gone down, or being dug out? then you're back at the mound you're coming back to, the camera as you had it)
+    const at = g.wasted.active ? g.wasted.comeBack() : p.pos, zoom = g.wasted.active ? g.wasted.zoom : g.cam.zoom;
     return {
       v: VERSION,
       at: Date.now(),
-      player: [r2(p.pos.x), r2(p.pos.z), r2(p.heading)],
-      cam: [r2(g.cam.yaw), r2(g.cam.zoom)],
+      player: [r2(at.x), r2(at.z), r2(p.heading)],
+      cam: [r2(g.cam.yaw), r2(zoom)],
       stats: { ...g.stats },
       progress: this.progress.get(),
       // (a key that's turning in its lock counts: its gate's as good as open)
@@ -136,7 +138,7 @@ export class Saves {
   turkeyState(t) {
     if (t.dead || t.removed || t.state === S.DYING) return null;
     const st = t.state;
-    const mode = st === S.SPROUT || st === S.BURROW ? 's' : st === S.FOLLOW || st === S.POP || st === S.DROWN ? 'f' : 'i';
+    const mode = st === S.SPROUT || st === S.BURROW ? 's' : st === S.FOLLOW || st === S.POP || st === S.DROWN || st === S.DIGOUT ? 'f' : 'i';
     const at = (st === S.THROWN || st === S.LAUNCHED) && t.flight?.to ? t.flight.to : t.pos; // (where it was headed)
     return [t.stage, t.kind === 'beach' ? 1 : 0, t.hen ? 1 : 0, t.variant, gearBits(t.gear), r1(at.x), r1(at.z), mode, mode === 's' ? r1(t.growT) : 0];
   }

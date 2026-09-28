@@ -2,11 +2,37 @@ import * as THREE from 'three';
 import { createPlayerRig } from './playerModel.js';
 import { damp, dampAngle, angleDiff, clamp, lerp, rand, TAU } from './util.js';
 
+export const MAX_HP = 100;
+const REGEN_DELAY = 5; // seconds out of trouble before he starts to get his breath back...
+const REGEN_RATE = 9; // ...and then how fast it comes back (health a second)
+const IFRAMES = 0.6; // straight after a hit, a moment before the next one can land
+const GRACE = 2.5; // just dug out of a mound: a moment to get his bearings before anything can hurt him
+const FALL_T = 0.85; // going down: over backwards like a felled tree, the way Big Kev goes
+const LIE_LIFT = 0.16; // (flat on his back, how far up his feet have to be for his back to rest on the ground)
+const POP_T = 0.8; // bursting out of the top of the mound he's been dug out of
+const _v = new THREE.Vector3();
+
+/* stars going round his head, when he's seeing them (like Big Kev's) */
+function starRing() {
+  const stars = new THREE.Group();
+  const geo = new THREE.OctahedronGeometry(0.045, 0), mat = new THREE.MeshBasicMaterial({ color: 0xffe066 });
+  for (let i = 0; i < 5; i++) {
+    const st = new THREE.Mesh(geo, mat);
+    st.userData.a = (i / 5) * TAU;
+    stars.add(st);
+  }
+  stars.visible = false;
+  return stars;
+}
+
 export class Player {
   constructor(game) {
     this.game = game;
     this.rig = createPlayerRig();
     this.rig.root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    this.rig.root.rotation.order = 'YXZ'; // (so he can topple over backwards, whichever way he's facing)
+    this.stars = starRing();
+    this.rig.head.add(this.stars);
     game.scene.add(this.rig.root);
     this.pos = new THREE.Vector3(0, 0, 9);
     this.vel = new THREE.Vector3();
@@ -25,20 +51,133 @@ export class Player {
     this.dizzy = 0;
     this.hop = 0; // height above the ground (trampolining!)
     this.hopV = 0;
+    // his health, and how he's doing: 'ok', 'down' (out cold: WASTED), 'buried' (put back in a mound, waiting
+    // to be dug out) or 'rising' (bursting out of the top of it)
+    this.hp = MAX_HP;
+    this.life = 'ok';
+    this.lifeT = 0;
+    this.iframes = 0;
+    this.blink = 0; // (flickering, while nothing can hurt him just after he's been dug out)
+    this.quiet = 99; // seconds since he was last hurt
+    this.flinch = 0;
+    this.landK = 0;
+    this.beatT = 0;
+    this.digK = 0; // how far he's been dug out of the mound (the turkeys at it set this)
   }
 
-  /** bowled over (e.g. by a spinning rake) */
-  knock(from, power) {
+  /** as far as anything after him is concerned: he's down, or buried in a mound (so leave him be) */
+  get dead() { return this.life !== 'ok'; }
+  /** up and about, and fair game */
+  get grounded() { return this.life === 'ok'; }
+
+  /**
+   * Bowled over (by a spinning rake, say), or just knocked back a step: shoved away from `from` at `power`
+   * (m/s), and dazed for `daze` seconds (stood there, seeing stars if it's a while)
+   */
+  knock(from, power, daze = 1.1) {
     const dx = this.pos.x - from.x, dz = this.pos.z - from.z, d = Math.hypot(dx, dz) || 1;
     this.knockVel.set((dx / d) * power, 0, (dz / d) * power);
-    this.dizzy = 1.1;
+    this.dizzy = Math.max(this.dizzy, daze);
+    if (power < 8) return;
     this.game.fx.dust(this.pos, 8);
     this.game.audio.land();
     this.game.shake(0.4);
   }
 
+  /**
+   * Something's got him (a peck, a bite, a clip round the ear with a rake): `amount` off his health, knocked
+   * back away from `from` at `knock` (m/s) and rooted to the spot for `stun` seconds. Nothing lands while he's
+   * down, or for a moment after the last hit. True if it did
+   */
+  hurt(amount, from, { knock = 4, stun = 0.2 } = {}) {
+    const g = this.game;
+    if (this.life !== 'ok' || this.iframes > 0 || !g.started) return false;
+    this.iframes = IFRAMES;
+    if (from && knock) this.knock(from, knock, stun);
+    if (g.dev?.invincible) return true; // (dev mode: knocked about, but none the worse for it)
+    this.hp = Math.max(0, this.hp - amount);
+    this.quiet = 0;
+    this.flinch = 1;
+    g.hud.hurt(amount / MAX_HP);
+    g.audio.oof(this.hp <= 0);
+    g.shake(Math.min(0.6, 0.15 + amount * 0.012));
+    g.fx.burst(_v.set(this.pos.x, this.pos.y + this.hop + 1.35, this.pos.z), { glow: true, n: 7, colors: [0xffffff, 0xffe066, 0xff7a3d], speed: [1.5, 3.2], up: [0.3, 2], grav: 3, drag: 2.5, size: [0.04, 0.08], life: [0.25, 0.45] });
+    if (this.hp <= 0) this.goDown(from);
+    else if (!this.toldHurt) {
+      this.toldHurt = true;
+      g.hud.toast('Ouch! Foes go for you too. Keep out of the red circles, and get clear to heal', 5);
+    } else if (this.hp < MAX_HP * 0.3) g.hud.toastOnce('low-hp', "You're in a bad way! Get clear of trouble to get your breath back", 3, 45);
+    return true;
+  }
+
+  /** his health's all gone: over backwards he goes (facing whatever did it), out cold. WASTED */
+  goDown(from) {
+    this.life = 'down';
+    this.lifeT = 0;
+    this.landed = false;
+    this.fallFrom = this.heading;
+    this.fallTo = this.clearFall(from ? Math.atan2(from.x - this.pos.x, from.z - this.pos.z) : this.heading);
+    this.throwT = this.pluckT = 1;
+    this.whistling = false;
+    this.dizzy = 0;
+    if (from) this.knock(from, Math.max(6, this.knockVel.length()), 0); // (the last one sends him flying)
+    this.game.wasted.start();
+  }
+
+  /** which way to face so as to fall flat on his back somewhere clear, as near as can be to `face` */
+  clearFall(face) {
+    const w = this.game.world;
+    for (let i = 0; i < 9; i++) {
+      const h = face + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.4, bx = -Math.sin(h), bz = -Math.cos(h);
+      if ([0.6, 1.2, 1.8].every((d) => w.isFree(this.pos.x + bx * d, this.pos.z + bz * d, 0.3))) return h;
+    }
+    return face;
+  }
+
+  /**
+   * Put back after going down: buried in mound m, up to his eyeballs, facing `facing` (the camera), waiting for
+   * the turkeys to dig him out. Good as new, mind
+   */
+  bury(m, facing) {
+    this.life = 'buried';
+    this.lifeT = 0;
+    this.digSite = m;
+    this.digK = 0;
+    this.hp = MAX_HP;
+    this.quiet = 99;
+    this.iframes = this.flinch = this.dizzy = this.landK = 0;
+    this.knockVel.set(0, 0, 0);
+    this.vel.set(0, 0, 0);
+    this.speed = this.hop = this.hopV = 0;
+    this.pos.set(m.pos.x, m.pos.y, m.pos.z);
+    this.heading = facing;
+  }
+
+  /** dug out: up he pops out of the top of the mound, spinning round once, to land on his feet at `to` */
+  popOut(to) {
+    this.life = 'rising';
+    this.lifeT = 0;
+    this.popFrom = this.rig.root.position.clone();
+    this.popTo = to.clone();
+    this.popHeading = this.heading;
+    const m = this.digSite, top = m.pos.y + m.dome.scale.y * m.group.scale.y;
+    this.popH = Math.max(1, top + 0.6 - (this.popFrom.y + to.y) / 2);
+  }
+
   handPos(out) {
     return this.rig.armR.hand.getWorldPosition(out);
+  }
+
+  /** what the camera keeps in the middle of the picture: him, or once he's down, the middle of him lying there */
+  focus(out) {
+    out.copy(this.pos);
+    if (this.life === 'down') {
+      const k = Math.min(1, this.lifeT / FALL_T) ** 2;
+      out.x -= Math.sin(this.heading) * 0.8 * k;
+      out.z -= Math.cos(this.heading) * 0.8 * k;
+      out.y -= 0.55 * k;
+    }
+    return out;
   }
 
   playThrow() { this.throwT = 0; }
@@ -48,6 +187,15 @@ export class Player {
   update(dt, move, aim) {
     const g = this.game;
     this.time += dt;
+    this.iframes = Math.max(0, this.iframes - dt);
+    this.blink = Math.max(0, this.blink - dt);
+    this.flinch = Math.max(0, this.flinch - dt * 3);
+    this.landK = Math.max(0, this.landK - dt * 4);
+    if (this.life !== 'ok') { this.updateOut(dt); return; }
+    // (out of trouble a while, he gets his breath back; in a bad way, you can hear his heart going)
+    this.quiet += dt;
+    if (this.quiet > REGEN_DELAY && this.hp < MAX_HP) this.hp = Math.min(MAX_HP, this.hp + REGEN_RATE * dt);
+    if (this.hp < MAX_HP * 0.3 && (this.beatT -= dt) <= 0) { this.beatT = 0.95; g.audio.heartbeat(); }
     this.dizzy = Math.max(0, this.dizzy - dt);
     const busy = this.pluckT < 1 || this.dizzy > 0;
     const water = g.world.waterAt(this.pos.x, this.pos.z);
@@ -63,23 +211,7 @@ export class Player {
     g.world.resolve(this.pos, this.radius, g.mounds.colliders);
     g.world.resolve(this.pos, this.radius, g.enemies.colliders);
     this.pos.y = g.world.groundHeight(this.pos.x, this.pos.z);
-
-    // boing: walk onto the trampoline and you bounce
-    const tr = g.toys.trampolineAt(this.pos);
-    const floor = tr ? tr.matY - this.pos.y : 0;
-    this.hopV -= 24 * dt;
-    this.hop += this.hopV * dt;
-    if (this.hop <= floor) {
-      if (tr) {
-        this.hop = floor;
-        this.hopV = 10.5;
-        tr.kick(1.3);
-        g.audio.boing(3);
-      } else {
-        this.hop = 0;
-        this.hopV = 0;
-      }
-    }
+    this.bouncing(dt);
     this.speed = Math.hypot(this.vel.x, this.vel.z);
 
     // in the water: a wake behind him when he's moving, lazy rings when he stands still (like the turkeys)
@@ -105,18 +237,182 @@ export class Player {
     this.animate(dt, aimYaw);
   }
 
+  /**
+   * boing: walk onto the trampoline (or Big Kev's belly) and you bounce. Out cold, he still bounces, less
+   * and less, till he lies there on the mat
+   */
+  bouncing(dt) {
+    const g = this.game;
+    const tr = g.toys.trampolineAt(this.pos);
+    const floor = tr ? tr.matY - this.pos.y : 0;
+    this.hopV -= 24 * dt;
+    this.hop += this.hopV * dt;
+    if (this.hop > floor) return;
+    const out = this.life !== 'ok';
+    if (tr && (!out || this.hopV < -3)) {
+      this.hopV = out ? -this.hopV * 0.45 : 10.5;
+      tr.kick(out ? 0.8 : 1.3);
+      g.audio.boing(3);
+    } else this.hopV = 0;
+    this.hop = floor;
+  }
+
+  /** down (out cold), buried in a mound, or bursting out of one: no walking about, and nothing to aim at */
+  updateOut(dt) {
+    const g = this.game;
+    this.lifeT += dt;
+    this.speed = 0;
+    if (this.life === 'down') {
+      // (the last hit carries him on a way as he goes over)
+      this.pos.x += this.knockVel.x * dt;
+      this.pos.z += this.knockVel.z * dt;
+      this.knockVel.multiplyScalar(Math.exp(-5 * dt));
+      g.world.resolve(this.pos, this.radius, g.mounds.colliders);
+      g.world.resolve(this.pos, this.radius, g.enemies.colliders);
+      this.pos.y = g.world.groundHeight(this.pos.x, this.pos.z);
+      this.bouncing(dt);
+      if (!this.landed && this.lifeT >= FALL_T) {
+        // (he hits the deck)
+        this.landed = true;
+        g.fx.dust(this.focus(_v), 14);
+        g.audio.thud();
+        g.shake(0.3);
+      }
+      this.poseDown();
+    } else if (this.life === 'buried') this.poseBuried();
+    else {
+      const k = Math.min(1, this.lifeT / POP_T);
+      this.pos.x = lerp(this.popFrom.x, this.popTo.x, k);
+      this.pos.z = lerp(this.popFrom.z, this.popTo.z, k);
+      this.pos.y = g.world.groundHeight(this.pos.x, this.pos.z);
+      if (k >= 1) {
+        // (on his feet, and a moment's grace to get his bearings)
+        this.life = 'ok';
+        this.pos.copy(this.popTo);
+        this.heading = this.popHeading;
+        this.iframes = this.blink = GRACE;
+        this.landK = 1;
+        g.fx.dust(this.pos, 10);
+        g.audio.land();
+        this.animate(dt, this.heading);
+        return;
+      }
+      this.poseRising(k, dt);
+    }
+    this.rig.root.visible = true;
+    this.rig.root.updateMatrixWorld(true);
+  }
+
+  /** stars round his head: when he's dazed, or out cold (`fall`: how far over he's gone, `level`: undoing the tilt of his head) */
+  poseStars(show, fall, level) {
+    const st = this.stars;
+    st.visible = show;
+    if (!show) return;
+    const t = this.game.time, spin = fall > 0 ? 2.6 : 4, rad = fall > 0 ? 0.24 : 0.2;
+    st.position.set(0, 0.46 - 0.3 * fall, 0.34 * fall);
+    st.rotation.set(level, 0, 0);
+    st.children.forEach((s, i) => {
+      const a = s.userData.a + t * spin;
+      s.position.set(Math.cos(a) * rad, Math.sin(a * 2 + i) * 0.025, Math.sin(a) * rad);
+      s.rotation.y = t * 3;
+    });
+  }
+
+  /** out cold: over backwards like a felled tree (a little bounce as he lands), arms flung out over his head */
+  poseDown() {
+    const r = this.rig, g = this.game, k = Math.min(1, this.lifeT / FALL_T);
+    let fall = k * k;
+    if (k >= 1) {
+      const b = Math.min(1, (this.lifeT - FALL_T) / 0.3);
+      fall -= Math.sin(b * Math.PI) * 0.07 * (1 - b);
+    }
+    const spread = Math.min(1, k * 1.4);
+    this.heading = this.fallFrom + angleDiff(this.fallFrom, this.fallTo) * Math.min(1, k * 1.5);
+    let y = this.pos.y + this.hop + LIE_LIFT * fall;
+    // (out in deep water, he floats)
+    const w = g.world.waterAt(this.pos.x, this.pos.z);
+    if (w.depth === 2) y = lerp(y, Math.max(y, g.world.surfaceY(w, this.pos.x, this.pos.z) - 0.12), fall);
+    const pitch = -Math.PI / 2 * fall, headX = -0.25 * spread;
+    r.root.position.set(this.pos.x, y, this.pos.z);
+    r.root.rotation.set(pitch, this.heading, 0);
+    r.root.scale.setScalar(1);
+    r.torso.rotation.set(0, 0, 0);
+    r.torso.scale.set(1, 1 + Math.sin(this.time * 1.6) * 0.012 * spread, 1); // (still breathing, just)
+    r.legL.hip.rotation.set(0.08 * spread, 0, 0.14 * spread);
+    r.legR.hip.rotation.set(0.08 * spread, 0, -0.14 * spread);
+    r.legL.knee.rotation.x = r.legR.knee.rotation.x = 0.15 * spread;
+    r.armL.shoulder.rotation.set(0, 0.3 * spread, (Math.PI / 2 + 0.55) * spread);
+    r.armR.shoulder.rotation.set(0, -0.3 * spread, -(Math.PI / 2 + 0.55) * spread);
+    r.armL.elbow.rotation.x = r.armR.elbow.rotation.x = -0.35 * spread;
+    r.head.rotation.set(headX, 0, 0);
+    // (his hair flops out on the ground round his head as he lands)
+    r.hairBack.rotation.set(lerp(this.hair, 2.5, fall * fall), 0, 0);
+    this.poseStars(k > 0.6, fall, -(pitch + headX));
+  }
+
+  /**
+   * Buried in the mound, head poking out of the top and an arm waving for help (both, as they get him loose),
+   * wriggling about, and coming up out of it bit by bit as the turkeys dig
+   */
+  poseBuried() {
+    const r = this.rig, m = this.digSite, t = this.lifeT, k = this.digK;
+    const top = m.pos.y + m.dome.scale.y * m.group.scale.y; // (the top of the heap, as it looks right now)
+    const sink = lerp(1.82, 1.3, k * k) - Math.max(0, Math.sin(t * 7)) * 0.04;
+    r.root.position.set(this.pos.x, top - sink, this.pos.z);
+    r.root.rotation.set(0, this.heading + Math.sin(t * 3) * 0.15, Math.sin(t * 6.3) * 0.06);
+    r.root.scale.setScalar(1);
+    r.torso.rotation.set(0, 0, 0);
+    r.torso.scale.set(1, 1, 1);
+    for (const l of [r.legL, r.legR]) { l.hip.rotation.set(0, 0, 0); l.knee.rotation.x = 0; }
+    const wave = Math.sin(t * 10) * 0.45;
+    r.armR.shoulder.rotation.set(Math.PI - 0.2, 0, -0.35 + wave);
+    r.armR.elbow.rotation.x = -0.3 + Math.sin(t * 10 + 1) * 0.25;
+    const both = clamp((k - 0.45) / 0.25, 0, 1); // (and then the other one, reaching out)
+    r.armL.shoulder.rotation.set(lerp(0, Math.PI - 0.3, both), 0, lerp(0.1, 0.4, both) - wave * 0.5 * both);
+    r.armL.elbow.rotation.x = lerp(-0.2, -0.4, both);
+    r.head.rotation.set(Math.sin(t * 2.3) * 0.12, Math.sin(t * 3.1) * 0.5, Math.sin(t * 4.7) * 0.08);
+    r.hairBack.rotation.set(0.1, 0, 0);
+    this.poseStars(false);
+  }
+
+  /** out of the top of the mound and down beside it, arms up (ta-da), spinning round once on the way */
+  poseRising(k, dt) {
+    const r = this.rig, air = Math.sin(k * Math.PI);
+    r.root.position.lerpVectors(this.popFrom, this.popTo, k);
+    r.root.position.y += 4 * this.popH * k * (1 - k);
+    this.heading = this.popHeading - TAU * (1 - k) * (1 - k);
+    r.root.rotation.set(0, this.heading, 0);
+    r.root.scale.setScalar(1);
+    r.torso.rotation.set(-0.15 * air, 0, 0);
+    r.legL.hip.rotation.set(-0.6 * air, 0, 0.08);
+    r.legR.hip.rotation.set(-0.45 * air, 0, -0.08);
+    r.legL.knee.rotation.x = 1.1 * air;
+    r.legR.knee.rotation.x = 0.9 * air;
+    r.armL.shoulder.rotation.set(Math.PI - 0.3, 0, 0.55);
+    r.armR.shoulder.rotation.set(Math.PI - 0.3, 0, -0.55);
+    r.armL.elbow.rotation.x = r.armR.elbow.rotation.x = -0.2;
+    r.head.rotation.set(-0.2 * air, 0, 0);
+    this.hair = damp(this.hair, 0.6, 6, dt);
+    r.hairBack.rotation.set(this.hair, 0, 0);
+    this.poseStars(false);
+  }
+
   animate(dt, aimYaw) {
     const r = this.rig;
     const k = clamp(this.speed / this.maxSpeed, 0, 1);
     this.phase += dt * (3 + this.speed * 1.55);
     const s = Math.sin(this.phase), c = Math.cos(this.phase);
 
+    // (just landed on his feet: a squash; flickering while nothing can touch him, just after he's been dug out)
+    const sq = Math.sin(this.landK * Math.PI) * 0.12;
     r.root.position.set(this.pos.x, this.pos.y + this.hop + Math.abs(s) * 0.06 * k * (this.hop > 0 ? 0 : 1), this.pos.z);
     r.root.rotation.set(0, this.heading, Math.sin(this.time * 14) * 0.15 * Math.min(1, this.dizzy));
+    r.root.scale.set(1 + sq * 0.5, 1 - sq, 1 + sq * 0.5);
+    r.root.visible = this.blink <= 0 || Math.floor(this.time * 12) % 2 === 0;
 
     // legs
-    r.legL.hip.rotation.x = -s * 0.65 * k;
-    r.legR.hip.rotation.x = s * 0.65 * k;
+    r.legL.hip.rotation.set(-s * 0.65 * k, 0, 0);
+    r.legR.hip.rotation.set(s * 0.65 * k, 0, 0);
     r.legL.knee.rotation.x = (0.1 + Math.max(0, c) * 0.9) * k;
     r.legR.knee.rotation.x = (0.1 + Math.max(0, -c) * 0.9) * k;
 
@@ -160,21 +456,30 @@ export class Player {
       le = re = -0.3;
     }
 
+    // hurt: rocked back, arms thrown out
+    const f = this.flinch * this.flinch;
+    torsoX -= 0.35 * f;
+    lz += 0.5 * f; rz -= 0.5 * f;
+
     r.torso.rotation.set(torsoX, torsoY, Math.sin(this.phase) * 0.04 * k);
     r.armL.shoulder.rotation.set(lx, 0, lz);
     r.armL.elbow.rotation.x = le;
     r.armR.shoulder.rotation.set(rxa, 0, rz);
     r.armR.elbow.rotation.x = re;
 
-    // head looks a little toward the cursor, tilts up to whistle
+    // head looks a little toward the cursor, tilts up to whistle (and snaps back when he's hit)
     const look = clamp(angleDiff(this.heading, aimYaw), -0.7, 0.7) * 0.6;
-    r.head.rotation.y = damp(r.head.rotation.y, look, 8, dt);
-    r.head.rotation.x = damp(r.head.rotation.x, -0.12 * w - 0.05 * k, 8, dt);
+    this.lookY = damp(this.lookY ?? 0, look, 8, dt);
+    this.lookX = damp(this.lookX ?? 0, -0.12 * w - 0.05 * k, 8, dt);
+    r.head.rotation.set(this.lookX - 0.3 * f, this.lookY, 0);
 
     // long hair streams back when running
     this.hair = damp(this.hair, 0.05 + k * 0.45 + torsoX * -0.6, 6, dt);
     r.hairBack.rotation.x = this.hair + Math.sin(this.phase * 2) * 0.05 * k;
     r.hairBack.rotation.z = Math.sin(this.phase) * 0.04 * k;
+
+    // (seeing stars after a spinning rake to the head)
+    this.poseStars(this.dizzy > 0.4, 0, 0);
 
     r.root.updateMatrixWorld(true);
   }

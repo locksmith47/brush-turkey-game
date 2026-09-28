@@ -156,10 +156,16 @@ export class Turkeys {
       else c.field++;
     }
 
-    // the squad gathers in a tight blob just behind the player
+    // the squad gathers in a tight blob just behind the player (or, when he's gone down, round beside him
+    // as he lies there)
     this.blobR = 0.35 + Math.sqrt(c.squad) * 0.3;
     const back = p.heading + Math.PI, dist = 0.55 + this.blobR;
-    const rx = p.pos.x + Math.sin(back) * dist, rz = p.pos.z + Math.cos(back) * dist;
+    let rx = p.pos.x + Math.sin(back) * dist, rz = p.pos.z + Math.cos(back) * dist;
+    if (p.life === 'down') {
+      const f = p.focus(_v), side = p.heading + Math.PI / 2;
+      rx = f.x + Math.sin(side) * (0.8 + this.blobR);
+      rz = f.z + Math.cos(side) * (0.8 + this.blobR);
+    }
     const moving = p.speed > 0.5;
     const lam = moving ? 6 : 2;
     this.rally.x = damp(this.rally.x, rx, lam, dt);

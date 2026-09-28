@@ -11,19 +11,19 @@ import { POOLS, shoreX } from './props/beach.js';
  */
 const COMMON = { bodyY: 0.38, labelY: 1.0, carcassLabelY: 0.6, mound: 'beach' };
 const KINDS = {
-  crab: { ...COMMON, name: 'Crab', hp: 30, scale: 1, radius: 0.6, aggro: 7, leash: 10, maxLatch: 6, shakeAt: 4, shakeEvery: 5, value: 9, weight: 3, carryR: 0.95, slots: 8, speed: 3.2, perClaw: 1, gripHP: 12, drownTime: 3.5, cooldown: 1.4 },
+  crab: { ...COMMON, name: 'Crab', hp: 30, scale: 1, radius: 0.6, aggro: 7, leash: 10, maxLatch: 6, shakeAt: 4, shakeEvery: 5, value: 9, weight: 3, carryR: 0.95, slots: 8, speed: 3.2, perClaw: 1, gripHP: 12, drownTime: 3.5, cooldown: 1.4, pinch: 12 },
   king: {
     ...COMMON, name: 'King Crab', boss: true, hp: 700, scale: 3.4, radius: 1.9, aggro: 14, leash: 14, maxLatch: 22, shakeAt: 10, shakeEvery: 5, value: 60, weight: 20,
-    carryR: 2.7, slots: 26, speed: 2.4, perClaw: 3, gripHP: 45, drownTime: 5, cooldown: 1.6,
+    carryR: 2.7, slots: 26, speed: 2.4, perClaw: 3, gripHP: 45, drownTime: 5, cooldown: 1.6, pinch: 22,
   },
 };
 const SHELL = 0xe0502a, SHELL2 = 0xc9431f, BELLY = 0xf2a36b, KING = 0xa3251c, KING2 = 0x7d1a14;
 const _v = new THREE.Vector3(), _w = new THREE.Vector3();
 
 // the King's claw slam: a red circle marks where it'll land, filling in until... wham
-const SLAM_R = 2.4, SLAM_WIND = 1.35;
+const SLAM_R = 2.4, SLAM_WIND = 1.35, SLAM_HURT = 30;
 // and its water jet: a red lane on the ground first, then a blast of seawater down it that bowls turkeys away
-const JET_LEN = 10, JET_W = 1.8, JET_WIND = 1.1, JET_FIRE = 0.85;
+const JET_LEN = 10, JET_W = 1.8, JET_WIND = 1.1, JET_FIRE = 0.85, JET_HURT = 15;
 const RED = { color: 0xff3b2f, transparent: true, depthWrite: false };
 
 function crabGeo(king) {
@@ -157,15 +157,17 @@ export class Crab extends Foe {
     return out.set(this.pos.x + Math.sin(this.heading) * 0.45 * this.s, this.pos.y + 0.36 * this.s, this.pos.z + Math.cos(this.heading) * 0.45 * this.s);
   }
 
+  /** is something at p (`r` across) standing in the lane a jet fired along `heading` would hit? */
+  inLane(p, r, heading) {
+    const fx = Math.sin(heading), fz = Math.cos(heading), start = 0.4 * this.s;
+    const dx = p.x - this.pos.x, dz = p.z - this.pos.z;
+    const along = dx * fx + dz * fz, side = Math.abs(dx * fz - dz * fx);
+    return along > start && along < start + JET_LEN && side < JET_W / 2 + r;
+  }
+
   /** turkeys standing in the lane a jet fired along `heading` would hit */
   laneTurkeys(heading) {
-    const fx = Math.sin(heading), fz = Math.cos(heading), start = 0.4 * this.s;
-    return this.game.turkeys.list.filter((t) => {
-      if (!t.grounded || t.dead) return false;
-      const dx = t.pos.x - this.pos.x, dz = t.pos.z - this.pos.z;
-      const along = dx * fx + dz * fz, side = Math.abs(dx * fz - dz * fx);
-      return along > start && along < start + JET_LEN && side < JET_W / 2 + t.radius;
-    });
+    return this.game.turkeys.list.filter((t) => t.grounded && !t.dead && this.inLane(t.pos, t.radius, heading));
   }
 
   /* ---------------------------------------------------------------- body */
@@ -335,10 +337,13 @@ export class Crab extends Foe {
           this.struck = true;
           g.audio.snip();
           const taken = new Set();
+          let nipped = false;
           for (let c = 0; c < 2; c++) {
             this.rig.claws[c].tip.getWorldPosition(_v);
             const got = this.turkeysNear(_v, 0.55 * this.s).filter((t) => !taken.has(t)).slice(0, d.perClaw);
             got.forEach((t, k) => { taken.add(t); t.grabbedBy(this, c + k * 2); this.held.push(t); });
+            // (you're too big to carry off: a nasty pinch will do)
+            nipped ||= this.hurtPlayer(_v, 0.55 * this.s, d.pinch, { knock: 4, stun: 0.3 });
           }
           if (this.held.length) {
             this.state = 'carry';
@@ -390,6 +395,7 @@ export class Crab extends Foe {
             else t.blastAway(at, rand(3.5, 5.5), 2.4);
             squash = !squash;
           }
+          this.hurtPlayer(at, SLAM_R, SLAM_HURT, { knock: 8, stun: 0.5 });
           g.fx.ring(at, 0xfff3c4, SLAM_R * 1.3, 0.5);
           g.fx.dust(at, 14);
           g.audio.stomp(this.s);
@@ -412,6 +418,12 @@ export class Crab extends Foe {
             const along = (t.pos.x - mouth.x) * fx + (t.pos.z - mouth.z) * fz;
             t.blastAway(mouth, along + rand(4, 6.5), 2.2);
             g.fx.splash(t.pos.x, t.pos.y + 0.3, t.pos.z, 0.7);
+          }
+          // (you too, if you're in the way of it)
+          const p = g.player;
+          if (!this.jetHit.has(p) && this.inLane(p.pos, p.radius, this.jetAim)) {
+            this.jetHit.add(p);
+            if (p.hurt(JET_HURT, mouth, { knock: 12, stun: 0.6 })) g.fx.splash(p.pos.x, p.pos.y + 1, p.pos.z, 0.9);
           }
           // spray streaming out of its mouth, and a splash where the jet comes down
           g.fx.burst(mouth, { glow: true, dir: _w.set(fx, 0, fz), n: 3, colors: [0xffffff, 0xcff4ff, 0x9fdcf2], speed: [11, 16], up: [-1, 1.5], grav: 5, drag: 0.4, size: [0.06, 0.12], life: [0.4, 0.7] });
