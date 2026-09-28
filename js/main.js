@@ -23,7 +23,7 @@ import { UMBRELLAS, FLAGS } from './props/beach.js';
 import { SUBURB_BINS, SIDE_GATE } from './props/suburb.js';
 import { HOME, START, TRACK, ARENAS, BUSH_BINS, BUSH_LITTER } from './props/bush.js';
 import { CITY_BINS, CITY_BAGS, ALLEY_IBISES, LANE_GATE, THRONE, onKingsWay } from './props/city.js';
-import { OVAL_BINS, FIELD_GATE, STUMPS, PLOVER_NESTS, CRICKET_KIT } from './props/oval.js';
+import { OVAL_BINS, FIELD_GATE, STUMPS, PLOVER_NESTS, CRICKET_KIT, OVAL_MOUND, OVAL_SNAKES, OVAL_SPIDER, MOWER } from './props/oval.js';
 import { DevMenu } from './devmenu.js';
 import { Saves } from './save.js';
 import { Wasted } from './wasted.js';
@@ -95,13 +95,15 @@ for (const [x, z] of [[-22, -108], [16, -110], [12, -133], [38, -133], [22, -153
 enemies.spawn('giant', -32, -133);
 for (const [kind, x, z] of ALLEY_IBISES) enemies.spawn(kind, x, z, 2.5); // (they don't stray far from their bins)
 enemies.spawn('king', THRONE.x, THRONE.z + THRONE.front);
-// snakes lurking in the litter, funnel-webs in their burrows (one each side of the way round the oval), and
-// Big Kev on his oval, raking it with the oval's key (a key rake)
-for (const [x, z] of [[34, -60], [38, -250]]) enemies.spawn('snake', x, z);
-for (const [x, z] of [[-4, -79], [-37, -248]]) enemies.spawn('spider', x, z);
+// snakes lurking in the litter (and on the way round the oval), funnel-webs in their burrows (one out past
+// the way out of the oval), and Big Kev on his oval, raking it with the oval's key (a key rake)
+for (const [x, z] of [[34, -60], ...OVAL_SNAKES]) enemies.spawn('snake', x, z);
+for (const [x, z] of [[-4, -79], OVAL_SPIDER]) enemies.spawn('spider', x, z);
 enemies.spawn('keeper', 0, -264);
-// on the oval: a pair of plovers to each nest, swooping anything that comes near (a taste of Big Kev), the
-// stumps to dig up, and the cricket gear left lying about
+// on the oval: its own mound, with some of the team's kit in it already; a pair of plovers to each nest,
+// swooping anything that comes near (a taste of Big Kev); the stumps to dig up, and the cricket gear left
+// lying about
+mounds.add(...OVAL_MOUND).startWith(4, 'cricket', ['bat', 'helmet']);
 for (const [x, z] of PLOVER_NESTS) {
   const [a, b] = [-1, 1].map((s) => enemies.spawn('plover', x + s * 1.3, z + 0.7, [x, z]));
   a.mate = b;
@@ -126,6 +128,9 @@ game.toys.addSwingSet(-7, -43, 0);
 game.toys.addHoist(-26, -46);
 // and out in the bush, the gums' low branches to roost on
 for (const r of world.roosts) game.toys.addRoost(r);
+// at the oval, the stands (turkeys come and watch) and Big Kev's ride-on mower
+for (const st of world.oval.stands) game.toys.addPerches(st.obj, st.perches, { spread: 3, time: [15, 40] });
+game.toys.addMower(...MOWER);
 
 // Bondi: a beach mound to feed with stolen gear, crabs, and the King Crab in his rock pool
 mounds.add(-22, -316, false, 'beach');
@@ -460,6 +465,8 @@ function updateZones(dt) {
     hud.zoneTitle(ZONES[z].name);
     // a new area is a long walk from the old mounds: time to build one here
     if (z === 1) zonePrompt = { t: 3.5, text: `Press M and ${BUILD_CREW} of your turkeys will scratch up a new mound here` };
+    // (the oval's got one already, with a bit of the team's kit in it)
+    if (z === 3) zonePrompt = { t: 3.5, text: "The oval's mound has cricket gear in it already! Throw turkeys at the gear lying about and they'll carry it in" };
   }
   if (zonePrompt && (zonePrompt.t -= dt) <= 0) { hud.toast(zonePrompt.text, 6); zonePrompt = null; }
   for (const h of keyHolders) {

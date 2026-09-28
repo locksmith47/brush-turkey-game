@@ -8,6 +8,7 @@ import { part, merge, vcMesh, G, limb, rand, pick, TAU } from './util.js';
  * helmets, the lot), for hauling to a mound like anything else.
  */
 const WOOD = 0xefe3c4, SOIL = [0x5e3e22, 0x7a5230, 0x8b6238];
+const SIZE = 1.5; // (the kit lying about is bigger than life, so you can see it from up where the camera is)
 const _v = new THREE.Vector3(), _w = new THREE.Vector3();
 
 /* ------------------------------------------------------------------ stumps */
@@ -190,17 +191,38 @@ function kitGeo(type) {
 }
 
 const cache = {};
+
+/**
+ * a piece of the kit to plant in a mound (see Mound.addTrophy): a bat stuck in it handle first (so it's the
+ * blade you see from up where the camera is), anything else sat on top
+ */
+export function kitTrophy(type) {
+  cache[type] ??= kitGeo(type);
+  const group = new THREE.Group(), m = vcMesh(cache[type]);
+  if (type === 'bat') {
+    m.scale.setScalar(SIZE * 1.3); // (bigger again: it's a skinny thing)
+    m.rotation.x = Math.PI / 2;
+    m.position.y = 0.6;
+  } else {
+    m.scale.setScalar(SIZE);
+    m.position.y = 0.36; // (the mound's surface, in a trophy's space)
+  }
+  group.add(m);
+  return { group, panel: null, spin: type === 'bat' ? 0 : undefined }; // (the bat's face turned to the camera)
+}
+
 export class CricketGear extends Foe {
   constructor(game, type, x, z) {
-    const T = KIT[type];
+    const T = KIT[type], r = T.carryR * SIZE;
     super(game, {
-      name: T.name, hp: 1, scale: 1, radius: T.carryR * 0.8, value: T.value, weight: T.weight, slots: T.slots,
-      carryR: T.carryR, carcassLabelY: 0.7, noLabel: T.weight <= 1, quiet: T.value <= 2, loot: true, palette: 'cricket',
+      name: T.name, hp: 1, scale: SIZE, radius: r * 0.8, value: T.value, weight: T.weight, slots: T.slots,
+      carryR: r, carcassLabelY: 0.7, noLabel: T.weight <= 1, quiet: T.value <= 2, loot: true, palette: 'cricket',
     }, x, z);
     this.type = type;
     const root = new THREE.Group();
     cache[type] ??= kitGeo(type);
     root.add(vcMesh(cache[type]));
+    root.scale.setScalar(SIZE);
     this.setRig({ root });
     this.heading = rand(0, TAU);
     this.ph = rand(0, TAU);

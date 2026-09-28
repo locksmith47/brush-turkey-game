@@ -4,8 +4,8 @@ import { S } from './turkey.js';
 
 /*
  * Backyard toys: a trampoline turkeys bounce on, and "rides" they can sit on: a swing set,
- * the Hills Hoist (roost on it and it spins), the low branches of the gums out in the bush and,
- * at Bondi, the beach chairs.
+ * the Hills Hoist (roost on it and it spins), the low branches of the gums out in the bush, the
+ * oval's stands and Big Kev's ride-on mower and, at Bondi, the beach chairs.
  *
  * A ride has seats [{ rider }] and:
  *   seatPose               'swing' | 'perch' | 'roost' | 'lounge' (how the rider sits)
@@ -14,6 +14,9 @@ import { S } from './turkey.js';
  *   seatPos(i, out, t)     where rider t sits (world)      seatHeading(i)  which way it faces
  *   rideTime()             how long a turkey stays on      canLeave(i)     may it get off now?
  *   dismount(t, i)         get off (usually with a hop)    onMount(t, i)   optional
+ *   poseOf(i)              optional: seat i's own seatPose
+ *   hop(i)                 optional: { T, h } for the hop up into seat i (how long, how high)
+ *   hopDown(i)             optional: { x, z, T, h }, where (and how) to hop down to if called away
  */
 const _v = new THREE.Vector3();
 
@@ -378,6 +381,7 @@ class TreeRoost {
     this.spot = spot; // (the tree's patch of litter)
     this.perches = perches; // (in the tree's own space, so they sway with it)
     this.seatPose = 'roost';
+    this.roost = true; // (somewhere to idle, not a toy: see Toys.freeSeatNear)
     this.seats = perches.map(() => ({ rider: null, face: 1 }));
     tree.updateMatrixWorld(); // (good to go before the first frame's drawn)
   }
@@ -438,6 +442,117 @@ class TreeRoost {
   }
 }
 
+/*
+ * Somewhere to sit about: the seats in the oval's stands (turkeys come and watch the cricket), or Big Kev's
+ * ride-on mower. `obj` is what they sit on, in place, and each perch is in its space: { at: [x, y, z], face
+ * (which way a turkey sitting there faces), ground: [x, z] (the spot it hops up from, and back down to), pose
+ * (its own seatPose, if it's not the ride's), hop: [T, h] (how long the hop up takes, and how high it goes) }.
+ * A turkey picks one whose spot it can see from where it is; with `spread`, not always the very nearest (so
+ * they fill up the rows, not just the front one)
+ */
+class Perches {
+  constructor(game, obj, perches, { pose = 'roost', time = [14, 32], spread = 0 } = {}) {
+    this.game = game;
+    this.obj = obj;
+    this.seatPose = pose;
+    this.time = time;
+    this.spread = spread;
+    obj.updateMatrixWorld(true);
+    this.perches = perches.map((c) => ({ ...c, spot: obj.localToWorld(new THREE.Vector3(c.ground[0], 0, c.ground[1])) }));
+    this.seats = perches.map(() => ({ rider: null }));
+  }
+
+  seatPos(i, out) { return this.obj.localToWorld(out.set(...this.perches[i].at)); }
+  seatHeading(i) { return this.obj.rotation.y + this.perches[i].face; }
+  poseOf(i) { return this.perches[i].pose ?? this.seatPose; }
+
+  nearestSeat(p) {
+    const w = this.game.world;
+    let best = null, bs = Infinity;
+    this.perches.forEach((c, i) => {
+      if (this.seats[i].rider) return;
+      const d = Math.hypot(c.spot.x - p.x, c.spot.z - p.z), score = d + Math.random() * this.spread;
+      if (d > 12 || score >= bs || !w.canSee(p.x, p.z, c.spot.x, c.spot.z)) return; // (not round the other side of a fence)
+      bs = score;
+      best = { i, d };
+    });
+    return best;
+  }
+
+  approach(i, from, out) { return out.copy(this.perches[i].spot); }
+  rideTime() { return rand(...this.time); }
+  canLeave() { return true; }
+
+  hop(i) {
+    const [T, h] = this.perches[i].hop ?? [0.4, 0.5];
+    return { T, h };
+  }
+
+  /** back down to the grass in front (up over the rows below, from the top of the stand) */
+  hopDown(i) {
+    const c = this.perches[i], { T, h } = this.hop(i);
+    return { x: c.spot.x + rand(-0.4, 0.4), z: c.spot.z + rand(-0.4, 0.4), T: T + 0.1, h };
+  }
+
+  dismount(t, i) {
+    const p = this.seatPos(i, new THREE.Vector3()), d = this.hopDown(i);
+    t.leaveSeat();
+    t.pos.copy(p);
+    t.hopTo(d.x, d.z, d.T, d.h);
+    this.game.audio.peep(t.stage);
+  }
+}
+
+/* Big Kev's ride-on mower, parked: one up in the driver's seat (feet up: it idles away), one on the bonnet, one on the catcher */
+const MOWER_SIZE = 1.4;
+let MOWER = null;
+function mowerGeo() {
+  MOWER ??= merge([
+    part(G.box(1.1, 0.5, 1.8), 0xc0392b, [0, 0.55, 0]),
+    part(G.box(1.0, 0.18, 0.62), 0xd9483a, [0, 0.86, 0.5], [0.12, 0, 0]), // (the bonnet)
+    part(G.box(1.24, 0.12, 0.95), 0x5a5a5a, [0, 0.22, 0.05]), // (the deck, with the blades under it)
+    part(G.box(0.6, 0.12, 0.5), 0x222222, [0, 0.9, -0.2]),
+    part(G.box(0.6, 0.5, 0.1), 0x222222, [0, 1.1, -0.45]),
+    part(G.box(0.86, 0.5, 0.56), 0x3d6b35, [0, 0.62, -1.1]), // (the grass catcher)
+    part(G.box(0.9, 0.06, 0.6), 0x2f5a29, [0, 0.9, -1.1]),
+    part(G.cyl(0.3, 0.3, 0.2, 12), 0x222222, [0.6, 0.3, -0.6], [0, 0, Math.PI / 2]),
+    part(G.cyl(0.3, 0.3, 0.2, 12), 0x222222, [-0.6, 0.3, -0.6], [0, 0, Math.PI / 2]),
+    part(G.cyl(0.2, 0.2, 0.15, 12), 0x222222, [0.55, 0.2, 0.6], [0, 0, Math.PI / 2]),
+    part(G.cyl(0.2, 0.2, 0.15, 12), 0x222222, [-0.55, 0.2, 0.6], [0, 0, Math.PI / 2]),
+    part(G.cyl(0.03, 0.03, 0.5, 6), 0x333333, [0, 1.05, 0.28], [-0.5, 0, 0]),
+    part(G.torus(0.14, 0.022, 4, 16), 0x222222, [0, 1.27, 0.17], [Math.PI / 2 - 0.5, 0, 0]), // (the steering wheel)
+    part(G.box(0.16, 0.1, 0.04), 0xfff3b0, [0.3, 0.72, 0.91]), part(G.box(0.16, 0.1, 0.04), 0xfff3b0, [-0.3, 0.72, 0.91]),
+  ]);
+  return MOWER;
+}
+
+class RideOnMower extends Perches {
+  constructor(game, x, z, rotY) {
+    const g = new THREE.Group();
+    g.position.set(x, game.world.groundHeight(x, z), z);
+    g.rotation.y = rotY;
+    g.scale.setScalar(MOWER_SIZE);
+    g.add(vcMesh(mowerGeo(), { cast: true, receive: true }));
+    game.scene.add(g);
+    super(game, g, [
+      { at: [0, 0.96, -0.2], face: 0, ground: [1.45, -0.2], pose: 'lounge' },
+      { at: [0, 1.0, 0.5], face: 0, ground: [0, 1.45] },
+      { at: [0, 0.93, -1.1], face: Math.PI, ground: [0, -1.95] },
+    ], { time: [8, 16] });
+    this.y = g.position.y;
+    this.buzz = 0;
+    const c = g.localToWorld(new THREE.Vector3(0, 0, -0.2));
+    game.world.colliders.push({ x: c.x, z: c.z, r: 1.05 * MOWER_SIZE });
+  }
+
+  update(dt) {
+    // (someone in the driver's seat: it's idling, and shudders)
+    this.buzz = damp(this.buzz, this.seats[0].rider?.state === S.SWING ? 1 : 0, 3, dt);
+    this.obj.position.y = this.y + Math.abs(Math.sin(this.game.time * 41)) * 0.025 * this.buzz;
+    this.obj.updateMatrixWorld(true);
+  }
+}
+
 export class Toys {
   constructor(game) {
     this.game = game;
@@ -478,6 +593,9 @@ export class Toys {
   addSwingSet(x, z, rotY = 0) { return this.addRide(new SwingSet(this.game, x, z, rotY)); }
   addHoist(x, z) { return this.addRide(new HillsHoist(this.game, x, z)); }
   addRoost(spec) { return this.addRide(new TreeRoost(this.game, spec)); }
+  /** seats to sit in (see Perches): a stand's, say */
+  addPerches(obj, perches, opts) { return this.addRide(new Perches(this.game, obj, perches, opts)); }
+  addMower(x, z, rotY) { return this.addRide(new RideOnMower(this.game, x, z, rotY)); }
   addRide(r) { this.rides.push(r); return r; }
   removeRide(r) { this.rides = this.rides.filter((x) => x !== r); }
 
@@ -497,11 +615,11 @@ export class Toys {
    * a turkey thrown at the leaves under a tree is there to rake them (if it doesn't take a fancy to the tree)
    */
   freeSeatNear(p, r, toysOnly = false) {
-    return this.seatNear(p, r, (ride) => !(toysOnly && (ride.haulable || ride.seatPose === 'roost')));
+    return this.seatNear(p, r, (ride) => !(toysOnly && (ride.haulable || ride.roost)));
   }
 
   /** the nearest free spot on a gum's roosting branch within r, as { set, i } */
-  freeRoostNear(p, r) { return this.seatNear(p, r, (ride) => ride.seatPose === 'roost'); }
+  freeRoostNear(p, r) { return this.seatNear(p, r, (ride) => ride.roost); }
 
   seatNear(p, r, ok) {
     let best = null, bd = r;

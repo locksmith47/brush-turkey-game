@@ -18,7 +18,7 @@ import { S } from './turkey.js';
  * site). Bump VERSION whenever the map changes, so an old save isn't read into a world it doesn't fit.
  */
 const KEY = `turkmin-save:${location.pathname.replace(/index\.html$/, '')}`;
-const VERSION = 1;
+const VERSION = 2;
 const EVERY = 20; // seconds between saves while you play
 const PAL = Object.keys(PALETTES), SHAPES = ['leaf', 'box', 'can'];
 const r1 = (v) => Math.round(v * 10) / 10, r2 = (v) => Math.round(v * 100) / 100;
