@@ -7,6 +7,7 @@ import { FX } from './fx.js';
 import { Audio } from './audio.js';
 import { Ambience } from './ambience.js';
 import { Flyovers } from './flyover.js';
+import { Footprints } from './footprints.js';
 import { Leaves } from './leaves.js';
 import { Grubs } from './grubs.js';
 import { Mounds } from './mound.js';
@@ -56,6 +57,7 @@ game.shake = (a) => { if (!game.loading) shakeAmt = Math.min(1.2, shakeAmt + a);
 game.audio = new Audio();
 game.ambience = new Ambience(game); // (the sound of wherever you are, under everything else)
 game.flyovers = new Flyovers(game); // (galahs, cockies and gulls going over, every so often)
+game.footprints = new Footprints(game); // (in the sand at Bondi)
 game.world = new World(game);
 game.barriers = new Barriers(game);
 game.fx = new FX(game);
@@ -527,6 +529,7 @@ function step(real) {
   world.update(dt, game.time);
   game.ambience.update(dt);
   game.flyovers.update(dt);
+  game.footprints.update(dt);
   saves.update(dt);
   fx.update(dt);
   game.cursor.update(dt, target, whistle, camera, !down);
