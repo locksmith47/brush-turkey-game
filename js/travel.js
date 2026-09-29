@@ -86,7 +86,7 @@ export class Travel {
     this.stage = 'dive';
     this.t = 0;
     this.from = m;
-    this.inT = null;
+    this.inT = this.allInT = null;
     this.zoom = g.cam.zoom;
     g.cam.zoom = Math.min(this.zoom, CLOSE);
     g.player.dive(m);
@@ -112,8 +112,9 @@ export class Travel {
       if (p.life !== 'buried') return;
       // (you're in: and the squad after you, or they've had long enough, and any still on the way are taken along)
       this.inT ??= t;
-      if (this.crew.some((c) => this.coming(c)) && t - this.inT < JOIN_MAX) { this.allInT = t; return; }
-      if (t - (this.allInT ?? t) < SETTLE_T) return;
+      if (this.crew.some((c) => this.coming(c)) && t - this.inT < JOIN_MAX) { this.allInT = null; return; }
+      this.allInT ??= t; // (the moment they're all in: or, if nobody's after you or they all beat you in, the moment you are)
+      if (t - this.allInT < SETTLE_T) return;
       for (const c of this.crew) if (this.coming(c)) c.goUnder();
       this.stage = 'dark';
       this.t = 0;
