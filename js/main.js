@@ -128,6 +128,8 @@ game.toys.addSwingSet(-7, -43, 0);
 game.toys.addHoist(-26, -46);
 // and out in the bush, the gums' low branches to roost on
 for (const r of world.roosts) game.toys.addRoost(r);
+// in the city, the backs of the park benches, the bus stop's seat and the fountain's rim
+for (const st of world.city.seats) game.toys.addPerches(st.obj, st.perches, { spread: 1, time: [10, 30] });
 // at the oval, the stands (turkeys come and watch) and Big Kev's ride-on mower
 for (const st of world.oval.stands) game.toys.addPerches(st.obj, st.perches, { spread: 3, time: [15, 40] });
 game.toys.addMower(...MOWER);
