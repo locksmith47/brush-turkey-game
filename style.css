@@ -149,6 +149,7 @@ kbd {
   font-size: 12px; font-weight: bold; white-space: nowrap; text-shadow: 0 1px 2px #000;
 }
 .dial .d-note:empty { display: none; }
+.dial .d-note kbd { min-width: 0; padding: 0 4px; margin: 0 1px 0 0; font-size: 10px; line-height: 1.45; box-shadow: 0 1px 0 #999; text-shadow: none; }
 
 /* ---------------------------------------------------------------- combat & zones */
 .mound-label.small { font-size: 12px; padding: 2px 8px; min-width: 64px; text-align: center; border-color: rgba(255,255,255,.6); }
@@ -291,3 +292,61 @@ body.wasted #zone-title, body.wasted #help, body.wasted #hurt { opacity: 0 !impo
 }
 #paused p { margin: 8px 0 0; font-size: 18px; opacity: .9; }
 body.paused #help { z-index: 12; opacity: 1 !important; }
+
+/* ---------------------------------------------------------------- down the tunnels, and the map (see Travel) */
+#travel { position: fixed; inset: 0; z-index: 9; background: #000; pointer-events: none; }
+#travel-map { position: absolute; inset: 0; opacity: 0; overflow: hidden; }
+#travel-map canvas, #travel-map .tunnel { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* (the way there, from where you are: dots running down the tunnel) */
+#travel-map .tunnel { overflow: visible; pointer-events: none; }
+#travel-map .tunnel path {
+  fill: none; stroke: #ffd21f; stroke-width: 4.5; stroke-linecap: round; stroke-dasharray: 0.1 11;
+  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, .75)); animation: tunnel .45s linear infinite;
+}
+@keyframes tunnel { to { stroke-dashoffset: -11.1; } }
+#travel-map .place {
+  position: absolute; transform: translate(-50%, -50%); white-space: nowrap; pointer-events: none;
+  font-family: 'Cinzel', 'Times New Roman', serif; font-size: clamp(15px, 1.5vw, 21px); font-weight: 700; letter-spacing: 1.5px;
+  color: #fff8e6; text-shadow: 0 0 3px rgba(0, 0, 0, .9), 0 2px 6px rgba(0, 0, 0, .8);
+}
+/* (a pin in each of your mounds, its point on the mound) */
+#travel-map .pin {
+  position: absolute; width: 34px; height: 34px; margin: -43px 0 0 -17px; display: flex; align-items: center; justify-content: center;
+  border: 3px solid #ffd21f; border-radius: 50%; background: rgba(60, 38, 20, .92); box-shadow: 0 3px 7px rgba(0, 0, 0, .55);
+  pointer-events: auto; cursor: pointer; transform-origin: 50% 43px; transition: transform .12s, border-color .12s, box-shadow .12s;
+}
+#travel-map .pin::after {
+  content: ''; position: absolute; left: 50%; top: 100%; margin: 3px 0 0 -6px;
+  border: 6px solid transparent; border-top: 9px solid #ffd21f; border-bottom: 0;
+}
+#travel-map .pin i { font-style: normal; font-size: 16px; line-height: 1; }
+#travel-map .pin.beach { border-color: #7fd6ff; }
+#travel-map .pin.beach::after { border-top-color: #7fd6ff; }
+#travel-map .pin.sel {
+  z-index: 2; transform: scale(1.25); border-color: #fff;
+  box-shadow: 0 0 0 4px rgba(255, 210, 31, .45), 0 0 18px 4px rgba(255, 210, 31, .55), 0 3px 7px rgba(0, 0, 0, .55);
+}
+#travel-map .pin.sel::after { border-top-color: #fff; }
+/* (where you are: a ring going out round it, over and over) */
+#travel-map .pin.here::before {
+  content: ''; position: absolute; inset: -10px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .85);
+  animation: here 1.5s ease-out infinite; pointer-events: none;
+}
+@keyframes here { from { transform: scale(.65); opacity: 1; } to { transform: scale(1.45); opacity: 0; } }
+#travel-map .pin.go { animation: pin-go .3s ease-out; }
+@keyframes pin-go { 40% { transform: scale(1.55); } }
+#travel-map .pin .cap {
+  position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); margin-bottom: 8px; padding: 2px 10px;
+  white-space: nowrap; font-size: 13px; font-weight: bold; background: rgba(30, 30, 30, .8); border-radius: 10px; pointer-events: none;
+}
+#travel-map .pin .cap:empty { display: none; }
+#travel-map .head, #travel-map .foot {
+  position: absolute; left: 50%; transform: translateX(-50%); text-align: center; white-space: nowrap; pointer-events: none;
+  background: rgba(30, 30, 30, .7); border-radius: 30px; text-shadow: 0 1px 2px rgba(0, 0, 0, .6);
+}
+#travel-map .head { top: 18px; padding: 6px 36px 9px; }
+#travel-map .head .word {
+  font-family: 'Cinzel', 'Times New Roman', serif; font-size: clamp(26px, 3.2vw, 38px); font-weight: 700; letter-spacing: 4px; color: #fff8e6;
+}
+#travel-crew { font-size: 15px; opacity: .85; }
+#travel-map .foot { bottom: 18px; display: flex; gap: 24px; align-items: center; padding: 9px 26px; font-size: 16px; font-weight: bold; }

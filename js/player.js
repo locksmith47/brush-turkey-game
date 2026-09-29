@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createPlayerRig } from './playerModel.js';
-import { damp, dampAngle, angleDiff, clamp, lerp, rand, TAU } from './util.js';
+import { damp, dampAngle, angleDiff, clamp, lerp, rand, smoothstep, TAU } from './util.js';
 
 export const MAX_HP = 100;
 const REGEN_DELAY = 5; // seconds out of trouble before he starts to get his breath back...
@@ -10,6 +10,9 @@ const GRACE = 2.5; // just dug out of a mound: a moment to get his bearings befo
 const FALL_T = 0.85; // going down: over backwards like a felled tree, the way Big Kev goes
 const LIE_LIFT = 0.16; // (flat on his back, how far up his feet have to be for his back to rest on the ground)
 const POP_T = 0.8; // bursting out of the top of the mound he's been dug out of
+// diving into a mound, to go somewhere else (see Travel): down into a crouch, up and over, and in, head first
+const CROUCH_T = 0.22, LEAP_T = 0.55, SINK_T = 0.3;
+const MID = 0.98; // (the middle of him, up from his boots: what he turns head over heels about)
 const _v = new THREE.Vector3();
 
 /* stars going round his head, when he's seeing them (like Big Kev's) */
@@ -51,8 +54,8 @@ export class Player {
     this.dizzy = 0;
     this.hop = 0; // height above the ground (trampolining!)
     this.hopV = 0;
-    // his health, and how he's doing: 'ok', 'down' (out cold: WASTED), 'buried' (put back in a mound, waiting
-    // to be dug out) or 'rising' (bursting out of the top of it)
+    // his health, and how he's doing: 'ok', 'down' (out cold: WASTED), 'diving' (into a mound, to go somewhere
+    // else), 'buried' (in a mound, waiting to be dug out) or 'rising' (bursting out of the top of it)
     this.hp = MAX_HP;
     this.life = 'ok';
     this.lifeT = 0;
@@ -63,6 +66,7 @@ export class Player {
     this.landK = 0;
     this.beatT = 0;
     this.digK = 0; // how far he's been dug out of the mound (the turkeys at it set this)
+    this.under = 0; // (and how far under he still is, before that: 1 is right under, out of sight)
   }
 
   /** as far as anything after him is concerned: he's down, or buried in a mound (so leave him be) */
@@ -136,21 +140,43 @@ export class Player {
 
   /**
    * Put back after going down: buried in mound m, up to his eyeballs, facing `facing` (the camera), waiting for
-   * the turkeys to dig him out. Good as new, mind
+   * the turkeys to dig him out. Good as new, mind; bar with `heal` false, when he's only been down the tunnels,
+   * off somewhere else (see Travel). `under`: how far under he starts out (1: right under, out of sight)
    */
-  bury(m, facing) {
+  bury(m, facing, { heal = true, under = 0 } = {}) {
     this.life = 'buried';
     this.lifeT = 0;
     this.digSite = m;
     this.digK = 0;
-    this.hp = MAX_HP;
-    this.quiet = 99;
+    this.under = under;
+    if (heal) {
+      this.hp = MAX_HP;
+      this.quiet = 99;
+    }
     this.iframes = this.flinch = this.dizzy = this.landK = 0;
     this.knockVel.set(0, 0, 0);
     this.vel.set(0, 0, 0);
     this.speed = this.hop = this.hopV = 0;
     this.pos.set(m.pos.x, m.pos.y, m.pos.z);
     this.heading = facing;
+  }
+
+  /**
+   * Into mound m, head first, to go somewhere else (see Travel): he turns to face it, crouches, and he's up and over
+   * and in, boots and all. Then he's buried in it, right under
+   */
+  dive(m) {
+    this.life = 'diving';
+    this.lifeT = 0;
+    this.digSite = m;
+    this.throwT = this.pluckT = 1;
+    this.whistling = false;
+    this.flinch = this.dizzy = this.landK = 0;
+    this.knockVel.set(0, 0, 0);
+    this.vel.set(0, 0, 0);
+    this.speed = this.hop = this.hopV = 0;
+    this.diveFrom = this.pos.clone();
+    this.heading = Math.atan2(m.pos.x - this.pos.x, m.pos.z - this.pos.z);
   }
 
   /** dug out: up he pops out of the top of the mound, spinning round once, to land on his feet at `to` */
@@ -257,7 +283,7 @@ export class Player {
     this.hop = floor;
   }
 
-  /** down (out cold), buried in a mound, or bursting out of one: no walking about, and nothing to aim at */
+  /** down (out cold), diving into a mound, buried in one, or bursting out of one: no walking about, and nothing to aim at */
   updateOut(dt) {
     const g = this.game;
     this.lifeT += dt;
@@ -279,6 +305,21 @@ export class Player {
         g.shake(0.3);
       }
       this.poseDown();
+    } else if (this.life === 'diving') {
+      const was = this.lifeT - dt, t = this.lifeT;
+      if (was < CROUCH_T && t >= CROUCH_T) g.audio.throw(); // (he's off)
+      if (was < CROUCH_T + LEAP_T && t >= CROUCH_T + LEAP_T) {
+        // (head first into the top of it)
+        this.digSite.splash(26, 1.4);
+        g.audio.gloop();
+        g.audio.mound();
+        g.shake(0.2);
+      }
+      if (t >= CROUCH_T + LEAP_T + SINK_T) {
+        // (right in: buried in it now, out of sight, facing the way he went in)
+        this.bury(this.digSite, this.heading, { heal: false, under: 1 });
+        this.poseBuried();
+      } else this.poseDiving(dt);
     } else if (this.life === 'buried') this.poseBuried();
     else {
       const k = Math.min(1, this.lifeT / POP_T);
@@ -299,7 +340,7 @@ export class Player {
       }
       this.poseRising(k, dt);
     }
-    this.rig.root.visible = true;
+    this.rig.root.visible = this.life !== 'buried' || this.under < 1;
     this.rig.root.updateMatrixWorld(true);
   }
 
@@ -355,9 +396,9 @@ export class Player {
    * wriggling about, and coming up out of it bit by bit as the turkeys dig
    */
   poseBuried() {
-    const r = this.rig, m = this.digSite, t = this.lifeT, k = this.digK;
+    const r = this.rig, m = this.digSite, t = this.lifeT, k = this.digK, up = 1 - this.under;
     const top = m.pos.y + m.dome.scale.y * m.group.scale.y; // (the top of the heap, as it looks right now)
-    const sink = lerp(1.82, 1.3, k * k) - Math.max(0, Math.sin(t * 7)) * 0.04;
+    const sink = lerp(1.82, 1.3, k * k) - Math.max(0, Math.sin(t * 7)) * 0.04 + this.under * 0.6;
     r.root.position.set(this.pos.x, top - sink, this.pos.z);
     r.root.rotation.set(0, this.heading + Math.sin(t * 3) * 0.15, Math.sin(t * 6.3) * 0.06);
     r.root.scale.setScalar(1);
@@ -365,13 +406,52 @@ export class Player {
     r.torso.scale.set(1, 1, 1);
     for (const l of [r.legL, r.legR]) { l.hip.rotation.set(0, 0, 0); l.knee.rotation.x = 0; }
     const wave = Math.sin(t * 10) * 0.45;
-    r.armR.shoulder.rotation.set(Math.PI - 0.2, 0, -0.35 + wave);
+    r.armR.shoulder.rotation.set((Math.PI - 0.2) * up, 0, (-0.35 + wave) * up); // (down by his side, while he's right under)
     r.armR.elbow.rotation.x = -0.3 + Math.sin(t * 10 + 1) * 0.25;
     const both = clamp((k - 0.45) / 0.25, 0, 1); // (and then the other one, reaching out)
     r.armL.shoulder.rotation.set(lerp(0, Math.PI - 0.3, both), 0, lerp(0.1, 0.4, both) - wave * 0.5 * both);
     r.armL.elbow.rotation.x = lerp(-0.2, -0.4, both);
     r.head.rotation.set(Math.sin(t * 2.3) * 0.12, Math.sin(t * 3.1) * 0.5, Math.sin(t * 4.7) * 0.08);
     r.hairBack.rotation.set(0.1, 0, 0);
+    this.poseStars(false);
+  }
+
+  /**
+   * Into a mound head first: down into a crouch with his arms swung back, then a spring up off the ground and over
+   * in an arc, arms out ahead of him, turning head over heels, and down into the top of it, boots last
+   */
+  poseDiving(dt) {
+    const r = this.rig, m = this.digSite, t = this.lifeT, from = this.diveFrom;
+    const top = m.pos.y + m.dome.scale.y * m.group.scale.y;
+    const bend = smoothstep(0, CROUCH_T, t) * (1 - smoothstep(CROUCH_T, CROUCH_T + 0.1, t)); // (down into the crouch, and springing up out of it)
+    const reach = smoothstep(CROUCH_T - 0.04, CROUCH_T + 0.14, t); // (his arms: from swung back to out ahead of him)
+    const air = clamp((t - CROUCH_T) / LEAP_T, 0, 1), sink = clamp((t - CROUCH_T - LEAP_T) / SINK_T, 0, 1);
+    // the middle of him: up off the ground in an arc, over the top of the heap and down into it, head first
+    const y0 = from.y + MID - 0.24 * bend, y1 = top + 1.02, arc = 0.9 + m.r * 0.15;
+    const mx = lerp(from.x, m.pos.x, air), mz = lerp(from.z, m.pos.z, air);
+    const my = lerp(y0, y1, air) + 4 * arc * air * (1 - air) - sink * (y1 - top + MID + 0.4);
+    const turn = Math.PI * 0.94 * smoothstep(0.05, 0.85, air);
+    // (his boots hang off the middle of him: under it standing, over it upside down)
+    const s = Math.sin(turn);
+    r.root.position.set(mx - MID * s * Math.sin(this.heading), my - MID * Math.cos(turn), mz - MID * s * Math.cos(this.heading));
+    r.root.rotation.set(turn, this.heading, 0);
+    r.root.scale.setScalar(1);
+    this.pos.set(mx, lerp(from.y, m.pos.y, air), mz); // (what the camera follows)
+    r.torso.rotation.set(0.5 * bend, 0, 0);
+    r.torso.scale.set(1, 1, 1);
+    // (knees bent in the crouch, then legs out straight behind him)
+    for (const l of [r.legL, r.legR]) {
+      l.hip.rotation.set(lerp(0.08, -0.75, bend), 0, 0);
+      l.knee.rotation.x = lerp(0.12, 1.5, bend);
+    }
+    // arms swung back, then up and over, to point the way in (with his head down between them)
+    const arm = lerp(0.9 * bend, -(Math.PI - 0.12), reach);
+    r.armL.shoulder.rotation.set(arm, 0, lerp(0.15, 0.12, reach));
+    r.armR.shoulder.rotation.set(arm, 0, -lerp(0.15, 0.12, reach));
+    r.armL.elbow.rotation.x = r.armR.elbow.rotation.x = lerp(-0.3, -0.05, reach);
+    r.head.rotation.set(0.15 * reach, 0, 0);
+    this.hair = damp(this.hair, 0.3 + air * 1.2, 5, dt);
+    r.hairBack.rotation.set(this.hair, 0, 0);
     this.poseStars(false);
   }
 

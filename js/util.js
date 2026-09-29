@@ -197,7 +197,16 @@ export class Dial {
   }
 
   icon(text) { if (text !== this.iconText) { this.iconText = text; this.iconEl.textContent = text; } }
-  note(text) { if (text !== this.noteText) { this.noteText = text; this.noteEl.textContent = text; } }
+  /** the note under it (`key`: a key to press for it, shown in front of it) */
+  note(text, key = '') {
+    const s = `${key}|${text}`;
+    if (s === this.noteText) return;
+    this.noteText = s;
+    if (!key) { this.noteEl.textContent = text; return; }
+    const k = document.createElement('kbd');
+    k.textContent = key;
+    this.noteEl.replaceChildren(k, ` ${text}`);
+  }
   pin(v, camera, fade = 1) { return pinLabel(this.el, v, camera, fade); }
   hide() { if (this.el.style.display !== 'none') this.el.style.display = 'none'; }
   remove() { this.el.remove(); }

@@ -435,6 +435,15 @@ export class World {
     }
   }
 
+  /** every tree and building back solid and in sight (for a look down on the lot from high above: see TravelMap) */
+  unfade() {
+    for (const s of this.swayers) {
+      s.m.material = vcMat();
+      s.m.visible = true;
+    }
+    for (const o of this.occluders) o.mesh.material = o.solid;
+  }
+
   update(dt, t) {
     this.beach.update(dt, t);
     this.wharf.update(dt, t);

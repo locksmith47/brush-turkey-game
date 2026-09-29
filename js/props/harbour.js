@@ -363,23 +363,28 @@ export function buildHarbour(world) {
   });
   // (none of them are anything to fly into: see Flyovers)
   for (const o of [other, wheel, ...yachts.map((y) => y.m)]) o.traverse((c) => { c.userData.moves = true; });
+  /** the other ferry and the yachts, on their way, t seconds in */
+  const sail = (dt, t) => {
+    // (she slows right down at either end, as if she's pulling in somewhere)
+    const u = Math.sin(t * 0.045);
+    other.position.set(255 + 80 * u, 0.35 + Math.sin(t * 0.9) * 0.06, OTHER_LANE);
+    other.rotation.x = Math.sin(t * 0.7) * 0.012;
+    for (const y of yachts) {
+      y.a += y.w * dt;
+      y.m.position.set(y.x + Math.cos(y.a) * y.r, SEA + 0.2 + seaWave(y.x, y.z, t), y.z + Math.sin(y.a) * y.r);
+      // (heading round the circle, heeled over)
+      y.m.rotation.set(0, Math.atan2(-Math.sin(y.a) * Math.sign(y.w), Math.cos(y.a) * Math.sign(y.w)), 0.14 * Math.sign(y.w) + Math.sin(t * 0.8 + y.x) * 0.03);
+    }
+  };
+  sail(0, 0); // (out on the water from the off: not left wherever they were made, which is the middle of the bush)
 
   return {
     update(dt, t) {
+      sail(dt, t); // (they keep going with nobody about, too: you can see them from up high, on the map)
       const p = world.game.player.pos;
-      if (world.zoneOf(p.x, p.z) < BEACH) return; // (nobody to see any of it, from back there)
+      if (world.zoneOf(p.x, p.z) < BEACH) return; // (nobody to see the swell, or the wheel going round, from back there)
       for (let i = 0; i < wpos.count; i++) wpos.setY(i, SEA + seaWave(wpos.getX(i), wpos.getZ(i), t));
       wpos.needsUpdate = true;
-      // (she slows right down at either end, as if she's pulling in somewhere)
-      const u = Math.sin(t * 0.045);
-      other.position.set(255 + 80 * u, 0.35 + Math.sin(t * 0.9) * 0.06, OTHER_LANE);
-      other.rotation.x = Math.sin(t * 0.7) * 0.012;
-      for (const y of yachts) {
-        y.a += y.w * dt;
-        y.m.position.set(y.x + Math.cos(y.a) * y.r, SEA + 0.2 + seaWave(y.x, y.z, t), y.z + Math.sin(y.a) * y.r);
-        // (heading round the circle, heeled over)
-        y.m.rotation.set(0, Math.atan2(-Math.sin(y.a) * Math.sign(y.w), Math.cos(y.a) * Math.sign(y.w)), 0.14 * Math.sign(y.w) + Math.sin(t * 0.8 + y.x) * 0.03);
-      }
       wheel.rotation.z += dt * 0.12;
       for (const c of cars) c.rotation.z = -wheel.rotation.z;
     },
