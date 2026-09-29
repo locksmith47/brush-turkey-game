@@ -365,6 +365,30 @@ export class Audio {
     this.noise({ dur: 0.7, vol: 0.18, type: 'lowpass', f1: 600, f2: 300, delay: 0.05 });
   }
 
+  /** the ferry's horn, out on the harbour: a long low blast and a short one (two notes a third apart, scooping up into it) */
+  horn() {
+    if (!this.ok('horn', 2000)) return;
+    const c = this.ctx;
+    for (const [at, len] of [[0, 1.5], [1.9, 0.7]]) {
+      const t0 = c.currentTime + at, t1 = t0 + len;
+      const f = c.createBiquadFilter(), g = c.createGain();
+      f.type = 'lowpass'; f.frequency.value = 600; f.Q.value = 0.8;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.13, t0 + 0.12);
+      g.gain.setValueAtTime(0.13, t1 - 0.25);
+      g.gain.exponentialRampToValueAtTime(0.0001, t1);
+      f.connect(g).connect(this.master);
+      for (const hz of [98, 123.5]) {
+        const o = c.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(hz * 0.95, t0);
+        o.frequency.exponentialRampToValueAtTime(hz, t0 + 0.18);
+        o.connect(f);
+        o.start(t0); o.stop(t1 + 0.05);
+      }
+    }
+  }
+
   /** the Hills Hoist squeaking round */
   creak(speed = 1) {
     if (!this.ok('creak', 250)) return;

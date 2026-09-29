@@ -470,6 +470,8 @@ function updateZones(dt) {
     if (z === 1) zonePrompt = { t: 3.5, text: `Press M and ${BUILD_CREW} of your turkeys will scratch up a new mound here` };
     // (the oval's got one already, with a bit of the team's kit in it)
     if (z === 3) zonePrompt = { t: 3.5, text: "The oval's mound has cricket gear in it already! Throw turkeys at the gear lying about and they'll carry it in" };
+    // (and the wharf's the end of the line, for now: the ferry's just given you a toot)
+    if (z === 5) zonePrompt = { t: 3.5, text: "You made it to the wharf! That's the end of the line, for now" };
   }
   if (zonePrompt && (zonePrompt.t -= dt) <= 0) { hud.toast(zonePrompt.text, 6); zonePrompt = null; }
   for (const h of keyHolders) {
