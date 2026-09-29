@@ -113,6 +113,21 @@ export class Bin extends Foe {
 
   colliderR() { return this.alive || this.state === 'spilt' ? 0.42 : 0; }
   bodyCenter(out) { return out.set(this.base.x, this.base.y + 0.6, this.base.z); }
+
+  /**
+   * Where turkey t shoves it from: wherever round it t's come up, facing its middle, and far enough back that
+   * leaning into it, its beak just meets the side of the bin (not its head in through it). Fills `stand` and `face`
+   */
+  attackSpot(t, stand, face) {
+    const b = this.base, dx = t.pos.x - b.x, dz = t.pos.z - b.z, d = Math.hypot(dx, dz) || 1;
+    // (how far out its side is that way: it's a box, turned whichever way it faces)
+    const c = Math.cos(this.facing), s = Math.sin(this.facing);
+    const ax = Math.abs(dx * c - dz * s) / d, az = Math.abs(dx * s + dz * c) / d;
+    const side = Math.min(W / 2 / ax, D / 2 / az, Math.hypot(W, D) / 2);
+    const r = Math.max(this.def.radius + t.radius + 0.05, side + t.pushReach);
+    face.set(b.x, 0, b.z);
+    stand.set(b.x + (dx / d) * r, 0, b.z + (dz / d) * r);
+  }
   hitFx() { this.game.audio.thunk(); }
   onDamage() { this.shoved = 0.3; }
 

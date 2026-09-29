@@ -38,10 +38,11 @@ export class Enemies {
     return null;
   }
 
-  nearestAlive(pos, maxDist) {
+  /** the nearest foe within maxDist of pos (to its edge) to go at; `chore`: only chores (true), or only things that fight back (false) */
+  nearestAlive(pos, maxDist, chore = null) {
     let best = null, bd = maxDist;
     for (const e of this.list) {
-      if (!e.alive || !e.targetable) continue;
+      if (!e.alive || !e.targetable || (chore !== null && e.chore !== chore)) continue;
       const d = Math.hypot(e.pos.x - pos.x, e.pos.z - pos.z) - e.def.radius;
       if (d < bd) { bd = d; best = e; }
     }

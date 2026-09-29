@@ -233,6 +233,7 @@ class Barricade extends Foe {
     this.out = new THREE.Vector3(dx, 0, dz);
     this.across = new THREE.Vector3(px, 0, pz);
     this.reach = track.width - 0.4; // (how far along it turkeys can get at it: not into the scrub)
+    this.thick = web ? 0.15 : 0.7; // (how far out from its line its face is, about a turkey's head height up: the logs are piled thick)
     this.seg = game.world.addSegment(x - px * hw, z - pz * hw, x + px * hw, z + pz * hw, 0.45, true);
     track.addWall(this.seg);
 
@@ -264,12 +265,14 @@ class Barricade extends Foe {
 
   /**
    * Where turkey t shoves: at its face (whichever side t's on), square on, wherever along it t's got to
-   * (so a crowd of them spreads out along it). Fills `stand` (where to be) and `face` (what to face)
+   * (so a crowd of them spreads out along it), and far enough back that leaning into it, its beak just meets
+   * it (not its whole head in amongst the logs). Fills `stand` (where to be) and `face` (what to face)
    */
   attackSpot(t, stand, face) {
     const c = this.center, rx = t.pos.x - c.x, rz = t.pos.z - c.z;
     const u = clamp(rx * this.across.x + rz * this.across.z, -this.reach, this.reach);
-    const off = (rx * this.out.x + rz * this.out.z < 0 ? -1 : 1) * (this.seg.r + t.radius + 0.08);
+    const back = Math.max(this.seg.r + t.radius + 0.08, this.thick + t.pushReach);
+    const off = (rx * this.out.x + rz * this.out.z < 0 ? -1 : 1) * back;
     face.set(c.x + this.across.x * u, 0, c.z + this.across.z * u);
     stand.set(face.x + this.out.x * off, 0, face.z + this.out.z * off);
   }

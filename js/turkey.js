@@ -15,6 +15,9 @@ const HIDDEN_BODY = new Set([S.SPROUT, S.BURROW]);
 const DPS = [1.0, 1.5, 2.2];
 
 const WORK_R = 8;
+// a chore (a barricade, a bin, a key to dig up) can wait: anything that fights back and comes this close (metres,
+// to its edge) to a turkey that's at one, it turns on first
+const FIGHT_R = 4;
 // seconds in the ground to grow from a chick into a juvenile, and from a juvenile into an adult
 const GROW_TIME = [27, 62];
 // raking litter home: how much a turkey can shift in one clump (in leaves' worth), how far round the first
@@ -88,6 +91,8 @@ function segDist(px, pz, ax, az, bx, bz) {
   return Math.hypot(ax + vx * t - px, az + vz * t - pz);
 }
 const BODY_MID = 0.45; // height of the middle of the body in the rig (what a somersault turns about)
+// leaning right into a shove (a barricade, a bin): how far it tips forward, and how far its head goes down (radians)
+const PUSH_TIP = 0.42, PUSH_NECK = 0.25;
 // (cricket kit, on a turkey hatched on the oval, is a second life: the first time it's hurt, whether pecked,
 // swooped on, bitten, raked, stomped on or even swallowed, the kit takes it and comes off, and the turkey
 // lives on without it. It's no help to one that's drowning, though)
@@ -131,6 +136,7 @@ export class Turkey {
     this.kickRest = 0;
     this.grub = null;
     this.foe = null; // the foe being attacked
+    this.watchT = 0; // (at a chore: when it next looks round for anything coming at it)
     this.latched = false;
     this.attachLocal = null;
     this.obj = null; // carcass being hauled
@@ -169,6 +175,14 @@ export class Turkey {
     return this.bounces > 0 || (!!this.flight && !this.flight.seat && !!this.game.toys.bouncerAt(this.flight.to));
   }
   get canSwim() { return this.kind === 'beach'; }
+  /** how far out in front of its feet its beak gets, leaning right into a shove (so it knows how far back to stand) */
+  get pushReach() {
+    const n = this.rig.neckPos, b = this.rig.beak.position;
+    // (the beak, dipped with the neck; then that, from the base of the neck, all tipped forward with the body)
+    const y = n.y + b.y * Math.cos(PUSH_NECK) - b.z * Math.sin(PUSH_NECK);
+    const z = n.z + b.y * Math.sin(PUSH_NECK) + b.z * Math.cos(PUSH_NECK);
+    return (y * Math.sin(PUSH_TIP) + z * Math.cos(PUSH_TIP)) * this.scale;
+  }
 
   buildRig() {
     if (this.rig) this.game.scene.remove(this.rig.root);
@@ -666,25 +680,45 @@ export class Turkey {
     return true;
   }
 
+  /** can it get to p? (not out in the deep for a landlubber, and not behind a barricade that's still up) */
+  canReach(p) {
+    const w = this.game.world;
+    return (this.canSwim || w.waterDepth(p.x, p.z) < 2) && !!w.route(this.pos.x, this.pos.z, p.x, p.z, _d);
+  }
+
+  /**
+   * Something within `near` to go at, in its own area and that it can get to: anything that fights back (in
+   * plain sight, not round the other side of a fence) comes first, and only if there's nothing like that
+   * about, a chore (a barricade, a bin, a key to dig up). `chores` false: fights only
+   */
+  findFoe(near, chores = true) {
+    const g = this.game, zone = g.world.zoneOf(this.pos.z);
+    for (const chore of chores ? [false, true] : [false]) {
+      const foe = g.enemies.nearestAlive(this.pos, near, chore);
+      if (!foe || foe.zone !== zone) continue;
+      if (!chore && !g.world.canSee(this.pos.x, this.pos.z, foe.pos.x, foe.pos.z)) continue;
+      // (something wide, like a barricade, is got at from whichever side of it this is on)
+      const at = foe.attackSpot ? (foe.attackSpot(this, _at, _af), _at) : foe.pos;
+      if (this.canReach(at)) return foe;
+    }
+    return null;
+  }
+
   /** look around for a job; `near` is how far to look for fights & hauling */
   findWork(near = 3.5) {
     const g = this.game;
     const zone = g.world.zoneOf(this.pos.z);
-    // (not out in the deep for a landlubber, and not behind a barricade that's still up)
-    const reachable = (p) => (this.canSwim || g.world.waterDepth(p.x, p.z) < 2) && !!g.world.route(this.pos.x, this.pos.z, p.x, p.z, _d);
-    const foe = g.enemies.nearestAlive(this.pos, near);
-    // (something wide, like a barricade, is got at from whichever side of it this is on)
-    const at = foe?.attackSpot ? (foe.attackSpot(this, _at, _af), _at) : foe?.pos;
-    if (foe && foe.zone === zone && reachable(at)) { this.attack(foe); return true; }
+    const foe = this.findFoe(near);
+    if (foe) { this.attack(foe); return true; }
     // beach turkeys out in the water go looking much further afield
     const swimming = this.canSwim && g.world.waterDepth(this.pos.x, this.pos.z) === 2;
     const carcass = g.enemies.nearestCarcass(this.pos, swimming ? 9 : near + 1);
-    if (carcass && reachable(carcass.pos) && this.haul(carcass)) return true;
+    if (carcass && this.canReach(carcass.pos) && this.haul(carcass)) return true;
     // a new mound being scratched up nearby? lend a foot
     const site = g.mounds.siteNear(this.pos, near + 2);
     if (site && g.world.zoneOf(site.pos.z) === zone && this.joinBuild(site)) return true;
     const grub = g.grubs.nearestFree(this.pos, 3);
-    if (grub && this.stage < 2 && reachable(grub.pos)) {
+    if (grub && this.stage < 2 && this.canReach(grub.pos)) {
       this.grub = grub;
       g.grubs.claim(grub, this);
       this.setState(S.EAT);
@@ -696,7 +730,7 @@ export class Turkey {
       ? g.leaves.nearestFree(this.pos, 200, this.workCenter, WORK_R)
       : g.leaves.nearestFree(this.pos, 3.5);
     if (leaf && g.world.zoneOf(leaf.pos.z) === zone) {
-      if (!reachable(leaf.pos)) leaf.snubT = g.time + SNUB_TIME; // (no way to it for now: leave it be)
+      if (!this.canReach(leaf.pos)) leaf.snubT = g.time + SNUB_TIME; // (no way to it for now: leave it be)
       else if (this.startRake(leaf)) {
         this.workCenter ??= leaf.pos.clone();
         return true;
@@ -1389,6 +1423,12 @@ export class Turkey {
     // on foot, pecking at its legs (landlubbers won't follow it into deep water)
     if (!this.canSwim && this.game.world.waterDepth(foe.pos.x, foe.pos.z) === 2) { this.foe = null; this.setState(S.IDLE); return; }
     if (Math.hypot(foe.pos.x - this.pos.x, foe.pos.z - this.pos.z) > 9) { this.foe = null; this.setState(S.IDLE); return; }
+    // (at a chore, it keeps an eye out: a guard coming at it, say, it drops everything and has a go at that first)
+    if (foe.chore && (this.watchT -= dt) <= 0) {
+      this.watchT = rand(0.3, 0.5);
+      const e = this.findFoe(FIGHT_R, false);
+      if (e) { this.attack(e); return; }
+    }
     if (foe.attackSpot) foe.attackSpot(this, _at, _af); // (something wide, like a barricade: a spot along its face)
     else {
       const dx = this.pos.x - foe.pos.x, dz = this.pos.z - foe.pos.z, dist = Math.hypot(dx, dz) || 1;
@@ -1506,7 +1546,7 @@ export class Turkey {
     let peckA = this.peck > 0 ? Math.sin(Math.min(1, this.peck) * Math.PI) * 1.25 : 0;
     if (this.state === S.ATTACK && this.hitting) peckA = Math.max(0, Math.sin(time * 14 + this.id)) * 1.1;
     if (scratching) peckA = this.stoopNeck;
-    else if (pushing) peckA = 0.25;
+    else if (pushing) peckA = PUSH_NECK;
     else peckA += this.stoopNeck; // (still coming up from a scratch)
     r.neck.position.z = r.neckPos.z + Math.sin(this.phase * 2) * 0.03 * k;
     r.neck.position.y = r.neckPos.y;
@@ -1592,7 +1632,7 @@ export class Turkey {
     } else if (this.latched) {
       tip = 0.6;
     } else if (pushing) {
-      tip = 0.42; // leaning right into it
+      tip = PUSH_TIP; // leaning right into it
     } else if (seatPose === 'lounge') {
       tip = -0.5; // leaning back, soaking up the sun
       r.neck.rotation.x += 0.35;
