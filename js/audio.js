@@ -53,7 +53,8 @@ export class Audio {
     return true;
   }
 
-  tone({ freq = 440, freq2 = null, type = 'sine', dur = 0.15, vol = 0.3, attack = 0.005, delay = 0, vib = 0, vibHz = 0 }) {
+  /** `out`: where it goes (straight to the speakers, unless it's panned or part of the background: see Ambience) */
+  tone({ freq = 440, freq2 = null, type = 'sine', dur = 0.15, vol = 0.3, attack = 0.005, delay = 0, vib = 0, vibHz = 0, out = this.master }) {
     if (this.quiet) return;
     const c = this.ctx, t0 = c.currentTime + delay;
     const o = c.createOscillator(), g = c.createGain();
@@ -69,22 +70,23 @@ export class Audio {
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.exponentialRampToValueAtTime(vol, t0 + attack);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    o.connect(g).connect(this.master);
+    o.connect(g).connect(out);
     o.start(t0); o.stop(t0 + dur + 0.05);
   }
 
-  noise({ dur = 0.2, vol = 0.2, type = 'bandpass', f1 = 1000, f2 = null, q = 1, delay = 0, attack = 0.01 }) {
+  noise({ dur = 0.2, vol = 0.2, type = 'bandpass', f1 = 1000, f2 = null, q = 1, delay = 0, attack = 0.01, out = this.master }) {
     if (this.quiet) return;
     const c = this.ctx, t0 = c.currentTime + delay;
     const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
     s.buffer = this.noiseBuf;
+    s.loop = true; // (the buffer's only a second long: a long one would stop dead when it ran out)
     f.type = type; f.Q.value = q;
     f.frequency.setValueAtTime(f1, t0);
     if (f2) f.frequency.exponentialRampToValueAtTime(f2, t0 + dur);
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.exponentialRampToValueAtTime(vol, t0 + attack);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    s.connect(f).connect(g).connect(this.master);
+    s.connect(f).connect(g).connect(out);
     s.start(t0, Math.random() * 0.5); s.stop(t0 + dur + 0.05);
   }
 
