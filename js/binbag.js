@@ -31,10 +31,10 @@ export function tornBagGeo() {
     part(G.cone(0.09, 0.18, 6), 0x23282c, [-0.34, 0.1, -0.18], [0, 0, 1.3]),
     part(new THREE.CircleGeometry(0.2, 10).rotateX(-Math.PI / 2), 0x0d0f10, [0.16, 0.165, 0.1], [0, 0, 0], [1.3, 1, 0.7]), // the split
   ];
-  // (tatters of plastic round it)
+  // (tatters of plastic round it: lying on top of the paving, not flush with it, and each one over the last)
   for (let i = 0; i < 4; i++) {
     const a = rand(0, TAU), d = rand(0.35, 0.6);
-    p.push(part(G.box(rand(0.14, 0.26), 0.01, rand(0.08, 0.16)), pick(PLASTIC), [Math.cos(a) * d, 0.02, Math.sin(a) * d], [0, rand(0, TAU), 0]));
+    p.push(part(G.box(rand(0.14, 0.26), 0.01, rand(0.08, 0.16)), pick(PLASTIC), [Math.cos(a) * d, 0.031 + i * 0.002, Math.sin(a) * d], [0, rand(0, TAU), 0]));
   }
   return merge(p);
 }
@@ -66,6 +66,7 @@ export class BinBag extends Foe {
   }
 
   colliderR() { return this.alive ? this.def.radius : 0; }
+  get chore() { return true; } // (only pecked open, not shoved or dug: but it's no more of a fight than a bin)
   hitFx(p) { this.game.fx.burst(p, { n: 3, colors: PLASTIC, speed: [0.6, 1.6], up: [1, 2.2], size: [0.03, 0.06], life: [0.3, 0.6] }); }
 
   onDeath() {

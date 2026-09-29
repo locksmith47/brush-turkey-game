@@ -176,10 +176,11 @@ export function buildCity(world) {
   for (let x = -44; x < 46; x += 6) ground.push(flat(3, 0.18, 0xf2d24b, x, -109, 0.035));
   for (const z of [-104.5, -113.5]) ground.push(flat(92, 0.15, 0xf2f2f2, 0, z, 0.035));
   for (let x = -11; x <= -5; x += 1) ground.push(flat(0.55, 9, 0xf2f2f2, x, -109, 0.04));
-  // the plaza's paving
+  // the plaza's paving (the last row cut short at the buildings, not running on into the bin alley and over its drain)
   for (let i = 0; i < 23; i++) {
-    for (let j = 0; j < Math.round((PLAZA - YARD) / 4); j++) {
-      ground.push(flat(4, 4, (i + j) % 2 ? 0xd6cdbd : 0xcdc3b2, -44 + i * 4 + 2, PLAZA - j * 4 - 2, 0.03));
+    for (let j = 0, z = PLAZA; z > YARD; j++, z -= 4) {
+      const d = Math.min(4, z - YARD);
+      ground.push(flat(4, d, (i + j) % 2 ? 0xd6cdbd : 0xcdc3b2, -44 + i * 4 + 2, z - d / 2, 0.03));
     }
   }
   binAlleyGround(ground);
@@ -330,11 +331,14 @@ export function buildCity(world) {
 function binAlleyGround(ground) {
   const [, x0, x1] = BIN_ALLEY, cx = (x0 + x1) / 2, cz = (YARD + COURT.z0) / 2;
   ground.push(flat(x1 - x0, YARD - COURT.z0, 0x5f5c57, cx, cz, 0.02), flat(0.3, YARD - COURT.z0, 0x46433e, cx, cz, 0.03));
+  // (grime: each patch a hair higher than the last, so where two overlap one's plainly on top, and all of them under
+  // the stains the rubbish has left)
   for (let i = 0; i < 9; i++) {
-    ground.push(part(new THREE.CircleGeometry(rand(0.4, 1.1), 12).rotateX(-Math.PI / 2), pick([0x45423e, 0x4b4843, 0x3f3d39]), [rand(x0 + 1, x1 - 1), 0.025, rand(COURT.z0 + 1, YARD - 1)], [0, rand(0, TAU), 0], [1, 1, rand(0.5, 0.9)]));
+    ground.push(part(new THREE.CircleGeometry(rand(0.4, 1.1), 12).rotateX(-Math.PI / 2), pick([0x45423e, 0x4b4843, 0x3f3d39]), [rand(x0 + 1, x1 - 1), 0.021 + i * 0.00075, rand(COURT.z0 + 1, YARD - 1)], [0, rand(0, TAU), 0], [1, 1, rand(0.5, 0.9)]));
   }
+  // (puddles, lying over the drain and any mess in the way)
   for (const [x, z, r] of [[-19, -181.5, 1.3], [-22.5, -190.5, 0.9], [-16.5, -197, 1.1]]) {
-    ground.push(part(new THREE.CircleGeometry(r, 16).rotateX(-Math.PI / 2), 0x6e8494, [x, 0.028, z], [0, rand(0, TAU), 0], [1, 1, 0.65]));
+    ground.push(part(new THREE.CircleGeometry(r, 16).rotateX(-Math.PI / 2), 0x6e8494, [x, 0.033, z], [0, rand(0, TAU), 0], [1, 1, 0.65]));
   }
   const nx = Math.round((COURT.x1 - COURT.x0) / 4), nz = Math.round((COURT.z0 - COURT.z1) / 4.4);
   for (let i = 0; i < nx; i++) {
@@ -344,17 +348,20 @@ function binAlleyGround(ground) {
   const r0 = COURT.z0 - 0.8, r1 = THRONE.z + 1.4, rl = r0 - r1, rz = (r0 + r1) / 2;
   ground.push(flat(2.4, rl, 0xa3242c, THRONE.x, rz, 0.04));
   for (const k of [-1, 1]) ground.push(flat(0.14, rl, 0xd9a93a, THRONE.x + k * 1.13, rz, 0.045));
-  for (let i = 0; i < 11; i++) ground.push(flat(0.05, 0.25, 0xe8d8a8, THRONE.x - 1.1 + i * 0.22, r0 + 0.12, 0.041));
+  for (let i = 0; i < 11; i++) ground.push(flat(0.05, 0.25, 0xe8d8a8, THRONE.x - 1.1 + i * 0.22, r0 + 0.12, 0.042));
   for (const [dx, dz, w, d] of [[-0.5, -2.2, 0.7, 0.5], [0.4, 1.8, 0.5, 0.8]]) ground.push(flat(w, d, 0x7e1b22, THRONE.x + dx, rz + dz, 0.043));
 }
 
+let sheets = 0; // (how many bits of paper scraps() has dropped so far)
 /** what's left of a bin's (or bag's) rubbish once the ibises have been through it, strewn about round (x, z), mostly off towards `dir` */
 function scraps(p, x, z, dir, n, spread = 1.8) {
   const paper = [0xd9d4c5, 0xbfb8a5, 0xc9b99a, 0x9fb0bf, 0xd7c9a8];
   p.push(part(new THREE.CircleGeometry(rand(0.6, 0.9), 10).rotateX(-Math.PI / 2), 0x4b4842, [x, 0.028, z], [0, rand(0, TAU), 0], [1, 1, 0.6])); // (a stain)
   for (let i = 0; i < n; i++) {
     const a = dir + rand(-1, 1), d = rand(0.1, spread), px = x + Math.sin(a) * d, pz = z + Math.cos(a) * d, k = Math.random();
-    if (k < 0.45) p.push(part(G.box(rand(0.12, 0.3), 0.012, rand(0.1, 0.24)), pick(paper), [px, 0.035, pz], [0, rand(0, TAU), 0])); // (torn paper, wrappers)
+    // (torn paper, wrappers: each sheet a hair higher than the last, so where they land on each other one's plainly on top,
+    // and all of them clear of the King's rug)
+    if (k < 0.45) p.push(part(G.box(rand(0.12, 0.3), 0.012, rand(0.1, 0.24)), pick(paper), [px, 0.041 + (sheets++ % 5) * 0.0015, pz], [0, rand(0, TAU), 0]));
     else if (k < 0.7) p.push(part(G.cyl(0.018, 0.018, 0.2, 5), 0xece6d6, [px, 0.04, pz], [Math.PI / 2, 0, rand(0, TAU)])); // (chicken bones)
     else if (k < 0.88) p.push(part(G.cyl(0.07, 0.075, 0.04, 8), 0xa9b0b5, [px, 0.035, pz])); // (a can, stamped flat)
     else p.push(part(G.box(0.42, 0.035, 0.42), 0xc9a877, [px, 0.04, pz], [0, rand(0, TAU), 0])); // (a pizza box, licked clean)
@@ -380,10 +387,11 @@ function alleyWalls(p) {
     for (const [z, y] of acs) {
       p.push(part(G.box(0.6, 0.62, 0.95), 0xd8d6cc, [f + k * 0.3, y, z]), part(G.box(0.02, 0.48, 0.8), 0x6b6e70, [f + k * 0.61, y, z]));
     }
+    // (each tag sprayed over the ones before it, a hair further out from the wall, so where they overlap it's clear which is on top)
     for (let i = 0; i < 5; i++) {
-      p.push(part(G.box(0.02, rand(0.4, 1.1), rand(0.8, 2.2)), pick([0xe84a8a, 0x3aa0ff, 0x7bd34f, 0xff8c1a, 0xb36bff]), [f + k * 0.012, rand(0.8, 1.9), rand(COURT.z0 + 3, YARD - 3)], [rand(-0.3, 0.3), 0, 0]));
+      p.push(part(G.box(0.02, rand(0.4, 1.1), rand(0.8, 2.2)), pick([0xe84a8a, 0x3aa0ff, 0x7bd34f, 0xff8c1a, 0xb36bff]), [f + k * (0.012 + i * 0.005), rand(0.8, 1.9), rand(COURT.z0 + 3, YARD - 3)], [rand(-0.3, 0.3), 0, 0]));
     }
-    crownTag(p, f + k * 0.015, 2.3, COURT.z0 + 2.4); // (where the King's patch starts)
+    crownTag(p, f + k * 0.05, 2.3, COURT.z0 + 2.4); // (where the King's patch starts: sprayed over the lot)
   }
 }
 
@@ -476,23 +484,28 @@ function throneGeo() {
     part(G.box(4.2, 1.4, 2.6), 0xe0a526, [0, 0.7, 0]),
     part(G.box(4.34, 0.12, 2.74), 0xb88418, [0, 1.4, 0]),
   ];
-  for (let i = 0; i < 6; i++) p.push(part(G.box(0.24, 1.0, 0.02), 0x2b2b2b, [-1.75 + i * 0.7, 0.72, 1.31], [0, 0, 0.6])); // (hazard stripes)
+  // (hazard stripes: near enough painted on, as any thicker and the sun throws jaggy little slivers of shadow off
+  // them, and none of them hanging off the ends)
+  for (let i = 0; i < 6; i++) p.push(part(G.box(0.24, 1.0, 0.006), 0x2b2b2b, [-1.7 + i * 0.68, 0.72, 1.303], [0, 0, 0.6]));
   for (let i = 0; i < 6; i++) {
     p.push(part(G.ico(0.6, 1), pick([0x1f2326, 0x272c31, 0x2e343a]), [(i % 3 - 1) * 1.3 + rand(-0.2, 0.2), 1.42, (i < 3 ? -0.55 : 0.55) + rand(-0.1, 0.1)], [rand(0, 3), rand(0, 3), 0], [1.05, 0.42, 0.9]));
   }
   // the back: 5 bins, then 4, 3 and 1, each row sat on the lids of the one under it, the top one's lid flung back
+  // (spaced out so no two lids overlap, however skew-whiff they're sat: side by side at the same height, they flicker)
   [5, 4, 3, 1].forEach((n, r) => {
-    for (let i = 0; i < n; i++) p.push(place(staticBinGeo(kinds[(i + r) % 3], r === 3 ? 2.2 : rand(0, 0.12)), (i - (n - 1) / 2) * 0.8, r * H, back, rand(-0.08, 0.08), 0, B));
+    for (let i = 0; i < n; i++) p.push(place(staticBinGeo(kinds[(i + r) % 3], r === 3 ? 2.2 : rand(0, 0.12)), (i - (n - 1) / 2) * 0.88, r * H, back, rand(-0.04, 0.04), 0, B));
   });
   const top = 3 * H + 1.02 * B;
+  // (the crest's lids are stepped back from the middle one out, so none of them is flat against the next)
   [0xf1c40f, 0xc0392b, 0xf1c40f, 0xc0392b, 0xf1c40f].forEach((c, i) => {
     const a = (i - 2) * 0.42;
-    p.push(part(G.box(0.62, 1.05, 0.06), c, [Math.sin(a) * 0.62, top + 0.1 + Math.cos(a) * 0.62, back - 0.5], [0, 0, -a]));
+    p.push(part(G.box(0.62, 1.05, 0.06), c, [Math.sin(a) * 0.62, top + 0.1 + Math.cos(a) * 0.62, back - 0.5 - Math.abs(i - 2) * 0.07], [0, 0, -a]));
   });
-  // the arms: a bin either side, front and back, and one lying across them, its lid end forwards
+  // the arms: a bin either side, front and back (far enough apart that their lids don't overlap), and one lying
+  // across them, its lid end forwards
   for (const k of [-1, 1]) {
     const x = k * 2.6, kind = k < 0 ? 'red' : 'green';
-    p.push(place(staticBinGeo('yellow'), x, 0, -0.46, 0, 0, B), place(staticBinGeo(kind), x, 0, 0.46, 0, 0, B));
+    p.push(place(staticBinGeo('yellow'), x, 0, -0.54, 0, 0, B), place(staticBinGeo(kind), x, 0, 0.54, 0, 0, B));
     p.push(place(staticBinGeo(kind, 0.5), x, H + D / 2, -1.02 * B / 2, 0, Math.PI / 2, B));
   }
   for (const [x, z, s] of [[-2.8, 1.75, 1.1], [-2.15, 2.2, 0.8], [2.85, 1.7, 1.15], [3.3, 1.05, 0.85], [-3.4, -1.3, 0.95], [3.35, -1.7, 0.9], [-1.1, -2.7, 0.8]]) {

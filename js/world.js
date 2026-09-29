@@ -24,6 +24,7 @@ export const FENCES = [
   { z: -300, kind: 'rail', gateX: -16, gateHW: 2.6 },
   { z: -400, kind: 'rail', gateX: -30, gateHW: 2.6 },
 ];
+const _v = new THREE.Vector3();
 
 export class World {
   constructor(game) {
@@ -104,13 +105,25 @@ export class World {
     sun.shadow.bias = -0.0006;
     sun.shadow.normalBias = 0.03;
     this.sunOffset = new THREE.Vector3(18, 40, 14);
+    // (which ways are across and up on the sun's shadow map, and how big one of its squares is: see followSun)
+    const fwd = this.sunOffset.clone().normalize(), across = new THREE.Vector3(0, 1, 0).cross(fwd).normalize();
+    this.sunGrid = { axes: [across, fwd.cross(across)], step: (s.right - s.left) / sun.shadow.mapSize.x };
     this.scene.add(sun, sun.target);
     this.sun = sun;
   }
 
+  /** keep the sun (and its shadows) over the player, and the sky round him */
   followSun(p) {
-    this.sun.position.copy(p).add(this.sunOffset);
-    this.sun.target.position.copy(p);
+    // (the shadow map only ever moves a whole square of itself at a time: slide it along smoothly and the jaggy edge
+    // of every shadow crawls as you walk, which on a face the sun only grazes, like the King's skip, flickers like z-fighting)
+    const { axes, step } = this.sunGrid;
+    _v.copy(p);
+    for (const a of axes) {
+      const d = _v.dot(a);
+      _v.addScaledVector(a, Math.round(d / step) * step - d);
+    }
+    this.sun.position.copy(_v).add(this.sunOffset);
+    this.sun.target.position.copy(_v);
     this.sky.position.set(p.x, 0, p.z);
   }
 

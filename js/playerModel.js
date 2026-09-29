@@ -14,8 +14,33 @@ const STACHE = 0xb98a3e;
 const HAT = 0x3f7a4a;
 const HAT_DARK = 0x2f5f38;
 const BOOT = 0x7a5230;
+// the cap's crown: a squashed half-ball (radius r, stretched by `scale`), sat `y` up the head and tipped back
+// `tilt`. The band goes round the bottom of it, and the patch sits on the front of it (see patchGeo)
+const CROWN = { r: 0.186, y: 0.215, z: -0.005, tilt: -0.12, scale: [1.0, 0.86, 1.06] };
+// the patch: how far it reaches round the crown either side of dead ahead, how far up the crown from the band its
+// middle is, and half its height (all radians), and how far out off the crown it sits (so it's never flush with it)
+const PATCH = { w: 0.38, up: 0.4, h: 0.22, lift: 0.002 };
 
-/* the little mountain-skyline patch on the front of the cap */
+/*
+ * The little mountain-skyline patch on the front of the cap, curved to fit it: a bit of the crown's own shape,
+ * lifted just off it (a flat one would sink into the crown in the middle and stick out off it at the sides)
+ */
+function patchGeo() {
+  const g = new THREE.PlaneGeometry(1, 1, 8, 4), pos = g.attributes.position, c = CROWN;
+  const [rx, ry, rz] = c.scale.map((s) => c.r * s);
+  const v = new THREE.Vector3(), n = new THREE.Vector3(), tilt = new THREE.Matrix4().makeRotationX(c.tilt);
+  for (let i = 0; i < pos.count; i++) {
+    // (the plane's -0.5..0.5 each way, round and up the crown)
+    const a = pos.getX(i) * 2 * PATCH.w, e = PATCH.up + pos.getY(i) * 2 * PATCH.h;
+    const ux = Math.sin(a) * Math.cos(e), uy = Math.sin(e), uz = Math.cos(a) * Math.cos(e);
+    n.set(ux / rx, uy / ry, uz / rz).normalize();
+    v.set(ux * rx, uy * ry, uz * rz).addScaledVector(n, PATCH.lift).applyMatrix4(tilt);
+    pos.setXYZ(i, v.x, v.y + c.y, v.z + c.z);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
 function patchTexture() {
   return canvasTexture(128, 72, (c, w, h) => {
     c.fillStyle = '#f3ecd9';
@@ -135,9 +160,9 @@ function headGeo() {
     p.push(part(G.sphere(1, 8, 6), HAIR, [s * 0.12, 0.2, 0.115], [0, 0, s * 0.5], [0.05, 0.03, 0.035]));
   }
   // cap: crown, band, brim, button
-  const crown = new THREE.SphereGeometry(0.186, 18, 8, 0, TAU, 0, Math.PI / 2);
-  p.push(part(crown, HAT, [0, 0.215, -0.005], [-0.12, 0, 0], [1.0, 0.86, 1.06]));
-  p.push(part(G.cyl(0.19, 0.19, 0.04, 18, true), HAT_DARK, [0, 0.215, -0.005], [-0.12, 0, 0], [1, 1, 1.06]));
+  const c = CROWN, crown = new THREE.SphereGeometry(c.r, 18, 8, 0, TAU, 0, Math.PI / 2);
+  p.push(part(crown, HAT, [0, c.y, c.z], [c.tilt, 0, 0], c.scale));
+  p.push(part(G.cyl(0.19, 0.19, 0.04, 18, true), HAT_DARK, [0, c.y, c.z], [c.tilt, 0, 0], [1, 1, 1.06]));
   const brim = new THREE.CylinderGeometry(0.165, 0.165, 0.018, 16, 1, false, -Math.PI / 2, Math.PI);
   p.push(part(brim, HAT_DARK, [0, 0.225, 0.115], [0.12, 0, 0], [1.05, 1, 0.95]));
   p.push(part(G.sphere(0.022, 8, 6), HAT, [0, 0.37, -0.03]));
@@ -208,10 +233,7 @@ export function createPlayerRig() {
   head.add(vcMesh(headGeo()));
   torso.add(head);
 
-  const patch = new THREE.Mesh(new THREE.PlaneGeometry(0.13, 0.073), toonMat({ map: patchTexture() }));
-  patch.position.set(0, 0.29, 0.168);
-  patch.rotation.x = -0.42;
-  head.add(patch);
+  head.add(new THREE.Mesh(patchGeo(), toonMat({ map: patchTexture() })));
 
   const hairBack = new THREE.Group();
   hairBack.position.set(0, 0.12, -0.1);

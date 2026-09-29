@@ -45,6 +45,8 @@ export class Foe {
 
   get s() { return this.def.scale ?? 1; }
   get targetable() { return this.alive; }
+  /** a chore (a barricade to knock down, a bin to tip over, a key to dig up), not something that fights back */
+  get chore() { return !!this.def.task; }
 
   /* ---------------------------------------------------------------- overridables */
   bodyCenter(out) { return out.set(this.pos.x, this.pos.y + (this.def.bodyY ?? 0.5) * this.s, this.pos.z); }
