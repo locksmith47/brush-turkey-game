@@ -446,6 +446,7 @@ new DevMenu(game, {
 
 /* ------------------------------------------------------------------ zones & boss */
 const visited = new Set([0]);
+game.visited = visited; // (the HUD only counts the mounds in places you've been)
 let zonePrompt = null; // { t, text }: a hint shown a moment after arriving somewhere new
 let farPrompted = false;
 // the bosses with a key on them: said the first time you're close to one

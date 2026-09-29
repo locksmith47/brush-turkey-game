@@ -159,7 +159,8 @@ export class HUD {
     this.setClass('tk-beach', (kind === 'beach' ? 'on' : '') + (c.beach ? '' : ' none'));
     this.set('c-leaves', Math.floor(g.stats.leaves));
     this.set('c-hatched', g.stats.hatched);
-    this.set('c-mounds', g.mounds.list.length);
+    // (your mounds: not the ones still waiting for you further on, at the oval and the beach)
+    this.set('c-mounds', g.mounds.list.filter((m) => g.visited.has(g.world.zoneOf(m.pos.z))).length);
     this.set('c-lost', g.stats.lost);
   }
 }
