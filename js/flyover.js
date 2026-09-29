@@ -18,8 +18,9 @@ const CLIMB = 0.55; // how steeply they go up and over something (metres up for 
 const TALL = 3; // metres: anything lower than this, they don't give a second thought
 const TRUNK = 0.5; // metres, about, from the middle of a tree to the outside of its trunk
 
-// who goes over where (by zone): cockies and galahs, and gulls down by the water
-const WHO = [['cockatoo', 'galah'], ['galah', 'galah', 'cockatoo'], ['cockatoo'], ['galah', 'galah', 'cockatoo'], ['gull'], ['gull']];
+// who goes over where (by zone): cockies and galahs, and gulls down by the water (and out on the harbour, the
+// gulls keeping up with the ferry: see Ferry)
+const WHO = [['cockatoo', 'galah'], ['galah', 'galah', 'cockatoo'], ['galah', 'galah', 'cockatoo'], ['gull'], ['gull'], [], ['gull', 'cockatoo']];
 // each kind: how big (times life size, so you can see them), how many, how fast (m/s), how they fly (wingbeats a
 // second, how deep, and how much of the time they glide), how they bunch up (metres side to side, and from one to
 // the next), and how many calls you hear as they go over
@@ -105,7 +106,7 @@ function geo(kind) {
 }
 
 /** one bird, ready to fly: its body, and each wing on a pivot at the shoulder (flapping on z) */
-function makeBird(kind) {
+export function makeBird(kind) {
   const g = geo(kind), root = new THREE.Group(), wingL = new THREE.Group(), wingR = new THREE.Group();
   root.rotation.order = 'YXZ'; // (which way it's headed, then nose up or down, then banking)
   const [x, y, z] = g.shoulder;
@@ -143,8 +144,8 @@ export class Flyovers {
   }
 
   /** a lot of whatever flies round here (or `kind`), over in front of you; false if there's no clear way across */
-  send(kind = pick(WHO[this.game.world.zoneOf(this.game.player.pos.z)])) {
-    if (this.flock) return false;
+  send(kind = pick(WHO[this.game.world.zoneOf(this.game.player.pos.x, this.game.player.pos.z)])) {
+    if (this.flock || !kind) return false;
     const plan = this.plan();
     if (!plan) return false;
     const def = KINDS[kind], pool = (this.spare[kind] ??= []), n = randInt(...def.n), birds = [];
@@ -293,7 +294,7 @@ export class Flyovers {
     const { scene, world } = this.game, isTree = new Set(world.swayers.map((s) => s.m)), solid = [], trees = [];
     scene.updateMatrixWorld();
     scene.traverse((o) => {
-      if (!o.isMesh || o.isInstancedMesh || !o.frustumCulled) return;
+      if (!o.isMesh || o.isInstancedMesh || !o.frustumCulled || o.userData.moves) return; // (nor the ferry, or the boats on the harbour)
       const geo = o.geometry;
       if (!geo.boundingBox) geo.computeBoundingBox();
       _b.copy(geo.boundingBox).applyMatrix4(o.matrixWorld);

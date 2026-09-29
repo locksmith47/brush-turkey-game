@@ -289,6 +289,17 @@ export class Audio {
     }
   }
 
+  /** a gull going up: a harsh kee-ow, kee-ow (lower and louder, the bigger it is) */
+  gull(size = 1) {
+    if (!this.ok('gull', 500)) return;
+    const k = Math.min(1.5, Math.max(0.6, size / 1.3));
+    for (let i = 0, t = 0; i < 2; i++, t += 0.42) {
+      const f = (1250 + Math.random() * 150) / Math.sqrt(k);
+      this.tone({ freq: f, freq2: f * 1.5, type: 'sawtooth', dur: 0.08, vol: 0.08 * k, attack: 0.02, delay: t, vib: 60, vibHz: 38 });
+      this.tone({ freq: f * 1.5, freq2: f * 0.85, type: 'sawtooth', dur: 0.3, vol: 0.09 * k, attack: 0.01, delay: t + 0.07, vib: 70, vibHz: 38 });
+    }
+  }
+
   clang() {
     if (!this.ok('clang', 120)) return;
     this.tone({ freq: 1300, freq2: 1250, dur: 0.18, vol: 0.07, type: 'square' });

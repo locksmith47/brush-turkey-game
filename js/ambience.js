@@ -1,18 +1,21 @@
 import { rand, clamp } from './util.js';
-import { shoreX } from './props/beach.js';
+import { shoreZ } from './props/beach.js';
+import { BEACH, WHARF, FERRY } from './world.js';
 
 /*
  * The sound of each place, under everything else that's going on. There's a bed of sound that's always there:
- * a breeze through the bush, the hum of the suburbs, the city's traffic, a crowd at the oval, the surf at
- * Bondi, the harbour slopping about under the wharf. Over the top of it comes the odd call: a kookaburra
- * having a laugh, a whipbird cracking, a magpie warbling, a crow, somebody mowing a few streets over, a car
- * going by, the crossing going off, the crowd going up, gulls. All synthesized, like the rest (see Audio).
+ * a breeze through the bush, the hum of the suburbs, a crowd at the oval, the surf at Manly, the harbour
+ * slopping about under the wharf, the ferry's engine, the city's traffic. Over the top of it comes the odd call:
+ * a kookaburra having a laugh, a whipbird cracking, a magpie warbling, a crow, somebody mowing a few streets
+ * over, the crowd going up, gulls, a car going by, the crossing going off. All synthesized, like the rest (see
+ * Audio).
  * Walk through a gate and one place fades into the next.
  */
 const LEVEL = 1; // the lot of it, against the rest of the game's sounds
 const FADE = 1.2; // seconds (a time constant) for one place's bed to fade into the next
 const LINGER = 8; // seconds a faded-out bed hangs about (in case you pop straight back), before it's put away
 const NOISE_LEN = 6; // seconds of noise the beds loop through (long enough that you can't hear it going round)
+const ENGINE_V = 7.5; // m/s: the ferry going flat out, when her engine's at its loudest
 
 // each place's bed: layers of filtered noise, each with a slow swell and ebb to it (wobble: [how much, how often]...)
 const BEDS = [
@@ -20,24 +23,27 @@ const BEDS = [
   [{ type: 'bandpass', f: 1100, q: 0.5, vol: 0.06, wobble: [[0.55, 0.07], [0.3, 0.19]] }, { type: 'lowpass', f: 300, vol: 0.1 }],
   // the backyards: the far-off hum of the suburbs, and a lighter breeze
   [{ type: 'lowpass', f: 420, vol: 0.12, wobble: [[0.25, 0.05]] }, { type: 'bandpass', f: 1600, q: 0.6, vol: 0.03, wobble: [[0.5, 0.09], [0.3, 0.23]] }],
-  // the city: the rumble of traffic, and tyres on the road
-  [{ type: 'lowpass', f: 220, vol: 0.3, wobble: [[0.3, 0.06], [0.2, 0.17]] }, { type: 'bandpass', f: 750, q: 0.7, vol: 0.05, wobble: [[0.4, 0.11]] }],
   // the oval: a crowd (from the game at the ground next door), murmuring away, and the breeze across the field
   [{ type: 'bandpass', f: 480, q: 1.4, vol: 0.11, wobble: [[0.3, 0.21], [0.2, 0.37]] }, { type: 'bandpass', f: 1150, q: 2, vol: 0.05, wobble: [[0.4, 0.29], [0.3, 0.53]] }, { type: 'lowpass', f: 500, vol: 0.06 }],
-  // Bondi: the roar of the surf, and the hiss of the foam (the waves themselves come in: see wave)
+  // the beach: the roar of the surf, and the hiss of the foam (the waves themselves come in: see wave)
   [{ type: 'lowpass', f: 520, vol: 0.16, wobble: [[0.2, 0.05]] }, { type: 'highpass', f: 3500, vol: 0.007, wobble: [[0.5, 0.12]] }],
   // the wharf: the harbour slopping about under it, and a bit of a breeze off the water
   [{ type: 'lowpass', f: 380, vol: 0.15, wobble: [[0.5, 0.8], [0.3, 1.3]] }, { type: 'bandpass', f: 2000, q: 0.5, vol: 0.012 }],
+  // the ferry: the engine thrumming away under the deck, the water rushing past the hull, and the wind
+  [{ type: 'lowpass', f: 110, vol: 0.34, wobble: [[0.35, 4.2], [0.15, 0.3]] }, { type: 'bandpass', f: 900, q: 0.5, vol: 0.05, wobble: [[0.4, 0.23]] }, { type: 'highpass', f: 2800, vol: 0.008, wobble: [[0.6, 0.11]] }],
+  // the city: the rumble of traffic, and tyres on the road
+  [{ type: 'lowpass', f: 220, vol: 0.3, wobble: [[0.3, 0.06], [0.2, 0.17]] }, { type: 'bandpass', f: 750, q: 0.7, vol: 0.05, wobble: [[0.4, 0.11]] }],
 ];
 
 // and the calls over the top: how often (seconds between, give or take), and what, how likely each one is
 const CALLS = [
   { every: [7, 16], calls: { kooka: 2, whipbird: 3, bellbirds: 3, crow: 1 } }, // the bush
   { every: [8, 18], calls: { magpie: 3, mower: 2, dog: 2, crow: 1 } }, // the backyards
-  { every: [4, 10], calls: { car: 6, crossing: 1.5, beep: 1, brakes: 1 } }, // the city
   { every: [7, 15], calls: { cheer: 2, tock: 2, magpie: 2 } }, // the oval
-  { every: [6, 14], calls: { gulls: 1 } }, // Bondi (and the waves: see update)
+  { every: [6, 14], calls: { gulls: 1 } }, // the beach (and the waves: see update)
   { every: [5, 12], calls: { gulls: 2, creak: 2, bell: 1 } }, // the wharf (and the water slapping at the pilings)
+  { every: [5, 11], calls: { gulls: 3, bell: 1 } }, // the ferry (and the water slapping at the hull)
+  { every: [4, 10], calls: { car: 6, crossing: 1.5, beep: 1, brakes: 1, gulls: 1 } }, // the city
 ];
 
 export class Ambience {
@@ -70,7 +76,7 @@ export class Ambience {
   update(dt) {
     const g = this.game, a = g.audio;
     if (!g.started || !this.ready()) return;
-    const c = a.ctx, p = g.player.pos, zone = g.world.zoneOf(p.z);
+    const c = a.ctx, p = g.player.pos, zone = g.world.zoneOf(p.x, p.z);
     if (zone !== this.zone) {
       const old = this.beds.get(this.zone);
       if (old) old.out.gain.setTargetAtTime(0, c.currentTime, FADE);
@@ -81,11 +87,13 @@ export class Ambience {
       this.levelT = 0;
       this.callT = Math.min(this.callT, rand(2, 5)); // (something to hear soon after you get there)
     }
-    // (the surf's louder down by the water, and quieter up on the promenade)
-    const surf = zone === 4 ? 1 - clamp((shoreX(p.z) - p.x) / 70, 0, 0.6) : 1;
+    // (the surf's louder down by the water, and quieter up on the promenade; the ferry's engine idles tied up,
+    // and opens up under way)
+    const surf = zone === BEACH ? 1 - clamp((p.z - shoreZ(p.x)) / 70, 0, 0.6) : 1;
+    const level = zone === FERRY ? 0.4 + 0.6 * clamp(g.ferry.v / ENGINE_V, 0, 1) : surf;
     if ((this.levelT -= dt) <= 0) {
       this.levelT = 0.5;
-      this.beds.get(zone).out.gain.setTargetAtTime(LEVEL * surf, c.currentTime, FADE);
+      this.beds.get(zone).out.gain.setTargetAtTime(LEVEL * level, c.currentTime, FADE);
     }
     // (a bed that's faded right out is put away, a while after)
     for (const [z, bed] of this.beds) {
@@ -93,9 +101,9 @@ export class Ambience {
     }
     if (a.quiet) return; // (nothing new while the sound's off)
 
-    // the waves rolling in at Bondi, and the water slapping at the wharf's pilings
-    if (zone >= 4 && (this.waveT -= dt) <= 0) {
-      if (zone === 4) { this.wave(surf); this.waveT = rand(4.5, 7.5); }
+    // the waves rolling in at the beach, and the water slapping at the wharf's pilings (and the ferry's hull)
+    if ((zone === BEACH || zone === WHARF || zone === FERRY) && (this.waveT -= dt) <= 0) {
+      if (zone === BEACH) { this.wave(surf); this.waveT = rand(4.5, 7.5); }
       else { this.slap(); this.waveT = rand(0.6, 1.9); }
     }
     if ((this.callT -= dt) > 0) return;
@@ -327,10 +335,10 @@ export class Ambience {
     a.noise({ dur: 0.03, vol: 0.04, type: 'bandpass', f1: 2500, q: 2, out });
   }
 
-  /* ---------------------------------------------------------------- Bondi and the wharf */
+  /* ---------------------------------------------------------------- the beach, the wharf and the harbour */
   /** a wave rolling in and breaking, then the foam hissing up the sand (`k`: how near the water you are) */
   wave(k) {
-    const pan = Math.cos(this.game.cam.yaw) * 0.6; // (the sea's off to the east)
+    const pan = Math.sin(this.game.cam.yaw) * 0.6; // (the sea's out past -z: off to your left as you walk down the beach)
     this.held({ type: 'noise', filter: ['lowpass', 280, 900, 420], q: 0.5, dur: 4.2, fadeIn: 2, fadeOut: 2.2, vol: 0.28 * k, pan });
     this.held({ type: 'noise', filter: ['bandpass', 1800, 3200], q: 0.5, dur: 2.8, fadeIn: 0.25, fadeOut: 2.4, vol: 0.045 * k, delay: 1.8, pan: pan * 0.6 });
   }

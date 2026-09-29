@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Foe } from './foe.js';
 import { part, merge, vcMesh, G, limb, rand, pick, damp, dampAngle, clamp, TAU } from './util.js';
-import { POOLS, shoreX } from './props/beach.js';
+import { POOLS, shoreZ } from './props/beach.js';
 
 /*
  * Crabs scuttle sideways, snip up a turkey in each claw and drag them into the sea.
@@ -228,7 +228,7 @@ export class Crab extends Foe {
   /** the nearest deep water to drag prey into */
   nearestDeep(out) {
     if (this.kind === 'king') { const p = POOLS[0]; return out.set(p.x, 0, p.z); }
-    let best = out.set(shoreX(this.pos.z) + 5, 0, this.pos.z), bd = Math.abs(best.x - this.pos.x);
+    let best = out.set(this.pos.x, 0, shoreZ(this.pos.x) - 5), bd = Math.abs(best.z - this.pos.z); // (straight out to sea)
     for (const p of POOLS) {
       const d = Math.hypot(p.x - this.pos.x, p.z - this.pos.z);
       if (d < bd) { bd = d; best = out.set(p.x, 0, p.z); }

@@ -6,9 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Turkmin: a browser game about brush turkeys, built on three.js. Plain ES modules: no build step, no
 package.json, no test suite. `index.html` pulls three@0.170.0 from jsdelivr through an importmap and
-`js/main.js` does the rest. The map is one long strip running north (-z): The Bush, The Backyards, The City,
-The Oval, Bondi Beach, The Wharf. Each is shut off from the next by a padlocked gate, whose key the turkeys
-have to win and carry to it.
+`js/main.js` does the rest. The map runs north to south through Sydney, in an L: down the first leg (-z)
+through The Bush, The Backyards and The Oval, then right at the beach and down the second leg (+x) along Manly
+Beach to Manly Wharf, over the harbour on The Manly Ferry, and into The City at Circular Quay. Each is shut off
+from the next by a padlocked gate, whose key the turkeys have to win and carry to it. (The ferry's gangways
+only open while she's in, and the King Ibis in the city is the end of the line, with no gate past him.)
 
 ## Commands
 
@@ -60,10 +62,14 @@ have to win and carry to it.
   builds the level: every foe, bin, bit of loot and toy is spawned there. It also handles input, aim, camera,
   tips and zones. Each frame is `step(real)`, which runs everything on `dt = real * game.timeScale` (the
   slow-mo when you go down); only `game.wasted` runs on real time.
-- **World** (`world.js`, `track.js`, `props/*`) holds zones by z and `groundHeight()`. Obstacles are circle
-  colliders plus segment walls, and `resolve()` pushes things out of them. `route()` gives the next waypoint
-  anywhere, through open gates and round each zone's track, or null if the way's fenced off. `canSee()` and
-  `throwClear()` stop seeing and throwing through scrub, fences and buildings.
+- **World** (`world.js`, `track.js`, `props/*`) holds the zones (`ZONES`: a rect each, and the leg it's on),
+  `zoneOf(x, z)` and `groundHeight()`. Obstacles are circle colliders plus segment walls, and `resolve()` pushes
+  things out of them (and `keepIn()` keeps them in their zone, bar through the fence into the next). `route()`
+  gives the next waypoint anywhere, through open gates and round each zone's track, or null if the way's fenced
+  off. `canSee()` and `throwClear()` stop seeing and throwing through scrub, fences and buildings. The camera
+  swings round to look down whichever leg you're on (`cam.leg` in main.js), and the sun comes round with it.
+- **The ferry** (`ferry.js`) is a zone that moves: its bounds are its deck (`world.boundsOf(FERRY)`), and
+  `shift()` carries everything on it along. It saves where it's got to.
 - **Turkeys** (`turkey.js`) are one big state machine (`S`). The `WALKING` set decides who's on the ground; the
   `BUSY` set decides who can be whistled back. A new state needs all of:
   - its entry in `S`, and in those sets;

@@ -60,7 +60,7 @@ export class Ibis extends Foe {
     }
   }
 
-  /** the King wears the key to the way out of the city on a gold chain round his neck (small enough to wear) */
+  /** the King wears the key to the city on a gold chain round his neck (small enough to wear) */
   wearKey() {
     const neck = this.rig.neck, c = CHAIN;
     const chain = vcMesh(merge([part(G.torus(c.r, 0.009, 5, 24), 0xf2c230, [0, 0, 0], [Math.PI / 2, 0, 0])]));
@@ -106,7 +106,7 @@ export class Ibis extends Foe {
     a.position.set(this.pos.x, this.pos.y + 0.07, this.pos.z);
     a.scale.set(r, 1, r);
     a.material.opacity = Math.min(1, 0.4 + 0.14 * Math.sin(t * 2.6) + flare * 0.6);
-    if (Math.abs(g.player.pos.z - this.pos.z) > 50 || (this.sparkT -= dt) > 0) return;
+    if (Math.hypot(g.player.pos.x - this.pos.x, g.player.pos.z - this.pos.z) > 50 || (this.sparkT -= dt) > 0) return;
     this.sparkT = rand(0.12, 0.3);
     this.rig.head.getWorldPosition(_w);
     _w.y += 0.12 * this.s;
@@ -118,8 +118,8 @@ export class Ibis extends Foe {
     const th = this.throne;
     this.state = 'throne';
     this.t = 0;
-    this.pos.set(th.x, this.pos.y, th.z + th.sitZ);
-    this.heading = 0;
+    this.pos.set(th.sit.x, this.pos.y, th.sit.z);
+    this.heading = th.face;
     this.sit = 1;
     this.perch = th.seatY;
     this.seatSolid(false);
@@ -225,19 +225,18 @@ export class Ibis extends Foe {
     if (this.kind === 'king') {
       g.hud.banner('KING IBIS FELLED');
       g.audio.fanfare();
-      // his key flies off its chain (growing back to full size on the way)
-      if (this.pendant?.visible) {
+      // a key to a gate flies off his chain (growing back to full size on the way); the key to the city, he gets
+      // to keep: the city's yours now, and that's the end of the line
+      if (this.key && !this.key.gone && this.pendant?.visible) {
         this.pendantKey.updateWorldMatrix(true, false);
-        if (this.key && !this.key.gone) {
-          this.key.release(this.pendantKey.matrixWorld, this.heading, 6.5);
-          g.hud.toast('The King\'s key flew off his neck! Carry it to the gate', 3.5);
-        }
+        this.key.release(this.pendantKey.matrixWorld, this.heading, 6.5);
+        g.hud.toast('The King\'s key flew off his neck! Carry it to the gate', 3.5);
         this.pendant.visible = false;
-      }
+      } else if (!g.loading) g.hud.toast("The King is felled, and the city's yours! That's the end of the line... for now", 6);
       // (and if he was up on his throne, he topples off it)
       if (this.throne) {
         if (this.perch || this.sit) {
-          this.pos.set(this.throne.x, this.pos.y, this.throne.z + this.throne.front);
+          this.pos.set(this.throne.down.x, this.pos.y, this.throne.down.z);
           this.perch = this.sit = 0;
         }
         this.seatSolid(true);
@@ -452,8 +451,8 @@ export class Ibis extends Foe {
     if (t < RISE_HOP) return;
     // (down off it, onto the carpet in front)
     const u = Math.min(1, (t - RISE_HOP) / (RISE_T - RISE_HOP));
-    this.pos.x = this.hopFrom.x + (th.x - this.hopFrom.x) * u;
-    this.pos.z = this.hopFrom.z + (th.z + th.front - this.hopFrom.z) * u;
+    this.pos.x = this.hopFrom.x + (th.down.x - this.hopFrom.x) * u;
+    this.pos.z = this.hopFrom.z + (th.down.z - this.hopFrom.z) * u;
     this.perch = th.seatY * (1 - u) + Math.sin(u * Math.PI) * 1.1;
     if (u < 1) return;
     this.perch = 0;
@@ -475,14 +474,14 @@ export class Ibis extends Foe {
   mounting(dt) {
     const th = this.throne, t = this.t;
     this.speedNow = damp(this.speedNow, 0, 10, dt);
-    this.heading = dampAngle(this.heading, 0, 9, dt);
+    this.heading = dampAngle(this.heading, th.face, 9, dt);
     const u = clamp((t - MOUNT_TURN) / MOUNT_HOP, 0, 1);
-    this.pos.x = this.hopFrom.x + (th.x - this.hopFrom.x) * u;
-    this.pos.z = this.hopFrom.z + (th.z + th.sitZ - this.hopFrom.z) * u;
+    this.pos.x = this.hopFrom.x + (th.sit.x - this.hopFrom.x) * u;
+    this.pos.z = this.hopFrom.z + (th.sit.z - this.hopFrom.z) * u;
     this.perch = th.seatY * u + Math.sin(u * Math.PI) * 0.9;
     this.sit = clamp((t - MOUNT_TURN - MOUNT_HOP) / MOUNT_SIT, 0, 1);
     if (this.sit < 1) return;
-    this.heading = 0;
+    this.heading = th.face;
     this.state = 'throne';
     this.t = 0;
     this.callT = rand(4, 7);

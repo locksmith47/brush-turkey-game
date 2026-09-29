@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createRig, STAGES, HEN_SCALE } from './turkeyModel.js';
 import { rand, clamp, damp, dampAngle, angleDiff, TAU } from './util.js';
+import { BEACH } from './world.js';
 
 export const S = {
   SPROUT: 'sprout', POP: 'pop', FOLLOW: 'follow', THROWN: 'thrown', IDLE: 'idle', GOTO: 'goto',
@@ -692,7 +693,7 @@ export class Turkey {
    * about, a chore (a barricade, a bin, a key to dig up). `chores` false: fights only
    */
   findFoe(near, chores = true) {
-    const g = this.game, zone = g.world.zoneOf(this.pos.z);
+    const g = this.game, zone = g.world.zoneOf(this.pos.x, this.pos.z);
     for (const chore of chores ? [false, true] : [false]) {
       const foe = g.enemies.nearestAlive(this.pos, near, chore);
       if (!foe || foe.zone !== zone) continue;
@@ -707,7 +708,7 @@ export class Turkey {
   /** look around for a job; `near` is how far to look for fights & hauling */
   findWork(near = 3.5) {
     const g = this.game;
-    const zone = g.world.zoneOf(this.pos.z);
+    const zone = g.world.zoneOf(this.pos.x, this.pos.z);
     const foe = this.findFoe(near);
     if (foe) { this.attack(foe); return true; }
     // beach turkeys out in the water go looking much further afield
@@ -716,7 +717,7 @@ export class Turkey {
     if (carcass && this.canReach(carcass.pos) && this.haul(carcass)) return true;
     // a new mound being scratched up nearby? lend a foot
     const site = g.mounds.siteNear(this.pos, near + 2);
-    if (site && g.world.zoneOf(site.pos.z) === zone && this.joinBuild(site)) return true;
+    if (site && g.world.zoneOf(site.pos.x, site.pos.z) === zone && this.joinBuild(site)) return true;
     const grub = g.grubs.nearestFree(this.pos, 3);
     if (grub && this.stage < 2 && this.canReach(grub.pos)) {
       this.grub = grub;
@@ -729,7 +730,7 @@ export class Turkey {
     const leaf = this.workCenter
       ? g.leaves.nearestFree(this.pos, 200, this.workCenter, WORK_R)
       : g.leaves.nearestFree(this.pos, 3.5);
-    if (leaf && g.world.zoneOf(leaf.pos.z) === zone) {
+    if (leaf && g.world.zoneOf(leaf.pos.x, leaf.pos.z) === zone) {
       if (!this.canReach(leaf.pos)) leaf.snubT = g.time + SNUB_TIME; // (no way to it for now: leave it be)
       else if (this.startRake(leaf)) {
         this.workCenter ??= leaf.pos.clone();
@@ -744,7 +745,7 @@ export class Turkey {
       const tr = g.toys.trampolineNear(this.pos, 6);
       if (tr) { this.hopTo(tr.x + rand(-0.6, 0.6), tr.z + rand(-0.6, 0.6), 0.6, 1.6, tr.matY); return true; }
     }
-    // (on the sand at Bondi, they can't get enough of it)
+    // (on the sand at the beach, they can't get enough of it)
     const sand = g.world.isSand(this.pos.x, this.pos.z);
     if (Math.random() < (sand ? 0.3 : 0.05) && !g.world.waterDepth(this.pos.x, this.pos.z)) this.sunbake(sand ? rand(12, 25) : rand(6, 12));
     return false;
@@ -837,7 +838,7 @@ export class Turkey {
    * Returns true if it changed course; the new velocity is left in _d.
    */
   dodgeWater(vx, vz) {
-    if (this.canSwim || this.rescued > 0 || this.pos.z > -299) return false; // (no water north of Bondi)
+    if (this.canSwim || this.rescued > 0 || this.game.world.zoneOf(this.pos.x, this.pos.z) !== BEACH) return false; // (no water but the beach's)
     const w = this.game.world, sp = Math.hypot(vx, vz);
     const ux = vx / sp, uz = vz / sp, L = 0.3 + this.radius + sp * 0.1;
     if (w.waterDepth(this.pos.x + ux * L, this.pos.z + uz * L) < 2) return false;
@@ -1129,7 +1130,7 @@ export class Turkey {
       this.brake(dt);
       if (this.vel.lengthSq() < 0.05) {
         this.faceToward(p.pos.x, p.pos.z, dt, 3);
-        // (you've stopped on the sand at Bondi: one by one, they flop down for a sunbake)
+        // (you've stopped on the sand at the beach: one by one, they flop down for a sunbake)
         if (p.speed < 0.3 && Math.random() < dt * 0.1 && g.world.isSand(this.pos.x, this.pos.z)) this.sunbake(rand(10, 25));
       }
     }

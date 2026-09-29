@@ -105,7 +105,7 @@ function serve() {
       await shot('smoke');
       log(await ev(() => {
         const g = window.game, p = g.player;
-        return `zone ${g.world.zoneOf(p.pos.z)}, player at ${p.pos.x.toFixed(1)},${p.pos.z.toFixed(1)} (${p.life}, ${p.hp} hp), ${g.turkeys.list.length} turkeys, ${g.enemies.list.length} foes`;
+        return `zone ${g.world.zoneOf(p.pos.x, p.pos.z)}, player at ${p.pos.x.toFixed(1)},${p.pos.z.toFixed(1)} (${p.life}, ${p.hp} hp), ${g.turkeys.list.length} turkeys, ${g.enemies.list.length} foes`;
       }));
     }
   } catch (e) {

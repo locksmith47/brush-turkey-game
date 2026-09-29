@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { clamp, damp, dampAngle, rand, pinLabel, labelFade, Dial, TAU } from './util.js';
+import { BEACH } from './world.js';
 
 export const STRENGTH = [1, 1.5, 2];
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _u = new THREE.Vector3(), _r = new THREE.Vector3();
@@ -15,7 +16,7 @@ export class Foe {
     this.def = def;
     this.pos = new THREE.Vector3(x, game.world.groundHeight(x, z), z);
     this.home = new THREE.Vector3(x, 0, z);
-    this.zone = game.world.zoneOf(z);
+    this.zone = game.world.zoneOf(x, z);
     this.heading = rand(0, TAU);
     this.hp = def.hp ?? 1;
     this.alive = true;
@@ -125,7 +126,7 @@ export class Foe {
     const w = this.game.world, leash = (this.def.leash ?? 8) * 2;
     let best = null, bd = range;
     const consider = (t) => {
-      if (!t.grounded || t.dead || w.zoneOf(t.pos.z) !== this.zone) return;
+      if (!t.grounded || t.dead || w.zoneOf(t.pos.x, t.pos.z) !== this.zone) return;
       const d = Math.hypot(t.pos.x - from.x, t.pos.z - from.z);
       if (d >= bd || Math.hypot(t.pos.x - this.home.x, t.pos.z - this.home.z) >= leash) return;
       if (w.canSee(from.x, from.z, t.pos.x, t.pos.z)) { bd = d; best = t; } // (not through the scrub)
@@ -179,7 +180,7 @@ export class Foe {
     const dx = tx - this.pos.x, dz = tz - this.pos.z, d = Math.hypot(dx, dz);
     let hx = dx, hz = dz;
     // (with a fence or a building in the way, round by the way through: home from a chase next door, say)
-    const w = this.game.world, tr = w.trackAt(this.pos.z);
+    const w = this.game.world, tr = w.trackAt(this.pos.x, this.pos.z);
     if (tr && d > stop && !tr.clearLine(this.pos.x, this.pos.z, tx, tz)) {
       const wp = w.route(this.pos.x, this.pos.z, tx, tz, _r);
       if (wp) { hx = wp.x - this.pos.x; hz = wp.z - this.pos.z; }
@@ -295,7 +296,7 @@ export class Foe {
       let ux = dx / dist, uz = dz / dist;
       const clear = this.clearWay(ux, uz); // round rocks, trees and fences
       if (clear) { ux = clear.x; uz = clear.z; }
-      if (this.pos.z < -299) { // (there's only water at Bondi)
+      if (g.world.zoneOf(this.pos.x, this.pos.z) === BEACH) { // (there's only water at the beach)
         const dry = this.dryWay(ux, uz);
         if (dry) { ux = dry.x; uz = dry.z; }
         else if (this.strength(true) < d.weight) return; // stuck at the water's edge unless the swimmers can manage alone
