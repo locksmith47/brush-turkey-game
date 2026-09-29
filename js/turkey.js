@@ -744,12 +744,17 @@ export class Turkey {
       const tr = g.toys.trampolineNear(this.pos, 6);
       if (tr) { this.hopTo(tr.x + rand(-0.6, 0.6), tr.z + rand(-0.6, 0.6), 0.6, 1.6, tr.matY); return true; }
     }
-    if (Math.random() < 0.05 && !g.world.waterDepth(this.pos.x, this.pos.z)) {
-      this.sunT = rand(6, 12);
-      this.sunIn = 0;
-      this.sunSide = Math.random() < 0.5 ? 1 : -1;
-    }
+    // (on the sand at Bondi, they can't get enough of it)
+    const sand = g.world.isSand(this.pos.x, this.pos.z);
+    if (Math.random() < (sand ? 0.3 : 0.05) && !g.world.waterDepth(this.pos.x, this.pos.z)) this.sunbake(sand ? rand(12, 25) : rand(6, 12));
     return false;
+  }
+
+  /** down it flops for a sunbake, for `secs` (or till it's wanted) */
+  sunbake(secs) {
+    this.sunT = secs;
+    this.sunIn = 0;
+    this.sunSide = Math.random() < 0.5 ? 1 : -1;
   }
 
   onLand() {
@@ -1108,15 +1113,25 @@ export class Turkey {
   }
 
   updateFollow(dt, sp) {
-    const tk = this.game.turkeys;
+    const g = this.game, tk = g.turkeys, p = g.player;
     const d = Math.hypot(tk.rally.x - this.pos.x, tk.rally.z - this.pos.z);
+    // (having a sunbake while you stand about on the sand: the moment you're off, up it gets and after you)
+    if (this.sunT > 0) {
+      this.brake(dt);
+      this.sunIn += dt;
+      this.sunT = (d > tk.blobR ? Math.min(this.sunT, 0.5) : this.sunT) - dt;
+      return;
+    }
     if (d > tk.blobR) {
       const boost = d > 5 ? 1.45 : 1.1;
       this.steer(tk.rally.x, tk.rally.z, sp * boost, dt, tk.blobR * 0.7);
     } else {
       this.brake(dt);
-      const p = this.game.player.pos;
-      if (this.vel.lengthSq() < 0.05) this.faceToward(p.x, p.z, dt, 3);
+      if (this.vel.lengthSq() < 0.05) {
+        this.faceToward(p.pos.x, p.pos.z, dt, 3);
+        // (you've stopped on the sand at Bondi: one by one, they flop down for a sunbake)
+        if (p.speed < 0.3 && Math.random() < dt * 0.1 && g.world.isSand(this.pos.x, this.pos.z)) this.sunbake(rand(10, 25));
+      }
     }
   }
 
