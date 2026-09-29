@@ -46,7 +46,7 @@ const scene = new THREE.Scene();
 const aspect = () => (innerWidth > 0 && innerHeight > 0 ? innerWidth / innerHeight : 16 / 9);
 const camera = new THREE.PerspectiveCamera(50, aspect(), 0.1, 700);
 
-const game = { scene, camera, renderer, time: 0, timeScale: 1, started: false, stats: { leaves: 0, hatched: 0, plucked: 0, thrown: 0, lost: 0, converted: 0, saved: 0, wasted: 0 }, dev: { invincible: false } };
+const game = { scene, camera, renderer, time: 0, timeScale: 1, started: false, paused: false, stats: { leaves: 0, hatched: 0, plucked: 0, thrown: 0, lost: 0, converted: 0, saved: 0, wasted: 0 }, dev: { invincible: false } };
 // nothing about beach turkeys shows up until the gate into Bondi is open (or you've got some anyway)
 game.bondiOpen = () => game.world.gates[3].open || game.turkeys.counts.beach > 0 || game.turkeys.list.some((t) => t.kind === 'beach');
 let shakeAmt = 0;
@@ -486,8 +486,22 @@ function updateZones(dt) {
 const clock = new THREE.Clock();
 let first = true;
 
+/** Esc: everything stands still (the sound too), with the controls up, till you press it again */
+function setPaused(on) {
+  game.paused = on;
+  if (on) letGo();
+  audio.pause(on);
+  hud.pause(on);
+}
+
 /** `real`: seconds since the last frame (time itself can go slower: see game.timeScale) */
 function step(real) {
+  // (Esc pauses, and N turns the sound off or back on: any time, even while you're down)
+  if (game.started) {
+    if (input.pressed('Escape')) setPaused(!game.paused);
+    if (input.pressed('KeyN')) hud.soundOff(audio.toggleOff(), true);
+  }
+  if (game.paused) { input.endFrame(); return; }
   const dt = real * game.timeScale;
   game.time += dt;
   const down = game.wasted.active;
@@ -547,6 +561,7 @@ function start() {
   audio.init();
   document.getElementById('splash').classList.add('hidden');
   hud.show();
+  hud.soundOff(audio.off); // (turned off last time: it still is)
   saves.on = true; // (from now on, it saves as you go)
   setTimeout(() => { input.endFrame(); input.lmb = false; game.started = true; }, 50);
   setTimeout(() => hud.zoneTitle(ZONES[world.zoneOf(player.pos.z)].name), 400);

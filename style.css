@@ -45,7 +45,12 @@ kbd {
 }
 #stats b { color: #ffe066; }
 
-#help-mini { position: absolute; right: 18px; top: 16px; font-size: 14px; opacity: .9; }
+#help-mini { position: absolute; right: 18px; top: 16px; display: flex; align-items: center; gap: 4px; font-size: 14px; opacity: .9; }
+#help-mini kbd:not(:first-of-type) { margin-left: 8px; }
+/* (the sound's off: a crossed-out speaker) */
+#muted { display: flex; margin-right: 10px; }
+#muted svg { width: 22px; height: 22px; fill: #fff; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
+#muted .x { fill: none; stroke: #ff6b5a; stroke-width: 2.4; stroke-linecap: round; }
 #saved { position: absolute; right: 18px; top: 42px; font-size: 13px; opacity: 0; transition: opacity .5s; text-shadow: 0 1px 2px #000; }
 #saved.show { opacity: .8; }
 
@@ -274,3 +279,15 @@ kbd {
 /* (everything else gets out of the way) */
 body.wasted #hud, body.wasted #labels, body.wasted #boss, body.wasted #toast, body.wasted #banner,
 body.wasted #zone-title, body.wasted #help, body.wasted #hurt { opacity: 0 !important; transition: opacity .5s; }
+
+/* paused (Esc): the lot stands still under a dimmer, and the controls come up alongside */
+#paused {
+  position: fixed; inset: 0; z-index: 11; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding-right: 396px; background: rgba(12, 18, 10, .55); pointer-events: none; text-shadow: 0 2px 6px rgba(0,0,0,.7);
+}
+#paused .word {
+  font-family: 'Cinzel', 'Times New Roman', serif; font-size: clamp(40px, 6vw, 72px); font-weight: 700; letter-spacing: 8px;
+  color: #fff8e6; text-transform: uppercase;
+}
+#paused p { margin: 8px 0 0; font-size: 18px; opacity: .9; }
+body.paused #help { z-index: 12; opacity: 1 !important; }

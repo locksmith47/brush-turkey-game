@@ -52,7 +52,10 @@
       <div>Turkeys lost: <b id="c-lost">0</b></div>
     </div>
 
-    <div id="help-mini"><kbd>H</kbd> controls</div>
+    <div id="help-mini">
+      <span id="muted" class="hidden" title="The sound's off: press N to turn it back on"><svg viewBox="0 0 24 24"><path d="M3 9.2h4.2L12.5 5v14l-5.3-4.2H3z"/><path class="x" d="M15.8 9.3l5.4 5.4m0-5.4l-5.4 5.4"/></svg></span>
+      <kbd>Esc</kbd> pause <kbd>H</kbd> controls
+    </div>
     <div id="saved">Progress saved</div>
   </div>
 
@@ -70,6 +73,8 @@
       <tr><td><kbd>Z</kbd> <kbd>C</kbd> / middle-drag</td><td>Rotate the camera</td></tr>
       <tr><td>Wheel</td><td>Zoom (zoom right in to see his face)</td></tr>
       <tr><td><kbd>H</kbd></td><td>Toggle this panel</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>Pause</td></tr>
+      <tr><td><kbd>N</kbd></td><td>Sound off (or back on)</td></tr>
     </table>
     <p>Foes can hurt you too: keep out of the red circles, and get clear of trouble to heal. Go down, and your turkeys will dig you out of the nearest mound.</p>
   </div>
@@ -91,6 +96,7 @@
   <div id="wasted"><div class="band"><span id="wasted-word">WASTED</span></div></div>
   <div id="blackout"></div>
   <div id="zone-title"><div class="line"></div><span id="zone-name"></span><div class="line"></div></div>
+  <div id="paused" class="hidden"><div class="word">Paused</div><p>Press <kbd>Esc</kbd> to carry on</p></div>
 
   <div id="splash">
     <div class="card">
@@ -112,7 +118,7 @@
         <button id="play">Play</button>
         <button id="new-game" class="second hidden">New game</button>
       </div>
-      <p class="hint">Press <kbd>H</kbd> any time to see these again. Your progress saves as you play</p>
+      <p class="hint">Press <kbd>H</kbd> any time to see these again, <kbd>Esc</kbd> to pause and <kbd>N</kbd> for the sound. Your progress saves as you play</p>
     </div>
   </div>
 

@@ -4,7 +4,7 @@ export class HUD {
   constructor(game) {
     this.game = game;
     this.el = {};
-    for (const id of ['health', 'hp-fill', 'hp-lag', 'hurt', 'hud', 'help', 'toast', 'c-squad', 'c-field', 'c-sprouts', 'c-s0', 'c-s1', 'c-s2', 'throw-name', 'c-leaves', 'c-hatched', 'c-mounds', 'c-lost', 'boss', 'boss-name', 'boss-hp', 'boss-lag', 'banner', 'banner-text', 'zone-title', 'zone-name', 'boss-grip', 'boss-grip-fill', 'boss-grip-time', 'c-beach', 'tk-normal', 'tk-beach', 'throw-type', 'throw-kind', 'c-beach-box', 'help-tab', 'c-kit', 'c-kit-box', 'saved']) {
+    for (const id of ['health', 'hp-fill', 'hp-lag', 'hurt', 'hud', 'help', 'toast', 'c-squad', 'c-field', 'c-sprouts', 'c-s0', 'c-s1', 'c-s2', 'throw-name', 'c-leaves', 'c-hatched', 'c-mounds', 'c-lost', 'boss', 'boss-name', 'boss-hp', 'boss-lag', 'banner', 'banner-text', 'zone-title', 'zone-name', 'boss-grip', 'boss-grip-fill', 'boss-grip-time', 'c-beach', 'tk-normal', 'tk-beach', 'throw-type', 'throw-kind', 'c-beach-box', 'help-tab', 'c-kit', 'c-kit-box', 'saved', 'paused', 'muted']) {
       this.el[id] = document.getElementById(id);
     }
     this.toastT = 0;
@@ -18,6 +18,20 @@ export class HUD {
 
   show() { this.el.hud.classList.remove('hidden'); }
   toggleHelp() { this.el.help.classList.toggle('hidden'); }
+
+  /** paused (Esc): the screen dims, and the controls come up alongside (then go back to how they were) */
+  pause(on) {
+    this.el.paused.classList.toggle('hidden', !on);
+    document.body.classList.toggle('paused', on);
+    if (on) this.helpWas = !this.el.help.classList.contains('hidden');
+    this.el.help.classList.toggle('hidden', !on && !this.helpWas);
+  }
+
+  /** the sound's off (N): a crossed-out speaker up in the corner, so you know. `say`: and a word about it */
+  soundOff(off, say = false) {
+    this.el.muted.classList.toggle('hidden', !off);
+    if (say) this.toast(off ? 'Sound off (N turns it back on)' : 'Sound on', 1.8);
+  }
 
   toast(msg, secs = 2) {
     if (this.game.loading) return; // (a save being put back: nothing to announce)
