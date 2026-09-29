@@ -6,6 +6,7 @@ import { Ghosts } from './ghosts.js';
 import { FX } from './fx.js';
 import { Audio } from './audio.js';
 import { Ambience } from './ambience.js';
+import { Flyovers } from './flyover.js';
 import { Leaves } from './leaves.js';
 import { Grubs } from './grubs.js';
 import { Mounds } from './mound.js';
@@ -54,6 +55,7 @@ let shakeAmt = 0;
 game.shake = (a) => { if (!game.loading) shakeAmt = Math.min(1.2, shakeAmt + a); };
 game.audio = new Audio();
 game.ambience = new Ambience(game); // (the sound of wherever you are, under everything else)
+game.flyovers = new Flyovers(game); // (galahs, cockies and gulls going over, every so often)
 game.world = new World(game);
 game.barriers = new Barriers(game);
 game.fx = new FX(game);
@@ -433,6 +435,7 @@ new DevMenu(game, {
     if (m) m.addLeaves(m.threshold - m.fill, null);
   },
   invincible() { game.dev.invincible = !game.dev.invincible; return game.dev.invincible; }, // (you and your turkeys)
+  flyover() { if (!game.flyovers.send()) hud.toast('No clear way over from here (or some are going over already)', 3); },
   hurtMe() { player.hurt(25, null); },
   healMe() { player.hp = MAX_HP; },
   wasteMe() {
@@ -523,6 +526,7 @@ function step(real) {
   game.grubs.update(dt, game.time);
   world.update(dt, game.time);
   game.ambience.update(dt);
+  game.flyovers.update(dt);
   saves.update(dt);
   fx.update(dt);
   game.cursor.update(dt, target, whistle, camera, !down);

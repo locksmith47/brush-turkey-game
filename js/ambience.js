@@ -340,13 +340,13 @@ export class Ambience {
     this.game.audio.noise({ dur: rand(0.2, 0.35), vol: rand(0.12, 0.22), type: 'lowpass', f1: 700, f2: 250, attack: 0.02, out: this.out(rand(-0.5, 0.5)) });
   }
 
-  /** a gull or two: kee-ow, kee-ow */
-  gulls(pan) {
+  /** a gull or two: kee-ow, kee-ow (`k`: louder, for the ones going right over you) */
+  gulls(pan, k = 1) {
     const a = this.game.audio;
     for (let i = 0, n = 2 + ((Math.random() * 3) | 0), t = 0; i < n; i++, t += rand(0.4, 0.65)) {
       const f = rand(1150, 1400), out = this.out(pan + rand(-0.2, 0.2), 4500);
-      a.tone({ freq: f, freq2: f * 1.5, type: 'sawtooth', dur: 0.08, vol: 0.07, attack: 0.02, delay: t, vib: 60, vibHz: 38, out });
-      a.tone({ freq: f * 1.5, freq2: f * 0.85, type: 'sawtooth', dur: 0.32, vol: 0.08, attack: 0.01, delay: t + 0.07, vib: 70, vibHz: 38, out });
+      a.tone({ freq: f, freq2: f * 1.5, type: 'sawtooth', dur: 0.08, vol: 0.07 * k, attack: 0.02, delay: t, vib: 60, vibHz: 38, out });
+      a.tone({ freq: f * 1.5, freq2: f * 0.85, type: 'sawtooth', dur: 0.32, vol: 0.08 * k, attack: 0.01, delay: t + 0.07, vib: 70, vibHz: 38, out });
     }
   }
 
@@ -360,5 +360,21 @@ export class Ambience {
     const a = this.game.audio, out = this.out(pan, 6000);
     a.tone({ freq: 1175, dur: 2.6, vol: 0.035, attack: 0.003, out });
     a.tone({ freq: 2950, dur: 1.2, vol: 0.01, attack: 0.003, out });
+  }
+
+  /* ---------------------------------------------------------------- birds going over (see Flyovers) */
+  /** a sulphur-crested cockatoo's screech, a galah's chet-chet, or a gull (`pan`: where it is, across the screen) */
+  screech(kind, pan) {
+    const a = this.game.audio;
+    if (a.quiet || !this.ready()) return;
+    if (kind === 'gull') { this.gulls(pan, 1.4); return; }
+    const out = this.out(pan);
+    if (kind === 'cockatoo') {
+      const f = rand(850, 1000);
+      a.tone({ freq: f, freq2: f * 1.4, type: 'sawtooth', dur: 0.55, vol: 0.15, attack: 0.03, vib: 300, vibHz: 75, out });
+      a.noise({ dur: 0.5, vol: 0.12, type: 'bandpass', f1: 2200, f2: 1600, q: 1.2, attack: 0.03, out });
+    } else {
+      for (const d of [0, 0.16]) a.tone({ freq: rand(2200, 2400), freq2: 1600, type: 'sawtooth', dur: 0.1, vol: 0.14, attack: 0.01, delay: d, vib: 150, vibHz: 60, out });
+    }
   }
 }
