@@ -3,6 +3,8 @@ import { clamp, damp, dampAngle, rand, pinLabel, labelFade, Dial, TAU } from './
 import { BEACH } from './world.js';
 
 export const STRENGTH = [1, 1.5, 2];
+// how long a boss gives turkeys to pile on before it's shaking off a small crew (seconds: see wantsShake)
+const PILE_ON = 0.75;
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _u = new THREE.Vector3(), _r = new THREE.Vector3();
 
 /*
@@ -83,14 +85,15 @@ export class Foe {
 
   /**
    * Time to shake off whoever's hanging off it: a crowd of shakeAt straight away, or anyone at all after
-   * shakeEvery seconds. (A boss makes short work of a turkey or two, though: it's a crowd that takes some shifting,
-   * so the fewer there are, the sooner they're off, down to a fraction of a second for just the one)
+   * shakeEvery seconds. (A boss makes short work of two or three, though: it's a crowd that takes some shifting.
+   * It gives them PILE_ON seconds to get a crowd together, and if they haven't, they're off)
    */
   wantsShake() {
     const d = this.def, n = this.latched.length;
     if (!n) return false;
     if (n >= (d.shakeAt ?? 99)) return true;
-    return this.sinceShake > (d.shakeEvery ?? 99) * (this.boss ? n / d.shakeAt : 1);
+    const every = d.shakeEvery ?? 99;
+    return this.sinceShake > (this.boss ? Math.min(every, Math.max(PILE_ON, every * (n / d.shakeAt) ** 2)) : every);
   }
 
   shakeOff() {
