@@ -66,6 +66,7 @@ export class BinBag extends Foe {
   }
 
   colliderR() { return this.alive ? this.def.radius : 0; }
+  get chore() { return true; } // (only pecked open, not shoved or dug: but it's no more of a fight than a bin)
   hitFx(p) { this.game.fx.burst(p, { n: 3, colors: PLASTIC, speed: [0.6, 1.6], up: [1, 2.2], size: [0.03, 0.06], life: [0.3, 0.6] }); }
 
   onDeath() {
