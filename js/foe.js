@@ -81,9 +81,16 @@ export class Foe {
     if (i >= 0) this.latched.splice(i, 1);
   }
 
+  /**
+   * Time to shake off whoever's hanging off it: a crowd of shakeAt straight away, or anyone at all after
+   * shakeEvery seconds. (A boss makes short work of a turkey or two, though: it's a crowd that takes some shifting,
+   * so the fewer there are, the sooner they're off, down to a fraction of a second for just the one)
+   */
   wantsShake() {
-    const d = this.def;
-    return this.latched.length >= (d.shakeAt ?? 99) || (this.latched.length > 0 && this.sinceShake > (d.shakeEvery ?? 99));
+    const d = this.def, n = this.latched.length;
+    if (!n) return false;
+    if (n >= (d.shakeAt ?? 99)) return true;
+    return this.sinceShake > (d.shakeEvery ?? 99) * (this.boss ? n / d.shakeAt : 1);
   }
 
   shakeOff() {
