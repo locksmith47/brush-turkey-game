@@ -1,11 +1,27 @@
 import * as THREE from 'three';
-import { vcMat, vcMesh, toonMat, part, merge, G, rand, pick, TAU, clamp, labelFade, Dial } from './util.js';
+import { vcMat, vcMesh, toonMat, part, merge, G, rand, pick, TAU, clamp, smoothstep, hash, noise, labelFade, Dial } from './util.js';
 import { PALETTES, JUNK, LEAF_SPLIT, litterGeo } from './leaves.js';
 import { flagMesh } from './items.js';
 import { stumpsMesh, kitTrophy } from './cricket.js';
 import { OVAL, FERRY } from './world.js';
 
-const SOIL = [0x5b3b22, 0x6e4a2b, 0x8a6238, 0xa8683a, 0xb08a55, 0x7a7040, 0x654326];
+// the heap: how finely it's made (round it, and out from the middle to its foot), how tall it stands (of its
+// radius), how far out the rim of the caldera on top is (of the way to its foot) and how deep that is (of its
+// height), how lumpy it is (of its height), and how far its foot wanders in and out (of its radius)
+const SEGS = 40, RINGS = 16;
+const TALL = 0.5, RIM = 0.4, DIP = 0.2, LUMPS = 0.1, WOBBLE = 0.14;
+// the patch of bare ground round it (they rake it clean): rings of it from under its foot out to where it's
+// faded into the grass (how far out each is, of its radius, and how much of it shows)
+const SKIRT_KS = [0.85, 1.08, 1.2, 1.32], SKIRT_A = [1, 0.95, 0.45, 0];
+// what it's made of: leaf litter, with paler, redder and olive patches of leaves; darker round its foot and
+// darkest down in the caldera, where it's been dug over (it's damp down there, and steaming)
+const LITTER = { base: 0x8a6238, pale: 0xb08a55, red: 0xa8683a, olive: 0x7a7040, foot: 0x6e4a2b, pit: 0x4e3220 };
+const SANDY = { base: 0xdcc38a, pale: 0xe8d4a0, red: 0xd9b97c, olive: 0xcdb47a, foot: 0xd2b87e, pit: 0xb39c6a }; // (a beach mound: damp sand, damper in the pit)
+const LILAC = [0x9a88b8, 0x85749c]; // fallen jacaranda flowers, in patches
+// ...and all over it, and spilling off it round its foot, a litter of old leaves gone dull: this many to a square
+// metre of it (up to so many), in these colours
+const DUFF = { n: 22, max: 600, cols: [0x7a5230, 0x8e6a3e, 0x9b7446, 0x6f5a36, 0xa0703f, 0x857a4a, 0x5f4428] };
+const TWIGS = { n: 1.2, max: 40, cols: [0x6b5a48, 0x7d6a55, 0x5a4a3a, 0x8a7a66] }; // (and a few sticks)
 const LEAF_COLS = [0x9b6b3a, 0xb8834a, 0xc49a5a, 0x8e8a4b, 0xa0522d, 0xd2a15e];
 const DECALS = 90;
 export const BUILD_CREW = 10; // turkeys it takes to scratch a new mound into existence
@@ -15,62 +31,74 @@ const BUILD_WORK = 60; // turkey-seconds of scratching it takes (ten turkeys: si
 // a bit more again after every hatching (up to a point)
 const HATCH_AT = { home: 12, other: 9, more: 3, max: 24 };
 const PADDED = 0.5; // chance a chick hatched on the oval comes out padded up for cricket (helmet and leg guards)
-const _c = new THREE.Color(), _v = new THREE.Vector3(), _p = new THREE.Vector3(), _wp = new THREE.Vector3();
+const _c = new THREE.Color(), _v = new THREE.Vector3(), _p = new THREE.Vector3(), _wp = new THREE.Vector3(), _n = new THREE.Vector3();
 
-/* One kind of thing stuck in a mound's surface (leaves, beach loot, rubbish): an InstancedMesh spread over the dome. */
+/*
+ * One kind of thing stuck in a mound's surface (leaves, beach loot, rubbish): an InstancedMesh spread over the heap,
+ * from down in the caldera out to `reach` of the way down its sides (past 1: out onto the ground round it)
+ */
 class DecalSet {
-  constructor(scene, geo, max, lift = 0) {
+  constructor(m, geo, max, lift = 0, reach = 0.9, size = [0.9, 1.4], from = 0) {
+    this.m = m;
     this.mesh = new THREE.InstancedMesh(geo, toonMat({ side: THREE.DoubleSide }), max);
     this.mesh.count = 0;
     this.mesh.setColorAt(0, _c.set(0xffffff));
     this.max = max;
     this.lift = lift; // chunky things sit proud of the surface
-    this.dirs = [];
+    this.reach = reach;
+    this.from = from; // (and none in closer than this)
+    this.size = size;
+    this.spots = [];
     this.cursor = 0;
-    scene.add(this.mesh);
+    m.game.scene.add(this.mesh);
   }
 
   add(color) {
     const i = this.cursor % this.max;
     this.mesh.setColorAt(i, _c.set(color));
     this.mesh.instanceColor.needsUpdate = true;
-    const a = rand(0, TAU), el = Math.acos(rand(0.05, 1)); // bias towards the top
-    this.dirs[i] = { x: Math.sin(el) * Math.cos(a), y: Math.cos(el), z: Math.sin(el) * Math.sin(a), ry: rand(0, TAU), s: rand(0.9, 1.4) };
+    const a = rand(0, TAU), d = Math.sqrt(rand(this.from ** 2, this.reach ** 2)) * this.m.outline(a);
+    // (each a hair off the others, so where they overlap one's always on top)
+    this.spots[i] = { ...this.m.spot(Math.cos(a) * d, Math.sin(a) * d), lift: this.lift + rand(0.02, 0.045), ry: rand(0, TAU), s: rand(...this.size) };
     this.cursor++;
     this.mesh.count = Math.min(this.max, this.cursor);
   }
 
-  layout(pos, r, h) {
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s = new THREE.Vector3();
+  /** stick them all to the mound's surface as it stands, lying flat on it */
+  layout() {
+    const mat = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s = new THREE.Vector3();
     const n = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), q2 = new THREE.Quaternion();
     for (let i = 0; i < this.mesh.count; i++) {
-      const d = this.dirs[i];
-      n.set(d.x / r, d.y / h, d.z / r).normalize();
-      p.set(pos.x + d.x * r * 1.01, pos.y + d.y * h * 1.02, pos.z + d.z * r * 1.01).addScaledVector(n, this.lift);
+      const d = this.spots[i];
+      this.m.lie(d, p, n);
+      p.addScaledVector(n, d.lift);
       q.setFromUnitVectors(up, n);
       q2.setFromEuler(e.set(0, d.ry, 0));
       q.multiply(q2);
       s.setScalar(d.s);
-      this.mesh.setMatrixAt(i, m.compose(p, q, s));
+      this.mesh.setMatrixAt(i, mat.compose(p, q, s));
     }
     this.mesh.instanceMatrix.needsUpdate = true;
   }
 }
 
-function domeGeometry() {
-  const g = new THREE.SphereGeometry(1, 30, 12, 0, TAU, 0, Math.PI / 2).toNonIndexed();
-  const n = g.attributes.position.count;
-  const col = new Float32Array(n * 3), c = new THREE.Color();
-  for (let i = 0; i < n; i += 3) {
-    c.set(pick(SOIL));
-    for (let k = 0; k < 3; k++) col.set([c.r, c.g, c.b], (i + k) * 3);
-  }
-  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  g.deleteAttribute('uv');
-  return g;
+/** how high the heap stands k of the way out from its middle to its foot (0..1 of its height): down in the caldera, up over the rim, and down its sides, flaring out onto the ground */
+function profile(k) {
+  if (k < RIM) return 1 - DIP * (1 - smoothstep(0, RIM, k));
+  return 1 - smoothstep(RIM, 1, k);
 }
 
-let DOME = null, SKIRT = null, LEAF = null, BIT = null, BROLLY = null;
+/** the triangles of a grid of rings round a middle vertex (vertex 0), `segs` to a ring, facing up */
+function ringIndex(rings, segs, middle = true) {
+  const idx = [], v = (j, i) => (middle ? 1 : 0) + j * segs + (i % segs);
+  for (let i = 0; i < segs; i++) {
+    if (middle) idx.push(0, v(0, i + 1), v(0, i));
+    for (let j = 0; j < rings - 1; j++) idx.push(v(j, i), v(j, i + 1), v(j + 1, i), v(j, i + 1), v(j + 1, i + 1), v(j + 1, i));
+  }
+  return idx;
+}
+
+let LEAF = null, TWIG = null, BIT = null, BROLLY = null;
 const SAND = [0xecd9a4, 0xe2cc92, 0xf0dca8, 0xd8c286, 0xe6d09a];
 const LOOT = [0xe84a8a, 0x1fb5c9, 0xffd21f, 0xff6b35, 0x7bd34f, 0xffffff, 0x3a6ff0];
 
@@ -92,7 +120,7 @@ export class Mound {
     this.hatches = 0;
     this.baseR = home ? 1.7 : 1.1;
     this.r = this.baseR;
-    this.h = this.r * 0.55;
+    this.h = this.r * TALL;
     this.state = 'idle';
     this.stateT = 0;
     this.bump = 0;
@@ -107,11 +135,6 @@ export class Mound {
     this.trophies = []; // lifesaving flags (and stumps, and bits of cricket kit) planted in it
     this.junkN = 0; // (how much rubbish is sticking out of it)
 
-    DOME ??= domeGeometry();
-    if (!SKIRT) {
-      SKIRT = new THREE.CircleGeometry(1.3, 24);
-      SKIRT.rotateX(-Math.PI / 2);
-    }
     if (!LEAF) {
       const s = new THREE.Shape();
       s.moveTo(0, -0.26);
@@ -123,41 +146,25 @@ export class Mound {
 
     this.group = new THREE.Group();
     this.group.position.copy(this.pos);
-    // each mound gets its own copy of the dome so it can slowly change colour
-    this.domeGeo = DOME.clone();
-    if (this.beach) {
-      // a mound of sand instead of leaf litter
-      const a = this.domeGeo.attributes.color.array, sc = new THREE.Color();
-      for (let i = 0; i < a.length; i += 9) {
-        sc.set(pick(SAND));
-        for (let k = 0; k < 3; k++) a.set([sc.r, sc.g, sc.b], i + k * 3);
-      }
-    }
-    this.baseCols = this.domeGeo.attributes.color.array.slice();
-    // muted lilac for patches of fallen jacaranda flowers; each facet has its own threshold
-    // so the purple creeps in as scattered patches rather than one flat colour
-    this.purpleCols = new Float32Array(this.baseCols.length);
-    this.faceTh = new Float32Array(this.baseCols.length / 9);
-    const pc = new THREE.Color(), soil = new THREE.Color();
-    for (let i = 0, f = 0; i < this.purpleCols.length; i += 9, f++) {
-      soil.setRGB(this.baseCols[i], this.baseCols[i + 1], this.baseCols[i + 2]);
-      pc.set(pick([0x9a88b8, 0x8c7aa9, 0xa898c4, 0x85749c])).lerp(soil, 0.3);
-      for (let k = 0; k < 3; k++) this.purpleCols.set([pc.r, pc.g, pc.b], i + k * 3);
-      this.faceTh[f] = Math.random();
-    }
+    // every mound's heap is a shape of its own, a bit lumpier here and further out there (the same every time for
+    // the same spot), and each gets its own copy so it can slowly change colour
+    this.seed = hash(Math.round(x * 8), Math.round(z * 8)) * 97;
+    this.domeGeo = this.heapGeometry();
     this.dome = new THREE.Mesh(this.domeGeo, vcMat());
     this.dome.castShadow = true;
     this.dome.receiveShadow = true;
-    this.skirt = new THREE.Mesh(SKIRT, toonMat({ color: this.beach ? 0xd8c286 : 0x6a4a2c }));
-    this.skirtBase = new THREE.Color(this.beach ? 0xd8c286 : 0x6a4a2c);
+    this.skirtBase = new THREE.Color(this.beach ? 0xd8c286 : 0x9a7a50);
     this.skirtPurple = new THREE.Color(0x6e5a78);
-    this.skirt.position.y = 0.03;
-    this.skirt.receiveShadow = true;
-    this.group.add(this.dome, this.skirt);
-    game.scene.add(this.group);
+    this.skirt = this.skirtMesh();
+    this.laidK = 0;
+    this.group.add(this.dome);
+    game.scene.add(this.group, this.skirt);
 
     BIT ??= new THREE.BoxGeometry(0.3, 0.12, 0.22);
-    this.decals = new DecalSet(game.scene, this.beach ? BIT : LEAF, DECALS);
+    this.decals = new DecalSet(this, this.beach ? BIT : LEAF, DECALS, 0.012);
+    this.duff = this.beach ? null : new DecalSet(this, LEAF, DUFF.max, 0, 1.2, [0.6, 1.05], RIM * 0.6); // (the pit's been dug over)
+    TWIG ??= new THREE.CylinderGeometry(0.018, 0.026, 0.8, 5).rotateZ(Math.PI / 2);
+    this.twigs = this.beach ? null : new DecalSet(this, TWIG, TWIGS.max, 0.01, 1.05, [0.7, 1.3], RIM * 0.8);
     this.junk = null; // boxes and cans poking out, once rubbish or recycling has been delivered
     if (this.beach) {
       // a little beach umbrella planted on top
@@ -179,12 +186,137 @@ export class Mound {
 
   resize() {
     this.r = clamp(this.baseR + Math.sqrt(this.total) * 0.13, this.baseR, 3.6);
-    this.h = this.r * 0.58;
+    this.h = this.r * TALL;
     this.dome.scale.set(this.r, this.h, this.r);
-    this.skirt.scale.setScalar(this.r);
-    if (this.brolly) this.brolly.position.set(this.r * 0.15, this.h * 0.9, 0);
+    this.lay();
+    if (this.brolly) this.brolly.position.set(this.r * 0.15, this.surfaceY(this.r * 0.15, 0) - this.pos.y - 0.1, 0);
     this.placeTrophies();
     this.layoutDecals();
+  }
+
+  /* ---------------------------------------------------------------- the heap */
+  /** how far out its foot is at angle a round it (of its radius: it's not quite round) */
+  outline(a) { return 1 + WOBBLE * noise(Math.cos(a) * 1.2 + this.seed, Math.sin(a) * 1.2 - this.seed); }
+
+  /** how high it stands (0..1 of its height) at (x, z) from its middle, in radiuses, as if it were on flat ground */
+  shapeAt(x, z) {
+    const k = Math.hypot(x, z) / this.outline(Math.atan2(z, x));
+    if (k >= 1) return 0;
+    return Math.max(0, profile(k) + LUMPS * noise(x * 2.4 - this.seed, z * 2.4 + this.seed) * (1 - smoothstep(0.5, 1, k)));
+  }
+
+  /** how high its surface is (world y) at (dx, dz) metres from its middle (just the ground, past its foot) */
+  surfaceY(dx, dz) {
+    const y = this.shapeAt(dx / this.r, dz / this.r), g = this.game.world.groundHeight(this.pos.x + dx, this.pos.z + dz);
+    return g + y * (this.pos.y + this.h - g); // (its foot on the ground as it lies, its top where it stands: see lay)
+  }
+
+  /** a spot on it, (x, z) from its middle in radiuses: how high it stands there, and how steeply (as if on flat ground) */
+  spot(x, z) {
+    const e = 0.02, y = (dx, dz) => this.shapeAt(x + dx, z + dz);
+    return { x, z, y: y(0, 0), gx: (y(e, 0) - y(-e, 0)) / (2 * e), gz: (y(0, e) - y(0, -e)) / (2 * e) };
+  }
+
+  /** where spot s (see spot) is on its surface as it stands now, into out, and which way's up there, into n */
+  lie(s, out, n) {
+    const w = this.game.world, x = this.pos.x + s.x * this.r, z = this.pos.z + s.z * this.r, e = 0.2;
+    const g = w.groundHeight(x, z), up = this.pos.y + this.h - g; // (see surfaceY)
+    const gx = (w.groundHeight(x + e, z) - w.groundHeight(x - e, z)) / (2 * e), gz = (w.groundHeight(x, z + e) - w.groundHeight(x, z - e)) / (2 * e);
+    out.set(x, g + s.y * up, z);
+    n.set(-(gx * (1 - s.y) + (up * s.gx) / this.r), 1, -(gz * (1 - s.y) + (up * s.gz) / this.r)).normalize();
+    return out;
+  }
+
+  /** the point on its surface at angle a round it, k of the way out to its foot (and which way's up there, into n) */
+  surface(a, k, out, n = _n) {
+    const d = k * this.outline(a);
+    return this.lie(this.spot(Math.cos(a) * d, Math.sin(a) * d), out, n);
+  }
+
+  /**
+   * The heap: rings round its middle out to its foot, a unit high and a unit out (scaled up to size), made of
+   * leaf litter (or sand) in patches, darker round its foot and down in the caldera
+   */
+  heapGeometry() {
+    const n = 1 + RINGS * SEGS, pos = new Float32Array(n * 3), col = new Float32Array(n * 3), s = this.seed;
+    const P = this.beach ? SANDY : LITTER, c = new THREE.Color(), t = new THREE.Color();
+    this.y0 = new Float32Array(n); // (how high each bit of it stands, on flat ground)
+    this.purpleCols = new Float32Array(n * 3);
+    this.th = new Float32Array(n); // (how purple it has to be going for each bit of it to turn: see recolor)
+    const spread = new Float32Array(n);
+    for (let v = 0; v < n; v++) {
+      const j = v ? Math.floor((v - 1) / SEGS) + 1 : 0, a = (((v - 1) % SEGS) / SEGS) * TAU, k = j / RINGS;
+      const w = this.outline(a), x = Math.cos(a) * k * w, z = Math.sin(a) * k * w;
+      this.y0[v] = this.shapeAt(x, z);
+      pos.set([x, this.y0[v], z], v * 3);
+      c.set(P.base)
+        .lerp(t.set(P.pale), smoothstep(-0.1, 0.5, noise(x * 3 + s, z * 3)) * 0.7)
+        .lerp(t.set(P.red), smoothstep(0, 0.6, noise(x * 2.5, z * 2.5 - s)) * 0.7)
+        .lerp(t.set(P.olive), smoothstep(0.1, 0.7, noise(x * 3.5 - s, z * 3.5 + s)) * 0.6)
+        .lerp(t.set(P.foot), smoothstep(0.55, 1, k) * 0.7)
+        .lerp(t.set(P.pit), (1 - smoothstep(RIM * 0.4, RIM * 0.95, k)) * 0.85)
+        .multiplyScalar(rand(0.95, 1.04)); // (every bit of it a little different)
+      col.set([c.r, c.g, c.b], v * 3);
+      // (fallen jacaranda flowers creep across it in patches)
+      t.set(LILAC[0]).lerp(_c.set(LILAC[1]), noise(x * 4 - s, z * 4) * 0.5 + 0.5).lerp(c, 0.3);
+      this.purpleCols.set([t.r, t.g, t.b], v * 3);
+      spread[v] = noise(x * 2 + s, z * 2 - s);
+    }
+    [...spread.keys()].sort((p, q) => spread[p] - spread[q]).forEach((v, i) => { this.th[v] = i / n; });
+    this.baseCols = col.slice();
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    g.setIndex(ringIndex(RINGS, SEGS));
+    return g;
+  }
+
+  /** the scratched-over ground round its foot, from under it out to where it fades into the grass (or sand): see lay */
+  skirtMesh() {
+    const n = SKIRT_KS.length * SEGS, col = new Float32Array(n * 4).fill(1);
+    for (let v = 0; v < n; v++) col[v * 4 + 3] = SKIRT_A[Math.floor(v / SEGS)];
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+    g.setAttribute('color', new THREE.BufferAttribute(col, 4));
+    g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+    g.setIndex(ringIndex(SKIRT_KS.length, SEGS, false));
+    const m = new THREE.Mesh(g, toonMat({
+      color: this.skirtBase, vertexColors: true, transparent: true, depthWrite: false,
+      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4,
+    }));
+    m.position.copy(this.pos);
+    m.receiveShadow = true;
+    m.renderOrder = -1; // (under anything else see-through lying on the ground: warning circles, say)
+    return m;
+  }
+
+  /**
+   * Sit it on the ground as the ground lies (the bush is bumpy): its foot and the skirt round it follow the ground
+   * and its top stays where it is. (While it's being built it's smaller, and flatter: see applyBuild)
+   */
+  lay() {
+    const w = this.game.world, s = this.group.scale.x, r = this.r * s, h = this.h * s * s, px = this.pos.x, pz = this.pos.z;
+    const P = this.domeGeo.attributes.position;
+    for (let v = 0; v < P.count; v++) {
+      const y = this.y0[v], g = w.groundHeight(px + P.getX(v) * r, pz + P.getZ(v) * r) - this.pos.y;
+      P.setY(v, y + (g / h) * (1 - y));
+    }
+    P.needsUpdate = true;
+    this.domeGeo.computeVertexNormals();
+    // (and the skirt, a little way off the ground)
+    const S = this.skirt.geometry.attributes.position, N = this.skirt.geometry.attributes.normal, e = 0.3;
+    for (let v = 0; v < S.count; v++) {
+      const k = SKIRT_KS[Math.floor(v / SEGS)], a = ((v % SEGS) / SEGS) * TAU;
+      const d = k * this.outline(a) * (1 + 0.12 * (k - 1) * noise(Math.cos(a) * 2 + this.seed, Math.sin(a) * 2)) * r;
+      const x = Math.cos(a) * d, z = Math.sin(a) * d, gx = px + x, gz = pz + z;
+      S.setXYZ(v, x, w.groundHeight(gx, gz) - this.pos.y + 0.01, z);
+      _v.set(w.groundHeight(gx - e, gz) - w.groundHeight(gx + e, gz), 2 * e, w.groundHeight(gx, gz - e) - w.groundHeight(gx, gz + e)).normalize();
+      N.setXYZ(v, _v.x, _v.y, _v.z);
+    }
+    S.needsUpdate = N.needsUpdate = true;
+    this.skirt.geometry.computeBoundingSphere();
+    this.domeGeo.computeBoundingSphere();
+    this.laidK = s;
   }
 
   /* ---------------------------------------------------------------- scratching a new mound into existence */
@@ -192,8 +324,10 @@ export class Mound {
   applyBuild() {
     const k = this.building ? 0.1 + 0.9 * Math.sqrt(this.buildK) : 1;
     this.group.scale.set(k, k * k, k);
+    if (k !== this.laidK && (k === 1 || Math.abs(k - this.laidK) > 0.02)) this.lay(); // (every so often, as it grows)
     const done = !this.building;
     this.decals.mesh.visible = done;
+    if (this.duff) this.duff.mesh.visible = this.twigs.mesh.visible = done;
     if (this.junk) this.junk.box.mesh.visible = this.junk.can.mesh.visible = done;
   }
 
@@ -274,7 +408,7 @@ export class Mound {
     const f = kind === 'stumps' ? stumpsMesh() : kind === 'flag' ? flagMesh() : kitTrophy(kind);
     f.group.scale.setScalar(0.8);
     this.group.add(f.group);
-    // spread them round the mound, leaning outwards
+    // spread them round the rim of the caldera, leaning outwards
     const a = this.trophies.length * 2.4 + rand(-0.3, 0.3);
     this.trophies.push({ ...f, kind, a, k: rand(0.3, 0.5), lean: rand(0.18, 0.3), spin: f.spin ?? rand(0, TAU), ph: rand(0, TAU) });
     this.placeTrophies();
@@ -283,9 +417,9 @@ export class Mound {
   placeTrophies() {
     const q = new THREE.Quaternion(), q2 = new THREE.Quaternion(), axis = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
     for (const t of this.trophies) {
-      const dx = Math.cos(t.a), dz = Math.sin(t.a);
-      t.group.position.set(dx * this.r * t.k, this.h * Math.sqrt(1 - t.k * t.k) - 0.3, dz * this.r * t.k);
-      q.setFromAxisAngle(axis.set(dz, 0, -dx), t.lean); // tip the pole outwards
+      const dx = Math.cos(t.a) * this.r * t.k, dz = Math.sin(t.a) * this.r * t.k;
+      t.group.position.set(dx, this.surfaceY(dx, dz) - this.pos.y - 0.3, dz);
+      q.setFromAxisAngle(axis.set(dz, 0, -dx).normalize(), t.lean); // tip the pole outwards
       t.group.quaternion.copy(q.multiply(q2.setFromAxisAngle(up, t.spin)));
     }
   }
@@ -293,21 +427,23 @@ export class Mound {
   /** show what was delivered stuck in the mound: leaves (or loot), or a box or can of rubbish */
   addDecal(palette) {
     if (JUNK.has(palette)) {
-      this.junk ??= { box: new DecalSet(this.game.scene, litterGeo('box'), 40, 0.02), can: new DecalSet(this.game.scene, litterGeo('can'), 40, 0.05) };
+      this.junk ??= { box: new DecalSet(this, litterGeo('box'), 40, 0.02), can: new DecalSet(this, litterGeo('can'), 40, 0.05) };
       this.junk[Math.random() < 0.5 ? 'box' : 'can'].add(pick(PALETTES[palette]));
       this.junkN++;
     } else this.decals.add(pick(this.beach ? LOOT : PALETTES[palette] ?? LEAF_COLS));
   }
 
   layoutDecals() {
-    this.decals.layout(this.pos, this.r, this.h);
-    if (this.junk) { this.junk.box.layout(this.pos, this.r, this.h); this.junk.can.layout(this.pos, this.r, this.h); }
+    // (the bigger it is, the more old leaves it takes to cover it)
+    const area = Math.PI * this.r * this.r;
+    if (this.duff) while (this.duff.cursor < Math.min(DUFF.max, DUFF.n * area)) this.duff.add(pick(DUFF.cols));
+    if (this.twigs) while (this.twigs.cursor < Math.min(TWIGS.max, TWIGS.n * area)) this.twigs.add(pick(TWIGS.cols));
+    for (const d of [this.decals, this.duff, this.twigs, this.junk?.box, this.junk?.can]) d?.layout();
   }
 
-  /** where carried leaves are aimed */
+  /** where carried leaves are aimed (and where it steams from): somewhere down in the caldera on top */
   randomSurfacePoint(out) {
-    const a = rand(0, TAU), k = rand(0, 0.55);
-    return out.set(this.pos.x + Math.cos(a) * this.r * k, this.pos.y + this.h * Math.sqrt(1 - k * k), this.pos.z + Math.sin(a) * this.r * k);
+    return this.surface(rand(0, TAU), rand(0, RIM), out);
   }
 
   /** point just outside the mound, on the side facing `from` */
@@ -366,10 +502,9 @@ export class Mound {
 
   recolor() {
     const k = this.purpleK, col = this.domeGeo.attributes.color, a = col.array, b = this.baseCols, p = this.purpleCols;
-    for (let i = 0, f = 0; i < a.length; i += 9, f++) {
-      const th = this.faceTh[f];
-      const w = clamp((k - th + 0.08) / 0.16, 0, 1); // this facet's patch fades in once k passes its threshold
-      for (let j = i; j < i + 9; j++) a[j] = b[j] + (p[j] - b[j]) * w;
+    for (let v = 0; v < this.th.length; v++) {
+      const w = clamp((k - this.th[v] + 0.08) / 0.16, 0, 1); // (each bit of it turns once k passes its threshold)
+      for (let j = v * 3; j < v * 3 + 3; j++) a[j] = b[j] + (p[j] - b[j]) * w;
     }
     col.needsUpdate = true;
     this.skirt.material.color.copy(this.skirtBase).lerp(this.skirtPurple, k * 0.7);
@@ -423,7 +558,10 @@ export class Mound {
 
   dispose() {
     const s = this.game.scene;
-    s.remove(this.group, this.decals.mesh);
+    s.remove(this.group, this.skirt, this.decals.mesh);
+    if (this.duff) s.remove(this.duff.mesh, this.twigs.mesh);
+    this.domeGeo.dispose();
+    this.skirt.geometry.dispose();
     if (this.junk) s.remove(this.junk.box.mesh, this.junk.can.mesh);
     this.dial.remove();
   }
@@ -639,10 +777,8 @@ export class Mounds {
   diveInto(p) {
     for (const m of this.list) {
       if (m.building) continue;
-      const d = Math.hypot(p.x - m.pos.x, p.z - m.pos.z);
-      if (d > m.r * 0.95) continue;
-      const top = m.pos.y + m.h * Math.sqrt(Math.max(0, 1 - (d / m.r) ** 2));
-      if (p.y < top + 0.2) return m;
+      if (Math.hypot(p.x - m.pos.x, p.z - m.pos.z) > m.r * 0.95) continue;
+      if (p.y < m.surfaceY(p.x - m.pos.x, p.z - m.pos.z) + 0.2) return m;
     }
     return null;
   }
