@@ -347,17 +347,21 @@ export class Mound {
     t.vanish();
     this.converts.push({ stage: t.stage, hen: t.hen, gear: t.gear });
     if (this.converts.length === 1) this.convertT = 0.8;
-    this.bump = 1;
-    const top = this.pos.clone();
-    top.y += this.h;
-    if (this.beach) g.fx.burst(top, { n: 14, colors: SAND, speed: [1, 3], up: [2, 4.5], size: [0.05, 0.1], life: [0.5, 0.9] });
-    else { g.fx.dirt(top, 14); g.fx.leafBits(top, 8); }
+    this.splash();
     g.fx.ring(this.pos, this.beach ? 0x7fd6ff : 0xffd21f, this.r * 1.8, 0.5);
     g.audio.gloop();
     g.stats.converted++;
     if (same) g.hud.toastOnce('replant', "Back into the ground: it'll grow while it's planted", 2.5, 40);
     else if (this.beach) g.hud.toastOnce('convert', 'Into the beach mound... out comes a beach turkey!', 2.5, 40);
     else g.hud.toastOnce('unconvert', 'Into the mound... out comes a normal turkey again!', 2.5, 40);
+  }
+
+  /** something's plopped into the top of it (or out of it): dirt (or sand) and bits of leaf flying, `power` as high */
+  splash(n = 14, power = 1) {
+    const g = this.game, top = _p.set(this.pos.x, this.pos.y + this.h, this.pos.z);
+    this.bump = 1;
+    if (this.beach) g.fx.burst(top, { n, colors: SAND, speed: [power, 3 * power], up: [2 * power, 4.5 * power], size: [0.05, 0.1], life: [0.5, 0.9] });
+    else { g.fx.dirt(top, n, power); g.fx.leafBits(top, Math.round(n * 0.6)); }
   }
 
   recolor() {
@@ -541,6 +545,10 @@ export class Mound {
     v.y += this.h * this.group.scale.y + 0.8;
     // (only shows when you're nearby: it fades out quickly as you walk off)
     this.dial.pin(v, camera, labelFade(Math.hypot(p.x - this.pos.x, p.z - this.pos.z), 16, 4));
+    // (and right by it, with another mound to go to: how to dive in and get there)
+    if (this.building) return;
+    if (g.travel.canDiveAt(this)) this.dial.note('Travel', 'F');
+    else this.dial.note('');
   }
 }
 

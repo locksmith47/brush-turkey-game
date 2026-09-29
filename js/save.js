@@ -67,7 +67,7 @@ export class Saves {
 
   /** every EVERY seconds while you play (and whenever you leave the page: see main.js) */
   update(dt) {
-    if (!this.on || this.game.wasted.active || (this.t -= dt) > 0) return; // (not while you're down: see snapshot)
+    if (!this.on || this.game.wasted.active || this.game.travel.active || (this.t -= dt) > 0) return; // (not while you're down, or down the tunnels: see snapshot)
     this.t = EVERY;
     this.write();
   }
@@ -87,8 +87,10 @@ export class Saves {
   /* ---------------------------------------------------------------- what's saved */
   snapshot() {
     const g = this.game, w = g.world, b = g.barriers, p = g.player, keys = b.keys;
-    // (gone down, or being dug out? then you're back at the mound you're coming back to, the camera as you had it)
-    const at = g.wasted.active ? g.wasted.comeBack() : p.pos, zoom = g.wasted.active ? g.wasted.zoom : g.cam.zoom;
+    // (gone down, or being dug out? then you're back at the mound you're coming back to, the camera as you had it.
+    // Likewise down the tunnels, off to another mound: you're by the one you went in by, or the one you're coming out of)
+    const away = g.wasted.active ? g.wasted : g.travel.active ? g.travel : null;
+    const at = away ? away.comeBack() : p.pos, zoom = away ? away.zoom : g.cam.zoom;
     // (the camera: how far round you'd turned it yourself, from looking down the way on, wherever you are: see main.js)
     const yaw = g.cam.yaw + g.cam.swing - LEGS[g.cam.leg].yaw;
     return {
@@ -108,7 +110,7 @@ export class Saves {
       foes: this.foeStates(),
       bag: this.bagState(),
       mounds: g.mounds.list.map((m) => m.saveState()),
-      turkeys: g.turkeys.list.map((t) => this.turkeyState(t)).filter(Boolean),
+      turkeys: g.turkeys.list.map((t) => this.turkeyState(t, at)).filter(Boolean),
       litter: this.litterState(),
       grubs: g.grubs.list.map((gr) => [r1(gr.pos.x), r1(gr.pos.z)]),
     };
@@ -139,12 +141,15 @@ export class Saves {
     return bag ? [r2(bag.pos.x), r2(bag.pos.z), r2(bag.heading)] : 0;
   }
 
-  /** [stage, beach?, hen?, variant, kit, x, z, 's' in the ground | 'f' following you | 'i' out and about, growing time] */
-  turkeyState(t) {
+  /**
+   * [stage, beach?, hen?, variant, kit, x, z, 's' in the ground | 'f' following you | 'i' out and about, growing time]
+   * (`you`: where you're saved, which is where any of your squad down the tunnels with you are too)
+   */
+  turkeyState(t, you) {
     if (t.dead || t.removed || t.state === S.DYING) return null;
-    const st = t.state;
-    const mode = st === S.SPROUT || st === S.BURROW ? 's' : st === S.FOLLOW || st === S.POP || st === S.DROWN || st === S.DIGOUT ? 'f' : 'i';
-    const at = (st === S.THROWN || st === S.LAUNCHED) && t.flight?.to ? t.flight.to : t.pos; // (where it was headed)
+    const st = t.state, under = st === S.DIVE || st === S.TUNNEL;
+    const mode = st === S.SPROUT || st === S.BURROW ? 's' : under || st === S.FOLLOW || st === S.POP || st === S.DROWN || st === S.DIGOUT ? 'f' : 'i';
+    const at = under ? you : (st === S.THROWN || st === S.LAUNCHED) && t.flight?.to ? t.flight.to : t.pos; // (where it was headed)
     return [t.stage, t.kind === 'beach' ? 1 : 0, t.hen ? 1 : 0, t.variant, gearBits(t.gear), r1(at.x), r1(at.z), mode, mode === 's' ? r1(t.growT) : 0];
   }
 

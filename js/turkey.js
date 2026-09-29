@@ -7,9 +7,9 @@ export const S = {
   SPROUT: 'sprout', POP: 'pop', FOLLOW: 'follow', THROWN: 'thrown', IDLE: 'idle', GOTO: 'goto',
   SEEK: 'seek', RAKE: 'rake', EAT: 'eat', LAUNCHED: 'launched', BURROW: 'burrow',
   ATTACK: 'attack', HAUL: 'haul', DYING: 'dying', HELD: 'held', EATEN: 'eaten', TOY: 'toy', SWING: 'swing', DROWN: 'drown',
-  BUILD: 'build', DIGOUT: 'digout',
+  BUILD: 'build', DIGOUT: 'digout', DIVE: 'dive', TUNNEL: 'tunnel',
 };
-const WALKING = new Set([S.FOLLOW, S.IDLE, S.GOTO, S.SEEK, S.RAKE, S.EAT, S.HAUL, S.ATTACK, S.TOY, S.BUILD, S.DIGOUT]);
+const WALKING = new Set([S.FOLLOW, S.IDLE, S.GOTO, S.SEEK, S.RAKE, S.EAT, S.HAUL, S.ATTACK, S.TOY, S.BUILD, S.DIGOUT, S.DIVE]);
 const BUSY = new Set([S.IDLE, S.GOTO, S.SEEK, S.RAKE, S.EAT, S.ATTACK, S.HAUL, S.TOY, S.SWING, S.DROWN, S.BUILD]);
 const SOIL_BITS = [0x7a5230, 0x8b6238, 0x5e3e22, 0x9c7a4f], SAND_BITS = [0xecd9a4, 0xe2cc92, 0xd8c286];
 const HIDDEN_BODY = new Set([S.SPROUT, S.BURROW]);
@@ -99,6 +99,9 @@ const PUSH_TIP = 0.42, PUSH_NECK = 0.25;
 // lives on without it. It's no help to one that's drowning, though)
 const DROWN_TIME = 6; // seconds a landlubber lasts in deep water before it's a goner
 const RESCUE_TIME = 6; // seconds a whistled turkey gets to paddle back out
+// following you into a mound (see Travel): how far out from the edge of it it takes off from, and how long it
+// takes getting that close before it has a go from wherever it's got to (if that's not too far off)
+const LEAP_FROM = 0.7, LEAP_LATE = 3.5, LEAP_MAX = 8;
 const _v = new THREE.Vector3(), _r = new THREE.Vector3(), _d = new THREE.Vector3(), _w = new THREE.Vector3();
 const _k = new THREE.Vector3(), _s = new THREE.Vector3(); // (which way a pile's being raked, and where to stand to do it)
 const _at = new THREE.Vector3(), _af = new THREE.Vector3(); // (where to stand to go at a foe, and what to face)
@@ -497,6 +500,92 @@ export class Turkey {
     if (this.scratchTick(dt)) this.scrapeDust(_r.set(this.pos.x - m.pos.x, 0, this.pos.z - m.pos.z).normalize(), m.beach ? SAND_BITS : SOIL_BITS);
   }
 
+  /* ---------------------------------------------------------------- off to another mound, with you */
+  /**
+   * You've dived into mound m, to go somewhere else (see Travel): it's straight after you, and in it goes too,
+   * beak first. `wait`: seconds before it's off (they don't all go at once)
+   */
+  diveAfter(m, wait) {
+    this.dropEverything();
+    this.workCenter = null;
+    this.rescued = 0;
+    this.hole = m;
+    this.holeWait = wait;
+    this.setState(S.DIVE);
+  }
+
+  /** over to the mound at a run, and up and in once it's close enough (or it's been a while, and it's near enough) */
+  updateDive(dt, sp) {
+    const m = this.hole;
+    if (!m) { this.setState(S.IDLE); return; }
+    if ((this.holeWait -= dt) > 0) { this.brake(dt); return; }
+    const d = Math.hypot(m.pos.x - this.pos.x, m.pos.z - this.pos.z) - m.r;
+    if (d < LEAP_FROM + this.radius || (this.t > LEAP_LATE && d < LEAP_MAX)) { this.leapIn(); return; }
+    m.edgePoint(this.pos, _v, 0.1);
+    this.steer(_v.x, _v.z, sp * 1.45, dt, 0.05);
+  }
+
+  /** a leap up onto the top of the heap, and into it, beak first */
+  leapIn() {
+    const m = this.hole, to = new THREE.Vector3(m.pos.x + rand(-0.3, 0.3), m.pos.y + m.h - 0.3, m.pos.z + rand(-0.3, 0.3));
+    const d = Math.hypot(to.x - this.pos.x, to.z - this.pos.z);
+    this.flight = { from: this.pos.clone(), to, T: 0.3 + d * 0.05, h: 0.7 + d * 0.1 + m.h * 0.4, spin: 0 };
+    this.heading = Math.atan2(to.x - this.pos.x, to.z - this.pos.z);
+    this.vel.set(0, 0, 0);
+    this.tunnel = 'in';
+    this.setState(S.TUNNEL);
+    this.game.audio.peep(this.stage);
+  }
+
+  /** gone in: down the tunnels, out of sight, till it pops out of the top of another mound (see popOutOf) */
+  goUnder() {
+    if (this.state !== S.TUNNEL) this.setState(S.TUNNEL);
+    this.flight = null;
+    this.tunnel = 'under';
+    this.pos.copy(this.hole.pos);
+    this.vel.set(0, 0, 0);
+    this.rig.root.visible = false;
+  }
+
+  /**
+   * Out of the top of mound m, where you've come out of the tunnels: a backflip down to (x, z) beside it, landing
+   * facing in, and straight into digging you out
+   */
+  popOutOf(m, x, z) {
+    const top = new THREE.Vector3(m.pos.x, m.pos.y + m.h, m.pos.z);
+    this.hole = m;
+    this.pos.copy(top);
+    this.heading = Math.atan2(m.pos.x - x, m.pos.z - z);
+    this.flight = { from: top, to: new THREE.Vector3(x, this.game.world.groundHeight(x, z), z), T: rand(0.6, 0.75), h: rand(1.6, 2.6), spin: -1 };
+    this.tunnel = 'out';
+    this.t = 0;
+    this.rig.root.visible = true;
+    m.splash(5, 0.8);
+    this.game.audio.fwoop();
+  }
+
+  /** leaping into a mound, down the tunnels (out of sight), or popping out of the top of another */
+  updateTunnel() {
+    const f = this.flight, m = this.hole;
+    if (this.tunnel === 'under') return;
+    if (!f || !m) { this.setState(S.IDLE); return; }
+    const k = Math.min(1, this.t / f.T);
+    this.pos.lerpVectors(f.from, f.to, k);
+    this.pos.y += f.h * 4 * k * (1 - k);
+    if (k < 1) return;
+    if (this.tunnel === 'in') {
+      m.splash(6, 0.8);
+      this.game.audio.gloop();
+      this.goUnder();
+      return;
+    }
+    // (down beside it, and at it)
+    this.game.fx.dust(f.to, 3);
+    this.game.audio.land();
+    this.digOut(m, f.to.x, f.to.z);
+    this.squash = 1;
+  }
+
   /** gone without a trace: dived into a beach mound, which spits it back out in boardshorts */
   vanish() {
     this.dropEverything();
@@ -658,6 +747,8 @@ export class Turkey {
     if (this.obj) { this.obj.leaveCarry(this); this.obj = null; this.slot = -1; }
     if (this.site) { this.site.leaveCrew(this); this.site = null; }
     this.digSite = null;
+    this.hole = null;
+    if (this.tunnel) { this.tunnel = null; this.rig.root.visible = true; } // (out of the tunnels, whatever else happens)
     this.scratching = false;
     this.leaveSeat();
     this.peck = 0;
@@ -949,6 +1040,8 @@ export class Turkey {
         case S.DROWN: this.updateDrown(dt, water); break;
         case S.BUILD: this.updateBuild(dt, sp); break;
         case S.DIGOUT: this.updateDigOut(dt, sp); break;
+        case S.DIVE: this.updateDive(dt, sp); break;
+        case S.TUNNEL: this.updateTunnel(); break;
       }
     }
 
@@ -1571,7 +1664,7 @@ export class Turkey {
     let flap = 0.05;
     const ride = this.state === S.SWING ? this.seat?.set : null;
     const seatPose = ride ? ride.poseOf?.(this.seat.i) ?? ride.seatPose : null;
-    if (this.state === S.THROWN || this.state === S.LAUNCHED || this.state === S.POP) flap = 0.5 + Math.sin(time * 38 + this.id) * 0.8;
+    if (this.state === S.THROWN || this.state === S.LAUNCHED || this.state === S.POP || this.state === S.TUNNEL) flap = 0.5 + Math.sin(time * 38 + this.id) * 0.8;
     else if (this.latched) flap = 0.35 + Math.sin(time * 20 + this.id) * 0.3;
     else if (seatPose === 'perch') {
       // roosting on the Hills Hoist: wings out for balance, more and more as it whirls round
@@ -1645,6 +1738,11 @@ export class Turkey {
       const kk = this.t / this.flight.T;
       flip = !!this.flight.spin;
       tip = flip ? kk * TAU * this.flight.spin : (kk - 0.5) * 0.9;
+    } else if (this.state === S.TUNNEL && this.flight) {
+      // (into a mound beak first; out of one in a backflip)
+      const kk = this.t / this.flight.T;
+      flip = !!this.flight.spin;
+      tip = flip ? kk * TAU * this.flight.spin : kk * 1.4;
     } else if (this.latched) {
       tip = 0.6;
     } else if (pushing) {

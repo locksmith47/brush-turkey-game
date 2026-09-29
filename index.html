@@ -70,6 +70,7 @@
       <tr><td><kbd>X</kbd></td><td>Dismiss the squad</td></tr>
       <tr id="help-tab" class="hidden"><td><kbd>Tab</kbd></td><td>Switch between normal and beach turkeys (the biggest are always thrown first)</td></tr>
       <tr><td><kbd>M</kbd></td><td>Scratch up a new mound (takes 10 turkeys)</td></tr>
+      <tr><td><kbd>F</kbd></td><td>Dive into a mound, to come out of another</td></tr>
       <tr><td><kbd>Z</kbd> <kbd>C</kbd> / middle-drag</td><td>Rotate the camera</td></tr>
       <tr><td>Wheel</td><td>Zoom (zoom right in to see his face)</td></tr>
       <tr><td><kbd>H</kbd></td><td>Toggle this panel</td></tr>
@@ -95,6 +96,16 @@
   <div id="wasted-shade"></div>
   <div id="wasted"><div class="band"><span id="wasted-word">WASTED</span></div></div>
   <div id="blackout"></div>
+  <div id="travel" class="hidden">
+    <div id="travel-map">
+      <canvas></canvas>
+      <svg class="tunnel"><path d=""/></svg>
+      <div class="names"></div>
+      <div class="pins"></div>
+      <div class="head"><div class="word">Where to?</div><div id="travel-crew"></div></div>
+      <div class="foot"><span>Click one of your mounds to come out of it</span><span><kbd>Esc</kbd> Back out where you went in</span></div>
+    </div>
+  </div>
   <div id="zone-title"><div class="line"></div><span id="zone-name"></span><div class="line"></div></div>
   <div id="paused" class="hidden"><div class="word">Paused</div><p>Press <kbd>Esc</kbd> to carry on</p></div>
 
@@ -110,6 +121,7 @@
         <tr><td><kbd>E</kbd></td><td>Pluck a turkey out of the ground (hold)</td></tr>
         <tr><td><kbd>X</kbd></td><td>Dismiss the squad</td></tr>
         <tr><td><kbd>M</kbd></td><td>Scratch up a new mound (takes 10 turkeys)</td></tr>
+        <tr><td><kbd>F</kbd></td><td>Dive into a mound to travel</td></tr>
         <tr><td><kbd>Z</kbd> <kbd>C</kbd> / middle-drag</td><td>Rotate the camera</td></tr>
         <tr><td>Wheel</td><td>Zoom</td></tr>
       </table>

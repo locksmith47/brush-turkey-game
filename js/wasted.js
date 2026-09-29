@@ -81,13 +81,8 @@ export class Wasted {
       this.look(0, 0, 1 - smoothstep(HOLD_T, HOLD_T + LIGHT_T, t));
       p.digK = clamp((t - HOLD_T) / (LIGHT_T + this.digT), 0, 1);
       if ((this.dirtT -= real) <= 0 && t > HOLD_T) {
-        // (dirt flying off the top, round him, as they get into it)
         this.dirtT = rand(0.16, 0.32);
-        _v.set(m.pos.x + rand(-0.35, 0.35), m.pos.y + m.h, m.pos.z + rand(-0.35, 0.35));
-        if (m.beach) g.fx.burst(_v, { n: 5, colors: SAND, speed: [0.8, 2.2], up: [2, 4], size: [0.05, 0.1], life: [0.5, 0.9] });
-        else g.fx.dirt(_v, 5, 0.75);
-        m.bump = Math.max(m.bump, rand(0.3, 0.6));
-        g.audio.leaf();
+        this.scatter(m);
       }
       if (t >= HOLD_T + LIGHT_T + this.digT) this.pop();
     } else if (g.player.life === 'ok') this.finish(); // ('pop': he's landed on his feet)
@@ -158,10 +153,19 @@ export class Wasted {
     return spots;
   }
 
-  /** dug out: up he pops, out of the top of the mound, and the crew's with him now */
-  pop() {
-    const g = this.game, m = this.mound;
-    this.stage = 'pop';
+  /** dirt (or sand) flying off the top of mound m, round him, as the crew gets into it (every so often: see update) */
+  scatter(m) {
+    const g = this.game;
+    _v.set(m.pos.x + rand(-0.35, 0.35), m.pos.y + m.h, m.pos.z + rand(-0.35, 0.35));
+    if (m.beach) g.fx.burst(_v, { n: 5, colors: SAND, speed: [0.8, 2.2], up: [2, 4], size: [0.05, 0.1], life: [0.5, 0.9] });
+    else g.fx.dirt(_v, 5, 0.75);
+    m.bump = Math.max(m.bump, rand(0.3, 0.6));
+    g.audio.leaf();
+  }
+
+  /** out he comes, up out of the top of mound m in a shower of dirt, and the crew that dug him out's with him now */
+  popFrom(m, crew) {
+    const g = this.game;
     g.player.popOut(this.landing(m));
     _v.set(m.pos.x, m.pos.y + m.h, m.pos.z);
     if (m.beach) g.fx.burst(_v, { n: 30, colors: SAND, speed: [1.5, 4], up: [3, 6.5], size: [0.05, 0.12], life: [0.6, 1.1] });
@@ -171,7 +175,14 @@ export class Wasted {
     m.bump = 1;
     g.audio.erupt();
     g.audio.tada();
-    for (const t of this.crew) if (!t.dead && t.state === S.DIGOUT) t.digDone();
+    for (const t of crew) if (!t.dead && t.state === S.DIGOUT) t.digDone();
+  }
+
+  /** dug out: up he pops, out of the top of the mound, and the crew's with him now */
+  pop() {
+    const g = this.game;
+    this.stage = 'pop';
+    this.popFrom(this.mound, this.crew);
     if (this.fresh) g.hud.toast(`With no turkeys left, ${RESCUERS} big ones turned up to dig you out. They're with you now!`, 4.5);
     else if (!this.told) g.hud.toast('Your turkeys dug you out! You come back at the nearest mound: build them as you go (M)', 5.5);
     else g.hud.toast(pick(AGAIN), 2.5);

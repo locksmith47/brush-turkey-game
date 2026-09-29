@@ -33,6 +33,7 @@ import { LANE } from './props/harbour.js';
 import { DevMenu } from './devmenu.js';
 import { Saves } from './save.js';
 import { Wasted } from './wasted.js';
+import { Travel } from './travel.js';
 import { clamp, damp, rand, smoothstep, lerp, TAU } from './util.js';
 
 const THROW_RANGE = 11;
@@ -67,6 +68,7 @@ game.fx = new FX(game);
 game.ghosts = new Ghosts(game);
 game.hud = new HUD(game);
 game.wasted = new Wasted(game); // (going down, GTA style, and being dug out of a mound after)
+game.travel = new Travel(game); // (diving into a mound, with your squad, to come out of another)
 game.leaves = new Leaves(game);
 game.grubs = new Grubs(game);
 game.mounds = new Mounds(game);
@@ -178,7 +180,7 @@ player.pos.set(START.x, world.groundHeight(START.x, START.z), START.z);
 // saving your progress (see Saves): all of the above is what a new game starts out with, and a save says
 // what's changed since. (Plus how far along you are: the areas you've been to, the tips you've been given)
 const saves = new Saves(game, {
-  get: () => ({ visited: [...visited], tip: tipIdx, told: bosses.map((h) => !!h.told), far: farPrompted, hurt: !!player.toldHurt, dugOut: game.wasted.told }),
+  get: () => ({ visited: [...visited], tip: tipIdx, told: bosses.map((h) => !!h.told), far: farPrompted, hurt: !!player.toldHurt, dugOut: game.wasted.told, travel: game.travel.told }),
   set: (d) => {
     for (const z of d.visited ?? []) visited.add(z);
     tipIdx = Math.max(tipIdx, d.tip ?? 0);
@@ -186,6 +188,7 @@ const saves = new Saves(game, {
     farPrompted ||= !!d.far;
     player.toldHurt ||= !!d.hurt;
     game.wasted.told ||= !!d.dugOut;
+    game.travel.told ||= !!d.travel;
   },
 });
 saves.register();
@@ -414,6 +417,7 @@ function handleInput(dt) {
     }
   }
   if (input.pressed('KeyM')) buildMound();
+  if (input.pressed('KeyF')) game.travel.tryDive();
   if (input.pressed('KeyH')) hud.toggleHelp();
 }
 
@@ -557,15 +561,18 @@ function setPaused(on) {
 
 /** `real`: seconds since the last frame (time itself can go slower: see game.timeScale) */
 function step(real) {
-  // (Esc pauses, and N turns the sound off or back on: any time, even while you're down)
+  // (Esc pauses, and N turns the sound off or back on: any time, even while you're down. Bar Esc with the map up,
+  // down in the tunnels: that's back out of the mound you went in by)
   if (game.started) {
-    if (input.pressed('Escape')) setPaused(!game.paused);
+    if (input.pressed('Escape') && !game.travel.frozen) setPaused(!game.paused);
     if (input.pressed('KeyN')) hud.soundOff(audio.toggleOff(), true);
   }
   if (game.paused) { input.endFrame(); return; }
+  // (and with the map up, the world stands still: there's only the map)
+  if (game.travel.frozen) { game.travel.update(real); input.endFrame(); return; }
   const dt = real * game.timeScale;
   game.time += dt;
-  const down = game.wasted.active;
+  const down = game.wasted.active || game.travel.active;
   if (game.started && !down) { updateAim(); handleInput(dt); updateTips(dt); }
   else { letGo(); updateAim(); }
 
@@ -590,6 +597,7 @@ function step(real) {
   game.cursor.update(dt, target, whistle, camera, !down);
   hud.update(dt);
   game.wasted.update(real); // (in real time: the slow-mo as you go down doesn't slow it down)
+  game.travel.update(real); // (and so's getting about down the tunnels)
   input.endFrame();
 }
 game.step = step; // lets devtools fast-forward: for (let i = 0; i < 600; i++) game.step(1 / 60)
@@ -599,7 +607,7 @@ game.aimTarget = target;
 function frame() {
   requestAnimationFrame(frame);
   step(Math.min(clock.getDelta(), 1 / 20));
-  renderer.render(scene, camera);
+  if (!game.travel.frozen) renderer.render(scene, camera); // (bar with the map up: there's none of the world to see)
   if (first) { first = false; document.getElementById('loading').remove(); }
 }
 frame();
@@ -608,6 +616,7 @@ addEventListener('resize', () => {
   camera.aspect = aspect();
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
+  game.travel.resized(); // (the map, if it's up, drawn again to fit)
 });
 
 /* ------------------------------------------------------------------ play: a new game, or carry on */

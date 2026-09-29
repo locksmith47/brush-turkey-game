@@ -192,6 +192,12 @@ export class Audio {
     if (!this.ok('nope', 250)) return;
     this.tone({ freq: 180, freq2: 140, dur: 0.18, vol: 0.14, type: 'square' });
   }
+
+  /** picking out a mound on the map, down in the tunnels */
+  tick() {
+    if (!this.ok('tick', 40)) return;
+    this.tone({ freq: 1250, freq2: 950, dur: 0.06, vol: 0.08, type: 'triangle' });
+  }
   /* ---------------------------------------------------------------- you: hurt, down and dug out */
   /** a grunt when something gets you (a bigger one when it's the last straw) */
   oof(last = false) {

@@ -147,7 +147,7 @@ export class Turkeys {
     c.stages[0] = c.stages[1] = c.stages[2] = c.beach = c.normal = c.kit = 0;
     for (const t of this.list) {
       if (t.dead) continue;
-      if (t.state === S.FOLLOW) {
+      if (t.state === S.FOLLOW || t.state === S.DIVE || t.state === S.TUNNEL || t.state === S.DIGOUT) { // (with you down the tunnels, too, and digging you out)
         c.squad++;
         c.stages[t.stage]++;
         if (t.kind === 'beach') c.beach++; else c.normal++;
