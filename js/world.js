@@ -47,7 +47,7 @@ export class World {
     buildBush(this);
     buildSuburb(this);
     this.city = buildCity(this);
-    buildOval(this);
+    this.oval = buildOval(this); // (its stands, for turkeys to sit in: see main.js)
     this.beach = buildBeach(this);
   }
 

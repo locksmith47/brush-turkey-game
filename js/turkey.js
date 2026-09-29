@@ -218,7 +218,7 @@ export class Turkey {
       return true;
     }
     if (!this.busy) return false;
-    const drowning = this.state === S.DROWN;
+    const drowning = this.state === S.DROWN, seat = this.state === S.SWING ? this.seat : null;
     this.dropEverything();
     this.workCenter = null;
     if (drowning) {
@@ -230,8 +230,10 @@ export class Turkey {
     }
     const up = this.pos.y - this.game.world.groundHeight(this.pos.x, this.pos.z);
     if (this.game.world.waterDepth(this.pos.x, this.pos.z) === 0 && up > 0.05) {
-      // up on something (clinging to an ibis, roosting in a tree): hop down first
-      this.hopTo(this.pos.x + rand(-0.8, 0.8), this.pos.z + rand(-0.8, 0.8), 0.35 + up * 0.08);
+      // up on something (clinging to an ibis, roosting in a tree, sitting in the stands): hop down first
+      const down = seat?.set.hopDown?.(seat.i); // (out of the stands: down in front, not in amongst the seats)
+      if (down) this.hopTo(down.x, down.z, down.T, down.h);
+      else this.hopTo(this.pos.x + rand(-0.8, 0.8), this.pos.z + rand(-0.8, 0.8), 0.35 + up * 0.08);
       this.joinAfterHop = true;
       return true;
     }
@@ -338,8 +340,8 @@ export class Turkey {
     this.seat = seat;
     seat.set.seats[seat.i].rider = this;
     const to = seat.set.seatPos(seat.i, new THREE.Vector3(), this);
-    const up = Math.max(0, to.y - this.pos.y);
-    this.flight = { from: this.pos.clone(), to, T: 0.32 + up * 0.1, h: 0.45, spin: 0, seat };
+    const up = Math.max(0, to.y - this.pos.y), hop = seat.set.hop?.(seat.i); // (up into the stands: a big flap up over the rows in front)
+    this.flight = { from: this.pos.clone(), to, T: hop?.T ?? 0.32 + up * 0.1, h: hop?.h ?? 0.45, spin: 0, seat };
     this.flung = false;
     this.setState(S.THROWN);
   }
@@ -1512,17 +1514,18 @@ export class Turkey {
 
     let flap = 0.05;
     const ride = this.state === S.SWING ? this.seat?.set : null;
+    const seatPose = ride ? ride.poseOf?.(this.seat.i) ?? ride.seatPose : null;
     if (this.state === S.THROWN || this.state === S.LAUNCHED || this.state === S.POP) flap = 0.5 + Math.sin(time * 38 + this.id) * 0.8;
     else if (this.latched) flap = 0.35 + Math.sin(time * 20 + this.id) * 0.3;
-    else if (ride?.seatPose === 'perch') {
+    else if (seatPose === 'perch') {
       // roosting on the Hills Hoist: wings out for balance, more and more as it whirls round
       const w = Math.min(1, ride.w / 3);
       flap = 0.12 + w * 0.55 + Math.max(0, Math.sin(time * 16 + this.id)) * (0.12 + w * 0.3);
       r.legL.rotation.x = r.legR.rotation.x = 0.12;
       r.bodyPivot.rotation.z = -w * 0.3; // leaning in towards the pole
-    } else if (ride?.seatPose === 'roost') {
-      // roosting up a gum: hunkered down on the branch with its feet tucked up under it. The odd big
-      // stretch of the wings, and every so often a little doze
+    } else if (seatPose === 'roost') {
+      // roosting up a gum (or sitting in the stands, or on the mower): hunkered down on the branch with its
+      // feet tucked up under it. The odd big stretch of the wings, and every so often a little doze
       r.legL.rotation.x = r.legR.rotation.x = 0;
       r.legL.scale.y = r.legR.scale.y = 0.35;
       r.bodyPivot.position.y = -0.2;
@@ -1540,8 +1543,9 @@ export class Turkey {
       flap = 0.05 + 1.05 * k2 + Math.sin(time * 0.9 + this.id) * 0.04 * k2;
       r.neck.rotation.x -= 0.35 * k2;
       r.neck.rotation.z = this.tilt + 0.45 * this.sunSide * k2;
-    } else if (ride?.seatPose === 'lounge') {
-      // feet up in a beach chair (the legs lean back with the body); a royal wave for the peasants doing the carrying
+    } else if (seatPose === 'lounge') {
+      // feet up in a beach chair (or at the wheel of the mower: the legs lean back with the body); a royal wave for
+      // the peasants doing the carrying
       r.legL.rotation.x = r.legR.rotation.x = -1.0;
       flap = 0.04;
       r.wingR.rotation.z = ride.carrying ? -(1.1 + Math.sin(time * 7 + this.id) * 0.45) : -0.04;
@@ -1573,7 +1577,7 @@ export class Turkey {
     }
     else if (this.state === S.HAUL && this.obj && this.obj.carrying) flap = 0.25 + Math.sin(time * 16 + this.id) * 0.2;
     r.wingL.rotation.z = flap;
-    if (ride?.seatPose !== 'lounge') r.wingR.rotation.z = -flap;
+    if (seatPose !== 'lounge') r.wingR.rotation.z = -flap;
 
     // (otherwise: head down and tail up while it scratches, rocking back to draw a foot up and leaning into
     // the kick; half up changing feet; up for a look round after, and easing back up when it's done)
@@ -1589,7 +1593,7 @@ export class Turkey {
       tip = 0.6;
     } else if (pushing) {
       tip = 0.42; // leaning right into it
-    } else if (ride?.seatPose === 'lounge') {
+    } else if (seatPose === 'lounge') {
       tip = -0.5; // leaning back, soaking up the sun
       r.neck.rotation.x += 0.35;
     }

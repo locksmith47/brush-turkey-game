@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { vcMat, vcMesh, toonMat, part, merge, G, rand, pick, TAU, clamp, labelFade, Dial } from './util.js';
 import { PALETTES, JUNK, LEAF_SPLIT, litterGeo } from './leaves.js';
 import { flagMesh } from './items.js';
-import { stumpsMesh } from './cricket.js';
+import { stumpsMesh, kitTrophy } from './cricket.js';
 
 const SOIL = [0x5b3b22, 0x6e4a2b, 0x8a6238, 0xa8683a, 0xb08a55, 0x7a7040, 0x654326];
 const LEAF_COLS = [0x9b6b3a, 0xb8834a, 0xc49a5a, 0x8e8a4b, 0xa0522d, 0xd2a15e];
@@ -103,7 +103,7 @@ export class Mound {
     this.shownK = 0;
     this.converts = []; // turkeys that dived in ({ stage, hen, gear }), waiting to pop back out
     this.convertT = 0;
-    this.trophies = []; // lifesaving flags (and stumps) planted in it
+    this.trophies = []; // lifesaving flags (and stumps, and bits of cricket kit) planted in it
     this.junkN = 0; // (how much rubbish is sticking out of it)
 
     DOME ??= domeGeometry();
@@ -255,14 +255,27 @@ export class Mound {
     this.refreshLabel();
   }
 
-  /** something planted in the mound at a jaunty angle, for all to see: a stolen lifesaving flag, or a set of stumps */
+  /**
+   * A mound that's got a bit in it already when the game starts: `n` worth of leaves (or whatever) from
+   * `palette`, and `gear` (see addTrophy) stuck in the top
+   */
+  startWith(n, palette, gear = []) {
+    this.total = this.fill = n;
+    for (let i = 0; i < n; i++) this.addDecal(palette);
+    for (const k of gear) this.addTrophy(k);
+    this.resize();
+    this.refreshLabel();
+    return this;
+  }
+
+  /** something planted in the mound at a jaunty angle, for all to see: a stolen lifesaving flag, a set of stumps, a cricket bat... */
   addTrophy(kind = 'flag') {
-    const f = kind === 'stumps' ? stumpsMesh() : flagMesh();
+    const f = kind === 'stumps' ? stumpsMesh() : kind === 'flag' ? flagMesh() : kitTrophy(kind);
     f.group.scale.setScalar(0.8);
     this.group.add(f.group);
     // spread them round the mound, leaning outwards
     const a = this.trophies.length * 2.4 + rand(-0.3, 0.3);
-    this.trophies.push({ ...f, kind, a, k: rand(0.3, 0.5), lean: rand(0.18, 0.3), spin: rand(0, TAU), ph: rand(0, TAU) });
+    this.trophies.push({ ...f, kind, a, k: rand(0.3, 0.5), lean: rand(0.18, 0.3), spin: f.spin ?? rand(0, TAU), ph: rand(0, TAU) });
     this.placeTrophies();
   }
 
