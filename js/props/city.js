@@ -1,42 +1,60 @@
 import * as THREE from 'three';
-import { part, merge, vcMesh, G, limb, rand, pick, TAU, toonMat, canvasTexture } from '../util.js';
+import { part, merge, vcMesh, G, limb, rand, pick, TAU, toonMat, canvasTexture, smoothstep } from '../util.js';
 import { staticBinGeo, knockedBinGeo, KNOCKED_AT } from '../bin.js';
 import { bagGeo, tornBagGeo } from '../binbag.js';
 
 /*
- * The city: a street along the near side, a row of shops, a back alley behind them, another row of
- * buildings, and a plaza. Laneways run through the rows: two from the street into the alley (and one more
- * between them, gated off from the street: it only opens from the alley side), and two on from the alley to
- * the plaza, never in line with the first. A giant ibis lurks down the far end of the alley.
+ * The city, at the end of the line. You come off the ferry onto Circular Quay (the station, with the Cahill
+ * Expressway up on top of it, across the back), and over it to a street along the near side, a row of shops, a
+ * back alley behind them, another row of buildings, and a plaza. Laneways run through the rows: two from the
+ * street into the alley (and one more between them, gated off from the street: it only opens from the alley
+ * side), and two on from the alley to the plaza, never in line with the first. A giant ibis lurks down the far
+ * end of the alley.
  *
- * From the far side of the plaza, the bin alley runs on towards the gate out, between the backs of tall
- * buildings: lined with bins (knocked over and picked clean, most of them) and bin bags (torn open), with
- * ibises big and small loitering about them. It comes out into the King's court, where the King sits on his
- * throne of bins in front of the gate, with the key to it round his neck.
+ * From the far side of the plaza, the bin alley runs on between the backs of tall buildings: lined with bins
+ * (knocked over and picked clean, most of them) and bin bags (torn open), with ibises big and small loitering
+ * about them. It comes out into the King's court, where the King sits on his throne of bins in front of the
+ * Town Hall, with the whole city at his feet.
+ *
+ * It's all laid out in its own frame (see toWorld): across the way, the Quay towards +z and the King's court
+ * at -z, then turned a quarter to the right, to face on down the map's second leg with the rest of it.
  */
-const STREET = -118, ALLEY = [-128, -138], PLAZA = -148, YARD = -170; // (where the rows of buildings start and end)
+const QUAY = -74, STREET = -118, ALLEY = [-128, -138], PLAZA = -148, YARD = -170; // (the water's edge, and where the rows of buildings start and end)
 // the laneways through each row: [name, x0, x1] (10 m across: room enough for the key and its carriers)
 const FRONT_LANES = [['w', -40, -30], ['m', -4, 6], ['e', 20, 30]];
 const BACK_LANES = [['w2', -20, -10], ['e2', 28, 38]];
-// the bin alley, in line with the gate out, and the King's court at the end of it (up to the fence)
+// the bin alley, and the King's court at the end of it (up to the Town Hall)
 const BIN_ALLEY = ['bin', -26, -14], COURT = { x0: -40, x1: 0, z0: -198, z1: -220 };
-// the gate across the middle laneway's street end, latched on the alley side
-export const LANE_GATE = { a: [-4, STREET], b: [6, STREET], latch: [0, -1], kind: 'wire' };
 /**
- * The King's throne of bins, in the middle of his court: it faces up the bin alley, with the gate out behind
+ * The King's throne of bins, in the middle of his court: it faces up the bin alley, with the Town Hall behind
  * it. He sits `sitZ` in front of the middle of the seat (`seatY` up), and gets down onto the ground at `front`
  */
-export const THRONE = { x: -20, z: -208, seatY: 1.65, sitZ: 0.5, front: 3.9 };
-/** is (x, z) on the way to the King: down the bin alley, or in his court? */
-export const onKingsWay = (x, z) => z < YARD && z > COURT.z1 && x > (z > COURT.z0 ? BIN_ALLEY[1] : COURT.x0) && x < (z > COURT.z0 ? BIN_ALLEY[2] : COURT.x1);
+const THRONE = { x: -20, z: -208, seatY: 1.65, sitZ: 0.5, front: 3.9 };
 
-// the lie of the land (see Track): the street, the alley, the plaza and the King's court, and the laneways
-// between them (each reaching a way out into the open at either end, so anything big coming or going is
-// always well inside one or the other), with a waypoint out in the open off each end of each laneway (clear
-// of the trees, lamps and bins along the footpaths and walls), and round the King's throne. Everywhere else
-// is buildings
+/* ------------------------------------------------------------------ the city's frame */
+const FX = 282, FZ = -224; // (where its (0, 0) is in the world: it's turned a quarter to the right from there)
+/** the world's [x, z] for (x, z) in the city's own frame */
+export const toWorld = (x, z) => [FX - z, FZ + x];
+const toLocal = (X, Z) => [Z - FZ, FX - X];
+const rectToWorld = ([x0, z0, x1, z1]) => [FX - z1, FZ + x0, FX - z0, FZ + x1];
+/** the ground in the city: flat, bar at the Quay, which rises at the water's edge to meet the ferry's deck */
+export function quayGround(x) { return 0.35 * smoothstep(362, 356.5, x); }
+
+// the gate across the middle laneway's street end, latched on the alley side
+export const LANE_GATE = { a: toWorld(-4, STREET), b: toWorld(6, STREET), latch: [1, 0], kind: 'wire' };
+/** is (x, z) on the way to the King: down the bin alley, or in his court? */
+export const onKingsWay = (X, Z) => {
+  const [x, z] = toLocal(X, Z);
+  return z < YARD && z > COURT.z1 && x > (z > COURT.z0 ? BIN_ALLEY[1] : COURT.x0) && x < (z > COURT.z0 ? BIN_ALLEY[2] : COURT.x1);
+};
+
+// the lie of the land (see Track): the Quay and the street, the alley, the plaza and the King's court, and the
+// laneways between them (each reaching a way out into the open at either end, so anything big coming or going
+// is always well inside one or the other), with a waypoint out in the open off each end of each laneway (clear
+// of the trees, lamps and bins along the footpaths and walls), and round the King's throne. Everywhere else is
+// buildings
 const lane = ([name, x0, x1], z0, z1) => ({ rect: [x0, z1 - 4, x1, z0 + 6], nodes: [`${name}_s`, `${name}_n`] });
-export const STREETS = {
+const LAYOUT = {
   nodes: Object.fromEntries([
     ...FRONT_LANES.flatMap(([name, x0, x1]) => [[`${name}_s`, [(x0 + x1) / 2, STREET + 5]], [`${name}_n`, [(x0 + x1) / 2, ALLEY[0] - 3]]]),
     ...BACK_LANES.flatMap(([name, x0, x1]) => [[`${name}_s`, [(x0 + x1) / 2, ALLEY[1] + 3]], [`${name}_n`, [(x0 + x1) / 2, PLAZA - 2]]]),
@@ -45,7 +63,7 @@ export const STREETS = {
     ...[['l', -1], ['r', 1]].flatMap(([s, k]) => [[`throne_${s}`, [THRONE.x + k * 8, THRONE.z + 5]], [`throne_b${s}`, [THRONE.x + k * 8, THRONE.z - 6.5]]]),
   ]),
   rooms: [
-    { rect: [-46, STREET, 46, -98], nodes: FRONT_LANES.map(([n]) => `${n}_s`) },
+    { rect: [-46, STREET, 46, QUAY], nodes: FRONT_LANES.map(([n]) => `${n}_s`) },
     ...FRONT_LANES.map((l) => lane(l, STREET, ALLEY[0])),
     { rect: [-46, ALLEY[1], 46, ALLEY[0]], nodes: [...FRONT_LANES.map(([n]) => `${n}_n`), ...BACK_LANES.map(([n]) => `${n}_s`)] },
     ...BACK_LANES.map((l) => lane(l, ALLEY[1], PLAZA)),
@@ -54,18 +72,30 @@ export const STREETS = {
     { rect: [COURT.x0, COURT.z1, COURT.x1, COURT.z0], nodes: ['bin_n', 'throne_l', 'throne_r', 'throne_bl', 'throne_br'] },
   ],
 };
+/** the same, in the world */
+export const STREETS = {
+  nodes: Object.fromEntries(Object.entries(LAYOUT.nodes).map(([name, [x, z]]) => [name, toWorld(x, z)])),
+  rooms: LAYOUT.rooms.map((r) => ({ ...r, rect: rectToWorld(r.rect) })),
+};
 
 function flat(w, d, color, x, z, y) {
   return part(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2), color, [x, y, z]);
 }
 
+let frame = null; // (everything's built in the city's own frame: see buildCity)
 function put(world, geo, x, z, rotY = 0, colliders = []) {
   const m = vcMesh(geo, { cast: true, receive: true });
   m.position.set(x, 0, z);
   m.rotation.y = rotY;
-  world.scene.add(m);
-  for (const [cx, cz, r] of colliders) world.colliders.push({ x: x + cx, z: z + cz, r });
+  frame.add(m);
+  for (const [cx, cz, r] of colliders) collide(world, x + cx, z + cz, r);
   return m;
+}
+
+/** something round (radius r) at (x, z) in the city's frame, for everything to bump into */
+function collide(world, x, z, r) {
+  const [X, Z] = toWorld(x, z);
+  world.colliders.push({ x: X, z: Z, r });
 }
 
 let windowTex = null;
@@ -110,12 +140,14 @@ function fig(h) {
 // bins: ibis heaven (the red ones are overflowing). Tip them over for what's inside: [kind, x, z, facing]. They
 // stand in pairs along the walls of the bin alley...
 const W = BIN_ALLEY[1] + 0.65, E = BIN_ALLEY[2] - 0.65, IN_W = Math.PI / 2, IN_E = -Math.PI / 2; // (facing into the alley)
-export const CITY_BINS = [
+const BINS = [
   ['red', -20, -101.5, 0], ['yellow', -19.2, -101.5, 0], ['red', 8, -116.5, Math.PI], ['red', 9, -116.5, Math.PI],
   ['red', -24, -129.3, Math.PI], ['red', 13, -129.3, Math.PI], ['yellow', 18, -136.7, 0], ['green', 44.5, -131, -Math.PI / 2],
   ['red', -2, -136.7, 0], ['green', -33.5, -166.5, 0.5], ['green', 33.5, -166.5, -0.5],
   ['red', W, -173.6, IN_W], ['yellow', W, -188.4, IN_W], ['red', E, -191.1, IN_E],
 ];
+/** (and in the world: all of them overflowing, the red ones) */
+export const CITY_BINS = BINS.map(([kind, x, z, face]) => [kind, ...toWorld(x, z), face - Math.PI / 2]);
 // ...where most of them have been knocked over and picked clean already: [kind, x, z, facing, which way it fell]
 const KNOCKED_BINS = [
   ['yellow', W, -174.4, IN_W, IN_W + 0.7], ['red', E, -177.1, IN_E, IN_E - 0.5], ['green', E, -177.9, IN_E, Math.PI + 0.2],
@@ -127,14 +159,22 @@ const KNOCKED_BINS = [
 export const CITY_BAGS = [
   [-24.7, -178.2], [-15.3, -181.3], [-15.2, -188.2], [-24.8, -191.3], [-15.6, -196.6],
   [-36.8, -201.5], [-37.4, -202.6], [-3.6, -202.2], [-37.6, -215.4],
-];
+].map(([x, z]) => toWorld(x, z));
 // ...and the ones the ibises have been into already
 const TORN_BAGS = [[-22.6, -176.4], [-17.8, -180.2], [-21.4, -186.8], [-18.3, -193.8], [-23.8, -197.1], [-2.8, -216.1]];
 // ...and the ibises loitering round them, picking them over: [kind, x, z]
 export const ALLEY_IBISES = [
   ['ibis', -23.2, -176.2], ['big', -17.2, -179.2], ['ibis', -22.8, -183.2],
   ['ibis', -16.9, -186.6], ['big', -22.4, -192.6], ['ibis', -17.1, -194.4],
-];
+].map(([kind, x, z]) => [kind, ...toWorld(x, z)]);
+// ...and the rest of the locals: a couple on the Quay, more up and down the street and round the plaza, and a
+// giant down the back alley
+export const CITY_IBISES = [
+  ['ibis', -30, -84], ['ibis', 27, -82], ['ibis', -22, -108], ['ibis', 16, -110], ['ibis', 12, -133], ['ibis', 38, -133],
+  ['ibis', 22, -153], ['giant', -32, -133],
+].map(([kind, x, z]) => [kind, ...toWorld(x, z)]);
+// and a couple of gulls on the Quay, after the tourists' chips: [x, z, how many]
+export const QUAY_GULLS = [[-15, -80, 2]].map(([x, z, n]) => [...toWorld(x, z), n]);
 
 /**
  * A row of buildings from z0 to z1 (all the way across, bar its laneways), a few of them to each block,
@@ -150,21 +190,27 @@ function row(world, z0, z1, lanes, shopfronts, heights = [5.5, 9.5]) {
     for (let k = 0; k < n; k++) {
       const h = rand(...heights), x = a + w * (k + 0.5), m = building(w - 0.1, h, z0 - z1, pick(cols));
       m.position.set(x, h / 2, (z0 + z1) / 2);
-      world.scene.add(m);
+      frame.add(m);
       world.addOccluder(m);
       // (a shop awning over the footpath)
       if (shopfronts) {
         const aw = vcMesh(merge([part(G.box(w - 1.2, 0.12, 1.6), pick(awnings), [0, 0, 0.8], [0.18, 0, 0])]), { cast: true, receive: false });
         aw.position.set(x, 3.1, z0);
-        world.scene.add(aw);
+        frame.add(aw);
       }
     }
   }
 }
 
 export function buildCity(world) {
-  const s = world.scene, track = world.tracks[2];
+  frame = new THREE.Group();
+  frame.position.set(FX, 0, FZ);
+  frame.rotation.y = -Math.PI / 2;
+  world.scene.add(frame);
+  frame.updateMatrixWorld(true);
+  const s = frame, track = world.trackAt(...toWorld(0, STREET + 5));
   const ground = [
+    flat(130, 172, 0x9a978f, 0, -162, 0.005), // (concrete, under everything)
     flat(92, 6, 0xc9c6bd, 0, -101, 0.03),
     flat(92, 10, 0x4a4d52, 0, -109, 0.02),
     flat(92, 4, 0xc9c6bd, 0, -116, 0.03),
@@ -203,31 +249,33 @@ export function buildCity(world) {
   row(world, YARD, COURT.z0, [BIN_ALLEY], false, [10, 17]);
   row(world, COURT.z0, COURT.z1 + 0.4, [['court', COURT.x0, COURT.x1]], false, [8, 13]);
   // (the way through a laneway keeps to the middle of it, clear of the corners, where the key's carriers need the room)
+  const guide = (ax, az, bx, bz) => {
+    const [AX, AZ] = toWorld(ax, az), [BX, BZ] = toWorld(bx, bz);
+    track.addWall({ ax: AX, az: AZ, bx: BX, bz: BZ, active: true, guide: true }, false);
+  };
   for (const [lanes, z0, z1] of [[FRONT_LANES, STREET, ALLEY[0]], [BACK_LANES, ALLEY[1], PLAZA], [[BIN_ALLEY], YARD, COURT.z0]]) {
     for (const [, x0, x1] of lanes) {
       for (const z of [z0, z1]) {
-        track.addWall({ ax: x0, az: z, bx: x0 + (x1 - x0) * 0.35, bz: z, active: true, guide: true }, false);
-        track.addWall({ ax: x1 - (x1 - x0) * 0.35, az: z, bx: x1, bz: z, active: true, guide: true }, false);
+        guide(x0, z, x0 + (x1 - x0) * 0.35, z);
+        guide(x1 - (x1 - x0) * 0.35, z, x1, z);
       }
     }
   }
-  // (and it goes well clear of the King's throne, round the back of it to the gate)
+  // (and it goes well clear of the King's throne, round the back of it)
   const { x: tx, z: tz } = THRONE;
-  for (const [ax, az, bx, bz] of [[tx - 5, tz + 3, tx - 5, tz - 4.5], [tx - 5, tz - 4.5, tx + 5, tz - 4.5], [tx + 5, tz - 4.5, tx + 5, tz + 3]]) {
-    track.addWall({ ax, az, bx, bz, active: true, guide: true }, false);
-  }
+  for (const [ax, az, bx, bz] of [[tx - 5, tz + 3, tx - 5, tz - 4.5], [tx - 5, tz - 4.5, tx + 5, tz - 4.5], [tx + 5, tz - 4.5, tx + 5, tz + 3]]) guide(ax, az, bx, bz);
   track.plan();
 
   // Moreton Bay figs in planters in the plaza, and street trees along the shops
   for (const [x, z, big] of [[-38, -158, 1], [42, -157, 1], [14, -167, 1], [-24, -115.5, 0], [14, -115.5, 0], [40, -115.5, 0]]) {
-    const h = big ? rand(6, 7.5) : rand(4, 5);
-    const m = vcMesh(fig(h));
-    m.position.set(x, 0, z);
+    const h = big ? rand(6, 7.5) : rand(4, 5), m = vcMesh(fig(h)), [X, Z] = toWorld(x, z);
+    // (the trees themselves out in the world, not the city's frame: they sway, see World.addSway)
+    m.position.set(X, 0, Z);
     world.addSway(m);
-    s.add(m);
+    world.scene.add(m);
     if (big) put(world, merge([part(G.cyl(2.2, 2.3, 0.5, 20), 0x9c9689, [0, 0.25, 0]), part(G.cyl(2.0, 2.0, 0.02, 20), 0x5b4230, [0, 0.5, 0])]), x, z, 0, [[0, 0, 2.3]]);
-    else world.colliders.push({ x, z, r: 0.5 });
-    world.treeSpots.push({ x, z, h: h + 2, palette: 'fig' });
+    else collide(world, x, z, 0.5);
+    world.treeSpots.push({ x: X, z: Z, h: h + 2, palette: 'fig' });
   }
 
   // benches, lamps, bus stop
@@ -247,7 +295,7 @@ export function buildCity(world) {
     limb([0, 3.9, 0], [0.6, 4.1, 0], 0.05, 0.05, 0x3a3f44, 6),
     part(G.box(0.4, 0.14, 0.25), 0xfff3c4, [0.7, 4.0, 0]),
   ]);
-  for (const x of [-40, -24, 8, 24, 40]) put(world, lamp, x, -99.4, -Math.PI / 2, [[0, 0, 0.15]]); // (none in front of the gate)
+  for (const x of [-40, -24, 8, 24, 40]) put(world, lamp, x, -99.4, -Math.PI / 2, [[0, 0, 0.15]]);
   for (const x of [-20, -8, 11, 36]) put(world, lamp, x, -117.2, Math.PI / 2, [[0, 0, 0.15]]);
   for (const [x, z] of [[-30, -168.6], [2, -168.6], [30, -168.6]]) put(world, lamp, x, z, Math.PI / 2, [[0, 0, 0.15]]); // (none in front of the bin alley)
   const stop = put(world, merge([
@@ -264,7 +312,7 @@ export function buildCity(world) {
   const crates = [];
   for (const [x, z, n] of [[-44.5, -137, 1], [33, -129.8, 3], [42, -137, 2]]) {
     for (let i = 0; i < n; i++) crates.push(part(G.box(1.1, 0.9, 1.1), pick([0xa47c52, 0x8f6b45, 0xb58d5e]), [x + (i % 2) * 1.15, 0.45 + Math.floor(i / 2) * 0.9, z], [0, rand(-0.2, 0.2), 0]));
-    world.colliders.push({ x: x + (n > 1 ? 0.55 : 0), z, r: n > 1 ? 1.2 : 0.8 });
+    collide(world, x + (n > 1 ? 0.55 : 0), z, n > 1 ? 1.2 : 0.8);
   }
   s.add(vcMesh(merge(crates), { cast: true, receive: true }));
 
@@ -290,7 +338,7 @@ export function buildCity(world) {
   const junk = [];
   for (const [kind, x, z, facing, fell] of KNOCKED_BINS) {
     junk.push(knockedBinGeo(kind, facing, fell).translate(x, 0, z));
-    world.colliders.push({ x: x + Math.sin(fell) * KNOCKED_AT, z: z + Math.cos(fell) * KNOCKED_AT, r: 0.42 });
+    collide(world, x + Math.sin(fell) * KNOCKED_AT, z + Math.cos(fell) * KNOCKED_AT, 0.42);
     scraps(junk, x + Math.sin(fell) * 1.45, z + Math.cos(fell) * 1.45, fell, 6);
   }
   for (const [x, z] of TORN_BAGS) {
@@ -303,10 +351,14 @@ export function buildCity(world) {
   for (const [x, z, face] of [[W + 0.1, -184.5, Math.PI / 2], [E - 0.1, -173.8, -Math.PI / 2]]) put(world, dumpster(), x, z, face, [[0, -0.55, 0.75], [0, 0.55, 0.75]]);
   festoons(s);
 
-  // the King's court: his throne, and a bin fire burning either side of the way in
+  // the King's court: his throne, in front of the Town Hall, and a bin fire burning either side of the way in
   throne(world);
+  townHall(world);
   const flames = [];
   for (const x of [COURT.x0 + 10, COURT.x1 - 10]) fireBarrel(world, x, COURT.z0 - 1.5, flames);
+  // and back at the start, the Quay; and the city's towers, all round the far end
+  quay(world, lamp, bench, backs, seats);
+  skyline();
   return {
     seats, // (for turkeys to perch on: see main.js)
     update(dt, t) {
@@ -318,7 +370,7 @@ export function buildCity(world) {
         f.g.rotation.y += dt * 1.6;
         f.glow.material.opacity = 0.36 + a * 0.05;
         // (and embers floating up out of it, when there's anyone about to see them)
-        if (Math.abs(p.z - f.at.z) < 45 && (f.ember -= dt) <= 0) {
+        if (Math.hypot(p.x - f.at.x, p.z - f.at.z) < 45 && (f.ember -= dt) <= 0) {
           f.ember = rand(0.08, 0.2);
           world.game.fx.burst(f.at, { glow: true, n: 1, colors: [0xffa040, 0xffd060, 0xff6a20], speed: [0.1, 0.5], up: [1.4, 2.6], grav: 0.4, drag: 1.2, size: [0.03, 0.06], life: [0.7, 1.3] });
         }
@@ -466,8 +518,9 @@ function fireBarrel(world, x, z, flames) {
   });
   const glow = new THREE.Mesh(new THREE.PlaneGeometry(5.5, 5.5).rotateX(-Math.PI / 2), mat(0xffffff, 0.36, glowTex));
   glow.position.set(x, 0.06, z);
-  world.scene.add(g, glow);
-  flames.push({ g, outer, inner, glow, ph: rand(0, TAU), ember: 0, at: new THREE.Vector3(x, 1.2, z) });
+  frame.add(g, glow);
+  const [X, Z] = toWorld(x, z);
+  flames.push({ g, outer, inner, glow, ph: rand(0, TAU), ember: 0, at: new THREE.Vector3(X, 1.2, Z) });
 }
 
 /**
@@ -514,12 +567,138 @@ function throneGeo() {
   return merge(p);
 }
 
-/** the King's throne (see throneGeo): he sits on it (see Ibis), and the way to the gate goes round it */
+/** the King's throne (see throneGeo): he sits on it (see Ibis), and the way round the court goes round it */
 function throne(world) {
-  const T = THRONE, at = ([x, z, r]) => ({ x: T.x + x, z: T.z + z, r });
+  const T = THRONE, at = ([x, z, r]) => { const [X, Z] = toWorld(T.x + x, T.z + z); return { x: X, z: Z, r }; };
   world.addOccluder(put(world, throneGeo(), T.x, T.z));
   // (the back and the arms are always in the way; the seat is too, bar when he's sitting on it, which is up to him)
   const solid = [[-1.6, -1.8, 0.55], [0, -1.8, 0.55], [1.6, -1.8, 0.55], [-2.6, -0.5, 0.5], [-2.6, 0.5, 0.5], [2.6, -0.5, 0.5], [2.6, 0.5, 0.5], [-1.8, 0, 0.4], [1.8, 0, 0.4]];
   for (const c of solid) world.colliders.push(at(c));
-  world.throne = { ...T, seat: [[-1.2, 0, 1.3], [0, 0, 1.3], [1.2, 0, 1.3]].map(at) };
+  // (for him, in the world: where he sits, facing up the bin alley, and where he gets down off it)
+  const [x, z] = toWorld(T.x, T.z), [sx, sz] = toWorld(T.x, T.z + T.sitZ), [dx, dz] = toWorld(T.x, T.z + T.front);
+  world.throne = { x, z, seatY: T.seatY, face: -Math.PI / 2, sit: { x: sx, z: sz }, down: { x: dx, z: dz }, seat: [[-1.2, 0, 1.3], [0, 0, 1.3], [1.2, 0, 1.3]].map(at) };
+}
+
+/**
+ * The Town Hall, closing off the far end of the King's court (and the end of the line): sandstone, with columns
+ * and a pediment over the way in, right behind the throne, and the clock tower over that
+ */
+function townHall(world) {
+  const z = COURT.z1 - 0.4, cx = THRONE.x, SAND = 0xdcc091, DARK = 0xc4a574;
+  const hall = building(100, 13, 18, SAND);
+  hall.position.set(0, 6.5, z - 9);
+  frame.add(hall);
+  const p = [
+    part(G.box(100.6, 0.8, 18.6), DARK, [0, 13.2, z - 9]),
+    part(G.box(100.2, 0.4, 18.2), DARK, [0, 4.4, z - 9]),
+    part(G.box(15, 1.2, 1.2), DARK, [cx, 9.9, z + 0.1]),
+    part(G.cyl(1, 1, 1, 3), SAND, [cx, 11.8, z + 0.1], [-Math.PI / 2, 0, 0], [8.6, 1.2, 2.2]),
+    part(G.box(7.4, 12, 7.4), SAND, [cx, 19.4, z - 5]),
+    part(G.box(8, 0.6, 8), DARK, [cx, 25.6, z - 5]),
+    part(new THREE.SphereGeometry(3.6, 14, 8, 0, TAU, 0, Math.PI / 2), 0x5f8a78, [cx, 25.9, z - 5]),
+    part(G.cyl(0.08, 0.08, 4, 5), 0xffffff, [cx, 31, z - 5]),
+    // (the clock, looking down on the court: twenty to twelve, going by it)
+    part(new THREE.CircleGeometry(2.2, 24), 0xfaf6ea, [cx, 20.5, z - 1.28]),
+    part(G.box(0.14, 1.6, 0.05), 0x222222, [cx, 21.1, z - 1.24]),
+    part(G.box(1.1, 0.14, 0.05), 0x222222, [cx - 0.5, 20.6, z - 1.24], [0, 0, -0.35]),
+  ];
+  for (let i = -3; i <= 3; i++) {
+    p.push(part(G.cyl(0.42, 0.48, 9.2, 10), 0xeedcb4, [cx + i * 2.1, 4.6, z + 0.25]));
+    collide(world, cx + i * 2.1, z + 0.25, 0.5);
+  }
+  frame.add(vcMesh(merge(p), { cast: true, receive: true }));
+}
+
+/**
+ * Circular Quay: sandstone paving out to the water's edge (rising to meet the ferry's deck: see quayGround), the
+ * wharf's green canopy over the gangway, lamps and benches along the water, and across the back, the station
+ * up on its columns with the Cahill Expressway on top of it (see-through when it's in your way)
+ */
+function quay(world, lamp, bench, backs, seats) {
+  const g = new THREE.PlaneGeometry(130, QUAY + 98, 65, 48).rotateX(-Math.PI / 2).translate(0, 0, (QUAY - 98) / 2);
+  const pos = g.attributes.position, col = new Float32Array(pos.count * 3), c = new THREE.Color(), a = new THREE.Color(0xd8c9a8), b = new THREE.Color(0xc4b390);
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), z = pos.getZ(i);
+    pos.setY(i, quayGround(FX - z) + 0.03);
+    c.copy(a).lerp(b, (0.5 + 0.5 * Math.sin(x * 0.9) * Math.sin(z * 1.1)) * 0.45);
+    col.set([c.r, c.g, c.b], i * 3);
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.computeVertexNormals();
+  const slab = vcMesh(g, { cast: false, receive: true });
+  frame.add(slab);
+  // (the sea wall along the edge, with its coping)
+  frame.add(vcMesh(merge([part(G.box(130, 2.1, 0.6), 0xb9a27a, [0, -0.7, QUAY - 0.3]), part(G.box(130, 0.12, 0.4), 0xcdbb95, [0, 0.41, QUAY - 0.2])]), { cast: false, receive: true }));
+
+  // the wharf's canopy over the gangway, and its sign
+  const canopy = [part(G.box(15, 0.3, 6), 0x2e5e4a, [0, 4.15, -78.2]), part(G.box(15.2, 0.55, 0.2), 0xf1e3b5, [0, 3.85, -75.2])], posts = [];
+  for (const x of [-7, 7]) {
+    for (const z of [-75.6, -80.8]) {
+      canopy.push(part(G.cyl(0.14, 0.16, 4.2, 8), 0x2e5e4a, [x, 2, z]));
+      posts.push([x, z, 0.25]);
+    }
+  }
+  world.addOccluder(put(world, merge(canopy), 0, 0, 0, posts));
+  const sign = (w, h, y, z, text, bg, fg) => {
+    const tex = canvasTexture(512, Math.round((512 * h) / w), (c2, cw, ch) => {
+      c2.fillStyle = bg; c2.fillRect(0, 0, cw, ch);
+      c2.fillStyle = fg; c2.textAlign = 'center'; c2.textBaseline = 'middle';
+      c2.font = `bold ${Math.round(ch * 0.62)}px sans-serif`; c2.fillText(text, cw / 2, ch / 2 + 2);
+    });
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), toonMat({ map: tex }));
+    m.position.set(0, y, z);
+    frame.add(m);
+    world.addOccluder(m); // (see-through with the rest of it, walking in under it)
+  };
+  sign(7, 0.45, 3.85, -75.08, 'WHARF 3 · MANLY FERRIES', '#2e5e4a', '#f1e3b5');
+
+  // lamps and benches along the water (turkeys perch on the benches' backs, looking out at the harbour)
+  for (const x of [-44, -28, 20, 36]) put(world, lamp, x, -76.6, Math.PI / 2, [[0, 0, 0.15]]);
+  for (const x of [-36, -16, 16, 30]) seats.push({ obj: put(world, bench, x, -79.5, 0, [[-0.6, 0, 0.45], [0.6, 0, 0.45]]), perches: backs });
+
+  // the station, up on its columns, and the expressway along the top of it
+  const st = [
+    part(G.box(124, 3.2, 7), 0x6f8a78, [0, 6.1, -91]),
+    part(G.box(124.1, 0.9, 7.1), 0x2c3e55, [0, 6.3, -91]), // (the platforms' windows)
+    part(G.box(124.4, 0.5, 7.6), 0x55705f, [0, 4.35, -91]),
+    part(G.box(124, 1.1, 10), 0x8a8d90, [0, 8.25, -91]),
+    part(G.box(124, 0.8, 0.3), 0x9a9da0, [0, 9.2, -86.15]),
+    part(G.box(124, 0.8, 0.3), 0x9a9da0, [0, 9.2, -95.85]),
+  ], cols = [];
+  for (const x of [-56, -40, -24, 24, 40, 56]) {
+    for (const z of [-88.5, -93.5]) {
+      st.push(part(G.box(1.1, 4.1, 1.1), 0x8f9a8f, [x, 2.05, z]));
+      cols.push([x, z, 0.8]);
+    }
+  }
+  world.addOccluder(put(world, merge(st), 0, 0, 0, cols));
+  sign(13, 1.5, 6.2, -87.44, 'CIRCULAR QUAY', '#1d3f2e', '#f1e3b5');
+}
+
+/** the city's towers, crowding in round the far end and up either side, and Sydney Tower over the lot */
+function skyline() {
+  const cols = [0x8fa9bf, 0x6f8faf, 0xb9c3cb, 0xd9d4c5, 0x9fb3c2, 0xc9c1b0, 0xa7b4a8];
+  for (let z = -252; z > -310; z -= 17) {
+    for (let x = -96; x <= 96; x += 24) {
+      const w = rand(11, 16), d = rand(11, 16), h = rand(28, 46) + (-252 - z) * 0.5, b = building(w, h, d, pick(cols));
+      b.position.set(x + rand(-3, 3), h / 2, z + rand(-3, 3));
+      frame.add(b);
+    }
+  }
+  for (const side of [-1, 1]) {
+    for (let z = -104; z > -250; z -= 18) {
+      const w = rand(11, 15), h = rand(22, 42), b = building(w, h, 14, pick(cols));
+      b.position.set(side * (64 + w / 2 + rand(0, 8)), h / 2, z + rand(-3, 3));
+      frame.add(b);
+    }
+  }
+  const tower = vcMesh(merge([
+    part(G.cyl(1.3, 1.7, 80, 12), 0xd9d6cc, [0, 40, 0]),
+    part(G.cyl(4.6, 5.4, 1.8, 20), 0x6f8faf, [0, 66.2, 0]),
+    part(G.cyl(5.6, 4.4, 5.4, 20), 0xd9b25a, [0, 70, 0]),
+    part(G.cyl(5.9, 5.9, 0.6, 20), 0xc49a3e, [0, 72.9, 0]),
+    part(G.cyl(0.35, 0.7, 18, 8), 0xd9d6cc, [0, 82, 0]),
+  ]), { cast: false });
+  tower.position.set(34, 0, -266);
+  frame.add(tower);
 }

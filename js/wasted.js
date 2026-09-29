@@ -102,6 +102,7 @@ export class Wasted {
     document.body.classList.remove('wasted');
     g.hud.clearToast();
     cam.zoom = cam.dist = Math.min(this.zoom, DIG_ZOOM);
+    cam.snapTo(m.pos); // (looking down the way on from there, if it's round the corner from where you went down)
     p.bury(m, cam.yaw); // (facing the camera)
     cam.target.set(m.pos.x, m.pos.y + 1, m.pos.z);
     this.crew = this.gatherCrew(m);

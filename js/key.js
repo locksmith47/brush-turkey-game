@@ -1,15 +1,17 @@
 import * as THREE from 'three';
 import { Foe } from './foe.js';
-import { part, merge, vcMesh, G, limb, clamp, dampAngle, rand, pick, TAU } from './util.js';
+import { part, merge, vcMesh, G, limb, clamp, dampAngle, angleDiff, rand, pick, TAU } from './util.js';
+import { BEACH } from './world.js';
 
 /*
  * A giant golden key. Turkeys haul it (like a carcass) but its destination is the
  * padlocked gate out of its area. Each area's key is bigger than the last, and each
  * is come by a different way:
  *  - the bush's is buried: turkeys have to dig it up first (the dig bar fills as they do)
- *  - the King Ibis wears the city's round his neck; felled, off it flies, back to full size
  *  - Big Kev's rake IS the oval's key (a key rake), and he drops it when he's beaten
- *  - the King Crab's lies sunk in his rock pool
+ *  - the King Crab's lies sunk in his rock pool, at the Shelly Beach end of Manly
+ *  - the ferry keys (on a cork float, so they'd float if they went overboard): Captain Gull nicked them, and
+ *    he's got them in his beak till he's beaten
  */
 const GOLD = 0xf2c230, DARK = 0xc8961e, SOIL = [0x5e3e22, 0x7a5230, 0x8b6238];
 const FLY_T = 1.15; // seconds a key takes to fly out of its holder's grip and land
@@ -81,8 +83,31 @@ function heapGeo() {
   return HEAP;
 }
 
+let FLOAT = null;
+/**
+ * The ferry keys: the key, with a cork float on a ring through its bow (the way a boat's keys are, in case they
+ * go overboard), red and white like a lifebuoy
+ */
+export function ferryKeyGeo() {
+  if (FLOAT) return FLOAT;
+  const p = [
+    keyGeo().clone(),
+    part(G.torus(0.16, 0.03, 6, 16), 0xcfd4d8, [-1.24, 0, 0], [Math.PI / 2, 0, 0]),
+    part(G.cyl(0.26, 0.26, 0.62, 14), 0xe8e4d8, [-1.72, 0, 0], [0, 0, Math.PI / 2]),
+  ];
+  for (const x of [-1.9, -1.72, -1.54]) p.push(part(G.cyl(0.265, 0.265, 0.07, 14), 0xd23a2e, [x, 0, 0], [0, 0, Math.PI / 2]));
+  for (const x of [-2.05, -1.39]) p.push(part(G.sphere(0.26, 14, 8), 0xe8e4d8, [x, 0, 0], [0, 0, 0], [0.4, 1, 1]));
+  FLOAT = merge(p);
+  return FLOAT;
+}
+
 /** the key's own mesh, laid out flat along +x and centred on the key's weight */
 function keyMesh(model) {
+  if (model === 'ferry') {
+    const m = vcMesh(ferryKeyGeo());
+    m.position.x = 0.1; // (the float's the heavy end)
+    return m;
+  }
   if (model === 'rake') {
     const m = vcMesh(keyRakeGeo());
     m.rotation.set(Math.PI / 2, 0, Math.PI / 2); // (the handle along +x, the head flat on the ground)
@@ -95,7 +120,7 @@ function keyMesh(model) {
 }
 
 export class Key extends Foe {
-  /** `spec`: { x, z, size, weight, slots, heading, buried (hp to dig it up), holder ('king' | 'keeper'), model } */
+  /** `spec`: { x, z, size, weight, slots, heading, buried (hp to dig it up), holder ('keeper' | 'captain'), model } */
   constructor(game, spec, gate, index) {
     const s = spec.size, holder = spec.holder ? game.enemies[spec.holder] : null;
     super(game, {
@@ -128,7 +153,7 @@ export class Key extends Foe {
       game.scene.add(this.heap);
       this.wob = 0;
     } else if (holder) {
-      // round the King's neck, or in Big Kev's hands: it's theirs till they're beaten
+      // in Big Kev's hands, or Captain Gull's beak: it's theirs till they're beaten
       holder.key = this;
       this.alive = false;
       this.state = 'held';
@@ -156,7 +181,8 @@ export class Key extends Foe {
 
   /** where the key has to be carried: right up to the padlock, on this side of the gate */
   lockPoint(out) {
-    return out.set(this.gate.x, 0, this.gate.z + this.def.carryR * 0.7 + 0.5);
+    const [dx, dz] = this.gate.d, back = this.def.carryR * 0.7 + 0.5;
+    return out.set(this.gate.x - dx * back, 0, this.gate.z - dz * back);
   }
 
   /**
@@ -232,7 +258,7 @@ export class Key extends Foe {
       // (round rocks, trees and fences rather than getting stuck on them, bar the fence it's headed for)
       const clear = dist > d.carryR + 2.5 ? this.clearWay(ux, uz) : null;
       if (clear) { ux = clear.x; uz = clear.z; }
-      if (this.pos.z < -299) { // the King Crab's key: don't drag landlubbers through the rock pool
+      if (this.game.world.zoneOf(this.pos.x, this.pos.z) === BEACH) { // the King Crab's key: don't drag landlubbers through the rock pool
         const dry = this.dryWay(ux, uz);
         if (dry) { ux = dry.x; uz = dry.z; }
         else if (this.strength(true) < d.weight) return;
@@ -268,7 +294,8 @@ export class Key extends Foe {
     const r = this.rig.root;
     r.position.lerpVectors(this.from, lock, e);
     r.position.y += Math.sin(e * Math.PI) * 1.5;
-    this.heading = this.fromHeading + (Math.PI / 2 - this.fromHeading) * e; // shaft points into the lock (-z)
+    const [dx, dz] = this.gate.d, into = Math.atan2(-dz, dx); // (the shaft pointing into the lock, the way through the gate)
+    this.heading = this.fromHeading + angleDiff(this.fromHeading, into) * e;
     const turn = Math.max(0, Math.min(1, (this.t - 1.0) / 0.3));
     r.rotation.set(turn * Math.PI / 2, this.heading, 0);
     r.scale.setScalar(this.def.scale * (1 - 0.55 * e));

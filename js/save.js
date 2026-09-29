@@ -2,13 +2,14 @@ import { Bin } from './bin.js';
 import { LeafBag } from './keeper.js';
 import { PALETTES } from './leaves.js';
 import { S } from './turkey.js';
+import { LEGS } from './world.js';
 
 /*
  * Saving your progress, in the browser (localStorage): a snapshot of whatever's changed since the game
  * began. That's the mounds (where, how full, what's stuck in them), the flock (every turkey, how big,
  * what kind, where), the litter lying about, which gates, barricades and side gates are open and where
  * the keys are, which foes have been beaten (and whether they've been carried off yet), what's been
- * hauled away, and where you are. Everything else starts out the way a new game does, so a foe that
+ * hauled away, where the ferry's got to, and where you are. Everything else starts out the way a new game does, so a foe that
  * hasn't been beaten is back at home, good as new.
  *
  * Continuing puts it all back quietly (game.loading): no banners, no fanfares, no bins spilling a
@@ -18,7 +19,7 @@ import { S } from './turkey.js';
  * site). Bump VERSION whenever the map changes, so an old save isn't read into a world it doesn't fit.
  */
 const KEY = `turkmin-save:${location.pathname.replace(/index\.html$/, '')}`;
-const VERSION = 2;
+const VERSION = 3;
 const EVERY = 20; // seconds between saves while you play
 const PAL = Object.keys(PALETTES), SHAPES = ['leaf', 'box', 'can'];
 const r1 = (v) => Math.round(v * 10) / 10, r2 = (v) => Math.round(v * 100) / 100;
@@ -88,15 +89,19 @@ export class Saves {
     const g = this.game, w = g.world, b = g.barriers, p = g.player, keys = b.keys;
     // (gone down, or being dug out? then you're back at the mound you're coming back to, the camera as you had it)
     const at = g.wasted.active ? g.wasted.comeBack() : p.pos, zoom = g.wasted.active ? g.wasted.zoom : g.cam.zoom;
+    // (the camera: how far round you'd turned it yourself, from looking down the way on, wherever you are: see main.js)
+    const yaw = g.cam.yaw + g.cam.swing - LEGS[g.cam.leg].yaw;
     return {
       v: VERSION,
       at: Date.now(),
       player: [r2(at.x), r2(at.z), r2(p.heading)],
-      cam: [r2(g.cam.yaw), r2(zoom)],
+      cam: [r2(yaw), r2(zoom)],
       stats: { ...g.stats },
       progress: this.progress.get(),
-      // (a key that's turning in its lock counts: its gate's as good as open)
-      gates: w.gates.map((gt, i) => gt.open || keys[i]?.state === 'unlock'),
+      // (a key that's turning in its lock counts: its gate's as good as open. Unlocked's what counts: the ferry's
+      // gangway is only open while she's in)
+      gates: w.gates.map((gt, i) => gt.unlocked || keys[i]?.state === 'unlock'),
+      ferry: g.ferry.save(),
       sideGates: b.sideGates.map((s) => !s.shut),
       barricades: b.barricades.map((x) => !x.alive),
       keys: keys.map((k) => this.keyState(k)),
@@ -167,7 +172,7 @@ export class Saves {
       p.pos.set(x, g.world.groundHeight(x, z), z);
       g.world.resolve(p.pos, p.radius, g.mounds.colliders);
       p.heading = h;
-      g.cam.yaw = d.cam[0];
+      g.cam.yaw = d.cam[0]; // (your own turn of it: it's swung round to look down the way on, wherever you are, as you start)
       g.cam.zoom = g.cam.dist = d.cam[1];
       g.cam.target.set(p.pos.x, p.pos.y + 1, p.pos.z);
       Object.assign(g.stats, d.stats);
@@ -184,6 +189,8 @@ export class Saves {
 
   loadWorld(d) {
     const g = this.game, b = g.barriers;
+    // (the ferry first: whatever's aboard her goes back where she is)
+    if (d.ferry) g.ferry.load(d.ferry);
     d.barricades.forEach((open, i) => { if (open) b.barricades[i]?.open(true); });
     d.sideGates.forEach((open, i) => { if (open) b.sideGates[i]?.open(true); });
     // foes that were beaten go down again (quietly), and lie where they were, or are done with

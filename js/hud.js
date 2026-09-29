@@ -160,11 +160,11 @@ export class HUD {
     this.set('c-kit', c.kit);
     // (the padded-up count turns up once you've got some)
     if (c.kit && !this.kitShown) { this.kitShown = true; this.el['c-kit-box'].classList.remove('hidden'); }
-    // beach turkey bits of the HUD stay hidden until Bondi's open
-    const bondi = g.bondiOpen();
-    if (bondi !== this.bondiShown) {
-      this.bondiShown = bondi;
-      for (const id of ['throw-type', 'throw-kind', 'c-beach-box', 'help-tab']) this.el[id].classList.toggle('hidden', !bondi);
+    // beach turkey bits of the HUD stay hidden until the beach is open
+    const beach = g.beachOpen();
+    if (beach !== this.beachShown) {
+      this.beachShown = beach;
+      for (const id of ['throw-type', 'throw-kind', 'c-beach-box', 'help-tab']) this.el[id].classList.toggle('hidden', !beach);
     }
     // next throw: the kind Tab picked (or whichever you've got), biggest first
     const cand = g.turkeys.candidate, kind = cand ? cand.kind : g.turkeys.preferred;
@@ -174,7 +174,7 @@ export class HUD {
     this.set('c-leaves', Math.floor(g.stats.leaves));
     this.set('c-hatched', g.stats.hatched);
     // (your mounds: not the ones still waiting for you further on, at the oval and the beach)
-    this.set('c-mounds', g.mounds.list.filter((m) => g.visited.has(g.world.zoneOf(m.pos.z))).length);
+    this.set('c-mounds', g.mounds.list.filter((m) => g.visited.has(g.world.zoneOf(m.pos.x, m.pos.z))).length);
     this.set('c-lost', g.stats.lost);
   }
 }

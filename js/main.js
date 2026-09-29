@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { World, ZONES } from './world.js';
+import { World, ZONES, LEGS, OVAL, BEACH, FERRY, CITY } from './world.js';
 import { Barriers } from './barriers.js';
 import { Enemies } from './enemies.js';
 import { Ghosts } from './ghosts.js';
@@ -17,6 +17,7 @@ import { Input } from './input.js';
 import { Cursor } from './cursor.js';
 import { HUD } from './hud.js';
 import { Toys } from './toys.js';
+import { Ferry } from './ferry.js';
 import { BeachItem, BeachFlag } from './items.js';
 import { Stumps, CricketGear } from './cricket.js';
 import { Bin } from './bin.js';
@@ -25,8 +26,10 @@ import { BUILD_CREW } from './mound.js';
 import { UMBRELLAS, FLAGS } from './props/beach.js';
 import { SUBURB_BINS, SIDE_GATE } from './props/suburb.js';
 import { HOME, START, TRACK, ARENAS, BUSH_BINS, BUSH_LITTER } from './props/bush.js';
-import { CITY_BINS, CITY_BAGS, ALLEY_IBISES, LANE_GATE, THRONE, onKingsWay } from './props/city.js';
+import { CITY_BINS, CITY_BAGS, ALLEY_IBISES, CITY_IBISES, QUAY_GULLS, LANE_GATE, onKingsWay } from './props/city.js';
 import { OVAL_BINS, FIELD_GATE, STUMPS, PLOVER_NESTS, CRICKET_KIT, OVAL_MOUND, OVAL_SNAKES, OVAL_SPIDER, MOWER } from './props/oval.js';
+import { GULL_PATCHES, CAPTAIN_POST, WHARF_BINS } from './props/wharf.js';
+import { LANE } from './props/harbour.js';
 import { DevMenu } from './devmenu.js';
 import { Saves } from './save.js';
 import { Wasted } from './wasted.js';
@@ -50,14 +53,14 @@ const aspect = () => (innerWidth > 0 && innerHeight > 0 ? innerWidth / innerHeig
 const camera = new THREE.PerspectiveCamera(50, aspect(), 0.1, 700);
 
 const game = { scene, camera, renderer, time: 0, timeScale: 1, started: false, paused: false, stats: { leaves: 0, hatched: 0, plucked: 0, thrown: 0, lost: 0, converted: 0, saved: 0, wasted: 0 }, dev: { invincible: false } };
-// nothing about beach turkeys shows up until the gate into Bondi is open (or you've got some anyway)
-game.bondiOpen = () => game.world.gates[3].open || game.turkeys.counts.beach > 0 || game.turkeys.list.some((t) => t.kind === 'beach');
+// nothing about beach turkeys shows up until the gate onto the beach is open (or you've got some anyway)
+game.beachOpen = () => game.world.gates[OVAL].open || game.turkeys.counts.beach > 0 || game.turkeys.list.some((t) => t.kind === 'beach');
 let shakeAmt = 0;
 game.shake = (a) => { if (!game.loading) shakeAmt = Math.min(1.2, shakeAmt + a); };
 game.audio = new Audio();
 game.ambience = new Ambience(game); // (the sound of wherever you are, under everything else)
 game.flyovers = new Flyovers(game); // (galahs, cockies and gulls going over, every so often)
-game.footprints = new Footprints(game); // (in the sand at Bondi)
+game.footprints = new Footprints(game); // (in the sand at Manly)
 game.world = new World(game);
 game.barriers = new Barriers(game);
 game.fx = new FX(game);
@@ -71,6 +74,7 @@ game.player = new Player(game);
 game.turkeys = new Turkeys(game);
 game.enemies = new Enemies(game);
 game.toys = new Toys(game);
+game.ferry = new Ferry(game); // (tied up at Manly Wharf, going nowhere till the keys are got back off Captain Gull)
 game.cursor = new Cursor(game);
 window.game = game; // handy for poking around in devtools
 
@@ -91,21 +95,22 @@ for (const a of ARENAS) {
   b.guards = a.foes.map(([kind, back, side]) => enemies.spawn(kind, ...b.guardPost(back, side)));
   barricade[a.at] = b;
 }
-// the locals: ibises everywhere (one to most of the backyards, and up and down the city's street and back
-// alley), giants by the key in the backyards and down the alley, a gang of them big and small picking over
-// the bins down the bin alley, and at the end of it the King, on his throne of bins in front of the way
-// out, with the city's key round his neck
+// the locals: ibises everywhere (one to most of the backyards, and round the Quay and up and down the city's
+// street and back alley), giants by the key in the backyards and down the alley, a gang of them big and small
+// picking over the bins down the bin alley, and at the end of it the King, on his throne of bins in front of
+// the Town Hall: the end of the line
 for (const [x, z] of [[4, -58], [-28, -52], [26, -78], [4, -90]]) enemies.spawn('ibis', x, z);
 enemies.spawn('giant', -30, -80);
-for (const [x, z] of [[-22, -108], [16, -110], [12, -133], [38, -133], [22, -153]]) enemies.spawn('ibis', x, z);
-enemies.spawn('giant', -32, -133);
+for (const [kind, x, z] of CITY_IBISES) enemies.spawn(kind, x, z);
 for (const [kind, x, z] of ALLEY_IBISES) enemies.spawn(kind, x, z, 2.5); // (they don't stray far from their bins)
-enemies.spawn('king', THRONE.x, THRONE.z + THRONE.front);
+enemies.spawn('king', world.throne.down.x, world.throne.down.z);
 // snakes lurking in the litter (and on the way round the oval), funnel-webs in their burrows (one out past
 // the way out of the oval), and Big Kev on his oval, raking it with the oval's key (a key rake)
 for (const [x, z] of [[34, -60], ...OVAL_SNAKES]) enemies.spawn('snake', x, z);
 for (const [x, z] of [[-4, -79], OVAL_SPIDER]) enemies.spawn('spider', x, z);
-enemies.spawn('keeper', 0, -264);
+enemies.spawn('keeper', 0, -142);
+// and at Manly Wharf, Captain Gull, standing guard by the gangway with the ferry keys in his beak
+enemies.spawn('captain', ...CAPTAIN_POST, CAPTAIN_POST);
 // on the oval: its own mound, with some of the team's kit in it already; a pair of plovers to each nest,
 // swooping anything that comes near (a taste of Big Kev); the stumps to dig up, and the cricket gear left
 // lying about
@@ -123,10 +128,8 @@ game.barriers.spawnKeys();
 for (const s of [SIDE_GATE, LANE_GATE, FIELD_GATE]) game.barriers.addSideGate(s.a, s.b, s.latch, s.kind);
 // wheelie bins to knock over: green ones spill garden clippings, red ones rubbish, yellow ones recycling
 // (and down the city's bin alley, bin bags to tear open)
-for (const [kind, x, z, face] of [...BUSH_BINS, ...SUBURB_BINS, ...CITY_BINS, ...OVAL_BINS]) {
-  const overflowing = kind === 'red' && z < -98 && z > -220; // city bins are always overflowing
-  enemies.list.push(new Bin(game, kind, x, z, face, overflowing));
-}
+for (const [kind, x, z, face] of [...BUSH_BINS, ...SUBURB_BINS, ...OVAL_BINS, ...WHARF_BINS]) enemies.list.push(new Bin(game, kind, x, z, face));
+for (const [kind, x, z, face] of CITY_BINS) enemies.list.push(new Bin(game, kind, x, z, face, kind === 'red')); // (the city's red bins are always overflowing)
 for (const [x, z] of CITY_BAGS) enemies.list.push(new BinBag(game, x, z));
 // the backyard playground (and the washing line, which is basically a merry-go-round)
 game.toys.addTrampoline(30, -84);
@@ -134,31 +137,38 @@ game.toys.addSwingSet(-7, -43, 0);
 game.toys.addHoist(-26, -46);
 // and out in the bush, the gums' low branches to roost on
 for (const r of world.roosts) game.toys.addRoost(r);
-// in the city, the backs of the park benches, the bus stop's seat and the fountain's rim
-for (const st of world.city.seats) game.toys.addPerches(st.obj, st.perches, { spread: 1, time: [10, 30] });
+// in the city, the backs of the park benches, the bus stop's seat and the fountain's rim (and the benches along
+// the Quay, and down the wharf at Manly)
+for (const st of [...world.city.seats, ...world.wharf.seats]) game.toys.addPerches(st.obj, st.perches, { spread: 1, time: [10, 30] });
 // at the oval, the stands (turkeys come and watch) and Big Kev's ride-on mower
 for (const st of world.oval.stands) game.toys.addPerches(st.obj, st.perches, { spread: 3, time: [15, 40] });
 game.toys.addMower(...MOWER);
 
-// Bondi: a beach mound to feed with stolen gear, crabs, and the King Crab in his rock pool
-mounds.add(-22, -316, false, 'beach');
-for (const [x, z] of [[-6, -322], [6, -340], [-16, -356], [8, -368], [22, -330]]) enemies.spawn('crab', x, z);
-enemies.spawn('kingcrab', -6, -389);
+// Manly: a beach mound to feed with stolen gear, crabs, and the King Crab in his rock pool at the Shelly Beach end
+mounds.add(-18, -202, false, 'beach');
+for (const [x, z] of [[-12, -218], [6, -230], [22, -208], [34, -232], [-4, -246]]) enemies.spawn('crab', x, z);
+enemies.spawn('kingcrab', 55, -218);
 const loot = [
-  ['towel', -14, -312], ['ball', -8, -316], ['spade', -4, -320], ['bucket', -3, -319], ['thong', -18, -320], ['thong', -17.5, -321],
-  ['sunscreen', -12, -331], ['towel', -22, -333], ['sunnies', -21, -336], ['hat', -26, -326], ['noodle', 2, -328], ['boogie', 6, -326],
-  ['esky', -10, -346], ['umbrella', -26, -346], ['towel', -4, -354], ['ball', 0, -360], ['spade', -20, -350], ['bucket', -12, -366],
-  ['towel', 4, -372], ['thong', -8, -362], ['sunnies', -24, -360], ['hat', -2, -346], ['boogie', 10, -354], ['surfboard', 8, -318],
-  ['noodle', -28, -372], ['sunscreen', -16, -376],
+  ['towel', -22, -210], ['ball', -18, -216], ['spade', -14, -220], ['bucket', -15, -221], ['thong', -14, -206], ['thong', -13, -206.5],
+  ['sunscreen', -3, -212], ['towel', -1, -202], ['sunnies', 2, -203], ['hat', -8, -198], ['noodle', -6, -226], ['boogie', -8, -230],
+  ['esky', 12, -214], ['umbrella', 12, -198], ['towel', 20, -220], ['ball', 26, -224], ['spade', 16, -204], ['bucket', 32, -212],
+  ['towel', 38, -228], ['thong', 28, -216], ['sunnies', 26, -200], ['hat', 12, -222], ['boogie', 20, -234], ['surfboard', -16, -232],
+  ['noodle', 38, -196], ['sunscreen', 42, -208],
   // beach chairs set up under the umbrellas
-  ['chair', -12, -317], ['chair', -18.2, -337.2], ['chair', -4.4, -354.2], ['chair', -22.4, -372], ['chair', 1.8, -370.2],
+  ['chair', -17, -212], ['chair', 3.2, -205.8], ['chair', 20.2, -219.6], ['chair', 38, -201.6], ['chair', 36.2, -225.8],
   // things you need a swimmer to fetch
-  ['surfboard', 33, -349], ['esky', 31, -352], ['ball', -2, -339], ['sunnies', -1.5, -338], ['towel', 12, -381],
+  ['surfboard', 15, -257], ['esky', 18, -255], ['ball', 5, -222], ['sunnies', 4, -222.5], ['towel', 47, -236],
 ];
 for (const [type, x, z] of loot) enemies.list.push(new BeachItem(game, type, x, z));
 // the lifesaving flags have to be dug out first; the umbrellas are bouncy
 for (const [x, z] of FLAGS) enemies.list.push(new BeachFlag(game, x, z));
 for (const [x, z, a, b] of UMBRELLAS) game.toys.addUmbrella(x, z, a, b);
+// the wharf's seagulls, a few to each spilt packet of chips (and a couple more down at the Quay): they take it in
+// turns to swoop, no more than a couple at a time (see Plover.mateBusy)
+for (const [x, z, n] of [...GULL_PATCHES, ...QUAY_GULLS]) {
+  const crew = Array.from({ length: n }, (_, i) => enemies.spawn('gull', x + Math.sin((i / n) * TAU) * 1.4, z + Math.cos((i / n) * TAU) * 1.4, [x, z]));
+  for (const e of crew) e.crew = crew;
+}
 // you start out behind the mound, with a few turkeys poking up out of the ground in front of you
 [[-1.6, -4.6, 0], [1.4, -4.2, 0], [0, -5.6, 0], [-2.9, -3.1, 0], [2.8, -2.9, 1], [-0.3, -3.1, 2]]
   .forEach(([x, z, s]) => { const t = turkeys.spawnSprout(START.x + x, START.z + z, s); t.growT = 0; });
@@ -168,11 +178,11 @@ player.pos.set(START.x, world.groundHeight(START.x, START.z), START.z);
 // saving your progress (see Saves): all of the above is what a new game starts out with, and a save says
 // what's changed since. (Plus how far along you are: the areas you've been to, the tips you've been given)
 const saves = new Saves(game, {
-  get: () => ({ visited: [...visited], tip: tipIdx, told: keyHolders.map((h) => !!h.told), far: farPrompted, hurt: !!player.toldHurt, dugOut: game.wasted.told }),
+  get: () => ({ visited: [...visited], tip: tipIdx, told: bosses.map((h) => !!h.told), far: farPrompted, hurt: !!player.toldHurt, dugOut: game.wasted.told }),
   set: (d) => {
     for (const z of d.visited ?? []) visited.add(z);
     tipIdx = Math.max(tipIdx, d.tip ?? 0);
-    keyHolders.forEach((h, i) => { h.told ||= !!d.told?.[i]; });
+    bosses.forEach((h, i) => { h.told ||= !!d.told?.[i]; });
     farPrompted ||= !!d.far;
     player.toldHurt ||= !!d.hurt;
     game.wasted.told ||= !!d.dugOut;
@@ -182,17 +192,49 @@ saves.register();
 game.saves = saves;
 
 /* ------------------------------------------------------------------ camera */
-const cam = { yaw: 0, dist: 12, zoom: 12, pitch: 0.74, tilt: 0, ahead: 0, target: new THREE.Vector3(START.x, 1, START.z) };
+// (`leg`: the leg of the map it's looking down, see LEGS; `swing`: how much further round it's still to swing to
+// get there; `sail`: 0..1, how far it's sat back to take in the harbour, out on the ferry)
+const cam = { yaw: 0, dist: 12, zoom: 12, pitch: 0.74, tilt: 0, ahead: 0, leg: 0, swing: 0, sail: 0, target: new THREE.Vector3(START.x, 1, START.z) };
 game.cam = cam;
 const MIN_DIST = 3.2, MAX_DIST = 30;
+const TURN_IN = 2.5; // metres into a place on the next leg before the camera swings round (so it doesn't flip back and forth at the gate)
+const SWING = 2.4; // how quickly it swings round (1/s: see damp)
+const SAIL = { dist: 6, pitch: 0.5, up: 2.5 }; // out on the ferry: metres further back, radians flatter and metres higher it looks (at your usual zoom)
+const FOG = [scene.fog.near, scene.fog.far], SAIL_FOG = [95, 320]; // metres: where the haze starts, and where there's nothing but (and out on the harbour)
 const focus = new THREE.Vector3();
+
+/** swing round to look down leg `leg` (all at once, with `snap`) */
+function turnTo(leg, snap = false) {
+  cam.swing += LEGS[leg].yaw - LEGS[cam.leg].yaw;
+  cam.leg = leg;
+  if (snap) { cam.yaw += cam.swing; cam.swing = 0; }
+}
+/** straight round to look down the leg `at` is on (for turning up somewhere all at once: coming back to a mound, say) */
+cam.snapTo = (at) => turnTo(ZONES[world.zoneOf(at.x, at.z)].leg, true);
+
 function updateCamera(dt) {
+  // round the corner onto the beach, the camera swings round with you to look down the way on (and so does
+  // the sun, to stay over the same shoulder)
+  const zone = world.zoneOf(player.pos.x, player.pos.z), leg = ZONES[zone].leg;
+  if (leg !== cam.leg && world.depthIn(zone, player.pos.x, player.pos.z) > TURN_IN) turnTo(leg);
+  if (cam.swing) {
+    const d = Math.abs(cam.swing) < 1e-3 ? cam.swing : cam.swing * (1 - Math.exp(-SWING * dt));
+    cam.yaw += d;
+    cam.swing -= d;
+  }
+  world.setSunYaw(LEGS[cam.leg].yaw - cam.swing);
+  // out on the ferry, it sits back and looks out, and you can see further: there's a harbour to take in (less
+  // so the closer you've zoomed in)
+  cam.sail = damp(cam.sail, zone === FERRY ? 1 : 0, 1.2, dt);
+  const out = cam.sail * smoothstep(MIN_DIST, 12, cam.zoom);
+  scene.fog.near = lerp(FOG[0], SAIL_FOG[0], cam.sail);
+  scene.fog.far = lerp(FOG[1], SAIL_FOG[1], cam.sail);
   // zooming in swings the camera down towards eye level so you can see his face
-  cam.dist = damp(cam.dist, cam.zoom, 10, dt);
+  cam.dist = damp(cam.dist, cam.zoom + SAIL.dist * out, 10, dt);
   const close = 1 - smoothstep(MIN_DIST, 11, cam.dist);
   // (down the bin alley and in the King's court, it looks further ahead: there he is, on his throne at the end)
   cam.ahead = damp(cam.ahead, enemies.king?.alive && onKingsWay(player.pos.x, player.pos.z) ? -0.22 : 0, 1.5, dt);
-  cam.pitch = clamp((cam.dist > 11 ? 0.74 + (cam.dist - 11) * 0.012 : lerp(0.74, 0.1, close)) + cam.tilt + cam.ahead, 0.04, 1.45);
+  cam.pitch = clamp((cam.dist > 11 ? 0.74 + (cam.dist - 11) * 0.012 : lerp(0.74, 0.1, close)) + cam.tilt + cam.ahead - SAIL.pitch * out, 0.04, 1.45);
   const f = player.focus(focus); // (him, or the middle of him when he's lying there, out cold)
   if (game.wasted.stage === 'down') {
     // (up the screen a bit, so he's lying there above the WASTED, not hidden behind it)
@@ -201,7 +243,7 @@ function updateCamera(dt) {
     f.z += Math.cos(cam.yaw) * up;
   }
   cam.target.x = damp(cam.target.x, f.x, 8, dt);
-  cam.target.y = damp(cam.target.y, f.y + lerp(0.8, 1.55, close), 8, dt);
+  cam.target.y = damp(cam.target.y, f.y + lerp(0.8, 1.55, close) + SAIL.up * out, 8, dt);
   cam.target.z = damp(cam.target.z, f.z, 8, dt);
   const h = Math.cos(cam.pitch) * cam.dist;
   camera.position.set(
@@ -367,7 +409,7 @@ function handleInput(dt) {
   if (input.pressed('Tab')) {
     if (turkeys.cyclePreferred()) audio.peep(turkeys.candidate?.stage ?? 0);
     else {
-      if (game.bondiOpen()) hud.toast(turkeys.preferred === 'beach' ? 'No normal turkeys with you' : 'No beach turkeys with you', 1.4);
+      if (game.beachOpen()) hud.toast(turkeys.preferred === 'beach' ? 'No normal turkeys with you' : 'No beach turkeys with you', 1.4);
       audio.nope();
     }
   }
@@ -376,6 +418,8 @@ function handleInput(dt) {
 }
 
 /* ------------------------------------------------------------------ tips */
+/** which area you're in (see ZONES) */
+const zoneNow = () => world.zoneOf(player.pos.x, player.pos.z);
 /** is the player in (or within `pad` of) one of the bush's clearings? */
 const nearClearing = (name, pad = 6) => {
   const [x, z, r] = TRACK.clearings[name];
@@ -390,11 +434,11 @@ const tips = [
   { when: () => nearClearing('ibis'), text: 'A barricade blocks the way on! Throw turkeys at it to knock it down, and some ON the ibis guarding it' },
   { when: () => nearClearing('gate'), text: 'The gate is padlocked. Find the giant golden key (look for the light beam)!' },
   { when: () => !barricade.guards.up, text: "The key's buried! Throw turkeys at it to dig it up, then enough of them can carry it to the gate" },
-  { when: () => world.gates[0].open && world.zoneOf(player.pos.z) === 1, text: 'Each key is bigger than the last: you will need a bigger flock!' },
-  { when: () => world.zoneOf(player.pos.z) === 4, text: 'Bondi! Steal beach gear for the beach mound: it hatches BEACH turkeys' },
+  { when: () => world.gates[0].open && zoneNow() === 1, text: 'Each key is bigger than the last: you will need a bigger flock!' },
+  { when: () => zoneNow() === BEACH, text: 'Manly! Steal beach gear for the beach mound: it hatches BEACH turkeys' },
   { when: () => turkeys.list.some((t) => t.kind === 'beach' && t.state === 'follow'), text: 'Beach turkeys can swim! Others drown in deep water unless you whistle them out' },
   { when: () => turkeys.list.some((t) => t.kind === 'beach' && t.state === 'follow'), text: 'Tab swaps between normal and beach turkeys. The biggest always get thrown first' },
-  { when: () => world.zoneOf(player.pos.z) === 4 && turkeys.list.some((t) => t.kind === 'beach'), text: 'Out of beach gear? Throw normal turkeys into a beach mound to turn them into beach turkeys' },
+  { when: () => zoneNow() === BEACH && turkeys.list.some((t) => t.kind === 'beach'), text: 'Out of beach gear? Throw normal turkeys into a beach mound to turn them into beach turkeys' },
 ];
 let tipIdx = 0, tipT = 1.5;
 function updateTips(dt) {
@@ -405,15 +449,22 @@ function updateTips(dt) {
 }
 
 /* ------------------------------------------------------------------ dev menu (~) */
-const ZONE_SPAWN = [[START.x, START.z], [6, -44], [-8, -104], [-20, -226], [-16, -306], [-30, -406]];
+// (just through the gate into each; and on the ferry, on her deck, wherever she's got to)
+const ZONE_SPAWN = [[START.x, START.z], [6, -44], [-8, -104], [-16, -184], [76, -188], null, [362, -224]];
 new DevMenu(game, {
   goto(v) {
     const zi = +v;
     for (let i = 0; i < zi; i++) game.barriers.unlock(i, true);
-    const [x, z] = ZONE_SPAWN[zi];
+    const [x, z] = ZONE_SPAWN[zi] ?? [game.ferry.x - 10, LANE + 4];
     player.pos.set(x, world.groundHeight(x, z), z);
     cam.target.set(x, player.pos.y + 1, z);
-    turkeys.list.filter((t) => t.state === 'follow').forEach((t, i) => t.pos.set(x + (i % 6) * 0.7 - 2, 0, z + 2 + Math.floor(i / 6) * 0.7));
+    cam.snapTo(player.pos);
+    // (your flock comes too, bunched up behind you)
+    const [dx, dz] = LEGS[ZONES[zi].leg].dir;
+    turkeys.list.filter((t) => t.state === 'follow').forEach((t, i) => {
+      const back = 2 + Math.floor(i / 6) * 0.7, side = (i % 6) * 0.7 - 1.75;
+      t.pos.set(x - dx * back - dz * side, 0, z - dz * back + dx * side);
+    });
     hud.zoneTitle(ZONES[zi].name);
   },
   spawn(v) {
@@ -458,10 +509,11 @@ const visited = new Set([0]);
 game.visited = visited; // (the HUD only counts the mounds in places you've been)
 let zonePrompt = null; // { t, text }: a hint shown a moment after arriving somewhere new
 let farPrompted = false;
-// the bosses with a key on them: said the first time you're close to one
-const keyHolders = [
-  { boss: enemies.king, text: "The King Ibis wears the key to the gate round his neck! Fell him and it's yours" },
+// the bosses (and what they've got on them): said the first time you're close to one
+const bosses = [
+  { boss: enemies.king, text: "The King Ibis, with the key to the city round his neck! Fell him and the city's yours" },
   { boss: enemies.keeper, text: "Big Kev's rake is a key rake: it opens the gate out of the oval! Beat him and he'll drop it" },
+  { boss: enemies.captain, text: "Captain Gull's got the ferry keys in his beak! Bring him down and they're yours" },
 ];
 function updateZones(dt) {
   // the bush's track is a long walk: by the second clearing, it's time for a mound closer to hand
@@ -469,19 +521,21 @@ function updateZones(dt) {
     farPrompted = true;
     zonePrompt = { t: 2, text: `It's a long way back to the mound! Press M and ${BUILD_CREW} of your turkeys will scratch up a new one` };
   }
-  const z = world.zoneOf(player.pos.z);
+  const z = zoneNow();
   if (!visited.has(z)) {
     visited.add(z);
     hud.zoneTitle(ZONES[z].name);
     // a new area is a long walk from the old mounds: time to build one here
     if (z === 1) zonePrompt = { t: 3.5, text: `Press M and ${BUILD_CREW} of your turkeys will scratch up a new mound here` };
     // (the oval's got one already, with a bit of the team's kit in it)
-    if (z === 3) zonePrompt = { t: 3.5, text: "The oval's mound has cricket gear in it already! Throw turkeys at the gear lying about and they'll carry it in" };
-    // (and the wharf's the end of the line, for now: the ferry's just given you a toot)
-    if (z === 5) zonePrompt = { t: 3.5, text: "You made it to the wharf! That's the end of the line, for now" };
+    if (z === OVAL) zonePrompt = { t: 3.5, text: "The oval's mound has cricket gear in it already! Throw turkeys at the gear lying about and they'll carry it in" };
+    // (out on the harbour, there's nothing to do but take in the sights)
+    if (z === FERRY) zonePrompt = { t: 4, text: 'Sit back and enjoy the view! Z and C swing the camera round' };
+    // (and over the other side, the King's waiting)
+    if (z === CITY) zonePrompt = { t: 3.5, text: 'Circular Quay! The King Ibis holds court at the Town Hall, at the end of the bin alley' };
   }
   if (zonePrompt && (zonePrompt.t -= dt) <= 0) { hud.toast(zonePrompt.text, 6); zonePrompt = null; }
-  for (const h of keyHolders) {
+  for (const h of bosses) {
     if (h.told || !h.boss?.alive || Math.hypot(h.boss.pos.x - player.pos.x, h.boss.pos.z - player.pos.z) > 24) continue;
     h.told = true;
     hud.toast(h.text, 5);
@@ -515,6 +569,7 @@ function step(real) {
   if (game.started && !down) { updateAim(); handleInput(dt); updateTips(dt); }
   else { letGo(); updateAim(); }
 
+  game.ferry.update(dt); // (she carries everyone aboard before they get moving themselves)
   player.update(dt, move, target);
   updateCamera(dt);
   mounds.update(dt, camera);
@@ -562,7 +617,7 @@ if (save) {
   playBtn.textContent = 'Continue';
   newBtn.classList.remove('hidden');
   const note = document.getElementById('save-note');
-  const where = ZONES[world.zoneOf(save.player[1])].name, when = new Date(save.at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  const where = ZONES[world.zoneOf(save.player[0], save.player[1])].name, when = new Date(save.at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
   note.textContent = `Carry on in ${where} (saved ${when})`;
   note.classList.remove('hidden');
 }
@@ -573,8 +628,9 @@ function start() {
   hud.show();
   hud.soundOff(audio.off); // (turned off last time: it still is)
   saves.on = true; // (from now on, it saves as you go)
+  cam.snapTo(player.pos); // (looking down the way on, from wherever you are)
   setTimeout(() => { input.endFrame(); input.lmb = false; game.started = true; }, 50);
-  setTimeout(() => hud.zoneTitle(ZONES[world.zoneOf(player.pos.z)].name), 400);
+  setTimeout(() => hud.zoneTitle(ZONES[zoneNow()].name), 400);
 }
 
 playBtn.addEventListener('click', (e) => {

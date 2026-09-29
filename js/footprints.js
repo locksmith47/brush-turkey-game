@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { canvasTexture, clamp, TAU } from './util.js';
+import { BEACH } from './world.js';
 
 /*
- * Footprints in the sand at Bondi: your boots, and the flock's three-toed prints trailing after you, pressed in
+ * Footprints in the sand at Manly: your boots, and the flock's three-toed prints trailing after you, pressed in
  * as each foot comes down, and fading as the sand settles back. They're printed into the sand (darkening it,
  * the way a hollow in it would), not stuck on top, so they sit right in it, shadows and all.
  */
@@ -14,7 +15,6 @@ const BOOT_SIDE = 0.11; // metres from the middle of you out to each foot
 const BIRD = 0.22; // metres across a full-grown turkey's print (the chicks' are smaller)
 const BIRD_SIDE = 0.07; // metres from the middle of a full-grown turkey out to each foot
 const MOVING = 0.3; // m/s: slower than that, you're standing about, not walking
-const ROCKS = -377; // z: north of here the beach turns to rock
 // how much a print darkens the sand (fractions of red, green and blue: the blue most, so it looks a bit damp)
 const DEPTH = new THREE.Color().setRGB(0.3, 0.34, 0.42, THREE.SRGBColorSpace);
 
@@ -125,7 +125,7 @@ class Prints {
 }
 
 /** somewhere a print shows: the dry sand (not the water, the promenade or the rocks) */
-const onSand = (world, x, z) => z > ROCKS && world.isSand(x, z);
+const onSand = (world, x, z) => world.isSand(x, z);
 
 export class Footprints {
   constructor(game) {
@@ -138,10 +138,10 @@ export class Footprints {
     this.showing = false;
   }
 
-  /** every frame, at Bondi (or while there are prints still to fade): a print wherever a foot's come down */
+  /** every frame, at the beach (or while there are prints still to fade): a print wherever a foot's come down */
   update(dt) {
     const g = this.game, w = g.world, p = g.player, now = g.time;
-    const here = w.zoneOf(p.pos.z) === 4;
+    const here = w.zoneOf(p.pos.x, p.pos.z) === BEACH;
     if (!here && !this.showing) return;
     if (here) {
       // you: left foot, right foot, as he walks (not up in the air, or down and out)

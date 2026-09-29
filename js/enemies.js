@@ -5,6 +5,7 @@ import { Spider } from './spider.js';
 import { Keeper } from './keeper.js';
 import { Crab } from './crab.js';
 import { Plover } from './plover.js';
+import { Gull, CaptainGull } from './gull.js';
 
 /* Owns every foe (and every carcass / leaf bag waiting to be hauled). */
 export class Enemies {
@@ -15,11 +16,16 @@ export class Enemies {
     this._v = new THREE.Vector3();
   }
 
-  /** `arg`: for a plover, the [x, z] of the nest it guards; for an ibis, how far it wanders from (x, z) */
+  /**
+   * `arg`: for a plover, the [x, z] of the nest it guards (a gull, the chips it's guarding; Captain Gull, where
+   * he stands guard); for an ibis, how far it wanders from (x, z)
+   */
   spawn(kind, x, z, arg = null) {
     const g = this.game;
     const e = kind === 'snake' ? new Snake(g, x, z)
       : kind === 'plover' ? new Plover(g, x, z, arg ?? [x, z])
+      : kind === 'gull' ? new Gull(g, x, z, arg ?? [x, z])
+      : kind === 'captain' ? new CaptainGull(g, x, z, arg ?? [x, z])
       : kind === 'spider' ? new Spider(g, x, z)
         : kind === 'keeper' ? new Keeper(g, x, z)
           : kind === 'crab' ? new Crab(g, 'crab', x, z)
@@ -29,6 +35,7 @@ export class Enemies {
     if (kind === 'king') this.king = e;
     if (kind === 'keeper') this.keeper = e;
     if (kind === 'kingcrab') this.kingCrab = e;
+    if (kind === 'captain') this.captain = e;
     return e;
   }
 

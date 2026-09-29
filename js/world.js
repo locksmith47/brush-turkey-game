@@ -3,53 +3,78 @@ import { vcMat, toonMat, clamp, smoothstep } from './util.js';
 import { buildBush, BUSH_SOUTH, HOME, TRACK } from './props/bush.js';
 import { Track } from './track.js';
 import { buildSuburb, BACKYARDS } from './props/suburb.js';
-import { buildCity, STREETS } from './props/city.js';
 import { buildOval, FIELD } from './props/oval.js';
 import { buildBeach, beachGround, waterAt, shoreDir, seaWave, isSand } from './props/beach.js';
+import { buildWharf, wharfGround, DECK } from './props/wharf.js';
+import { buildHarbour } from './props/harbour.js';
+import { buildCity, STREETS, quayGround } from './props/city.js';
 
-/* The map is a long strip running north (-z): bush -> backyards -> city -> oval -> Bondi. */
-export const BOUNDS = { xMin: -46, xMax: 46, zMin: -416, zMax: BUSH_SOUTH };
+/*
+ * The map runs the way the turkeys came, north to south: out of the bush, through the backyards and across
+ * the oval (heading -z), to Manly Beach, where it turns right, south, along the sand (heading +x) to the
+ * wharf, over the harbour on the ferry, and into the city. Each leg has its own way ahead (and the camera
+ * swings round to face down the second one as you come out onto the beach).
+ */
+export const LEGS = [
+  { yaw: 0, dir: [0, -1] },
+  { yaw: -Math.PI / 2, dir: [1, 0] },
+];
+/** the areas, in order: what's in each ([x0, z0, x1, z1]: its bounds) and which leg it's on */
 export const ZONES = [
-  { name: 'The Bush', zMin: -38 },
-  { name: 'The Backyards', zMin: -98 },
-  { name: 'The City', zMin: -220 },
-  { name: 'The Oval', zMin: -300 },
-  { name: 'Bondi Beach', zMin: -400 },
-  { name: 'The Wharf', zMin: -416 },
+  { name: 'The Bush', rect: [-46, -38, 46, BUSH_SOUTH], leg: 0 },
+  { name: 'The Backyards', rect: [-46, -98, 46, -38], leg: 0 },
+  { name: 'The Oval', rect: [-46, -178, 46, -98], leg: 0 },
+  { name: 'Manly Beach', rect: [-46, -270, 70, -178], leg: 1 },
+  { name: 'Manly Wharf', rect: [70, -244, 140, -184], leg: 1 },
+  { name: 'The Manly Ferry', rect: [140, -270, 356, -178], leg: 1 }, // (bounds: wherever the deck's got to, see Ferry)
+  { name: 'The City', rect: [356, -270, 502, -178], leg: 1 },
 ];
+export const OVAL = 2, BEACH = 3, WHARF = 4, FERRY = 5, CITY = 6;
+/**
+ * The fences between them, each with a gate in it at (x, z), going through which (along `d`) takes you on to
+ * the next area. `span`: how far the fence runs either way along its line (it's right across the area, by
+ * default). The ferry's two gangways (`ferry`) are only open while the ferry's in at that end, and there's no
+ * padlock at all on the one at Circular Quay (`lock` false): the ferry keys are for the wharf's
+ */
 export const FENCES = [
-  { z: -38, kind: 'wood', gateX: 6, gateHW: 2.6 },
-  { z: -98, kind: 'wire', gateX: -8, gateHW: 2.6 },
-  { z: -220, kind: 'picket', gateX: -20, gateHW: 2.6 },
-  { z: -300, kind: 'rail', gateX: -16, gateHW: 2.6 },
-  { z: -400, kind: 'rail', gateX: -30, gateHW: 2.6 },
+  { x: 6, z: -38, d: [0, -1], kind: 'wood' },
+  { x: -8, z: -98, d: [0, -1], kind: 'wire' },
+  { x: -16, z: -178, d: [0, -1], kind: 'rail' },
+  { x: 70, z: -188, d: [1, 0], kind: 'rail', span: [-249, -175] },
+  { x: 140, z: -224, d: [1, 0], kind: 'rail', span: [-246, -182], ferry: true },
+  { x: 356, z: -224, d: [1, 0], kind: 'rail', span: [-273, -175], ferry: true, lock: false },
 ];
-const _v = new THREE.Vector3();
+const SUN = new THREE.Vector3(18, 40, 14); // (where the sun is from you, looking down the first leg)
+const _v = new THREE.Vector3(), _k = new THREE.Vector3();
 
 export class World {
   constructor(game) {
     this.game = game;
     this.scene = game.scene;
-    this.bounds = BOUNDS;
     this.colliders = []; // circles {x, z, r}
     this.segments = []; // capsules {ax, az, bx, bz, r, active, blockThrow}
     this.treeSpots = []; // {x, z, h, palette}
     this.roosts = []; // low branches turkeys can roost on: {tree, x, z, perches, spot} (the toys pick these up)
     this.swayers = [];
     this.occluders = []; // buildings that go see-through when they're in the way of the camera
-    this.gates = FENCES.map((f) => ({ x: f.gateX, z: f.z, hw: f.gateHW, kind: f.kind, open: false }));
+    this.gates = FENCES.map((f) => ({
+      x: f.x, z: f.z, d: f.d, hw: f.hw ?? 2.6, kind: f.kind, ferry: !!f.ferry, lock: f.lock ?? true,
+      span: f.span ?? (f.d[0] ? [-273, -175] : [-49, 49]), open: false, unlocked: f.lock === false,
+    }));
     this.track = this.zoneTrack(0, TRACK); // the way through the bush (the scrub either side of it is impassable)
-    // each zone's lie of the land (where there's any to speak of: the beach and the wharf are wide open)
-    this.tracks = [this.track, this.zoneTrack(1, BACKYARDS), this.zoneTrack(2, STREETS), this.zoneTrack(3, FIELD)];
+    // each zone's lie of the land (where there's any to speak of: the beach is wide open, and the ferry's all deck)
+    this.tracks = [this.track, this.zoneTrack(1, BACKYARDS), this.zoneTrack(2, FIELD), null, null, null, this.zoneTrack(CITY, STREETS)];
 
     this.buildSky();
     this.buildLights();
     this.buildGround();
     buildBush(this);
     buildSuburb(this);
-    this.city = buildCity(this);
     this.oval = buildOval(this); // (its stands, for turkeys to sit in: see main.js)
     this.beach = buildBeach(this);
+    this.wharf = buildWharf(this);
+    this.harbour = buildHarbour(this);
+    this.city = buildCity(this);
   }
 
   /** zone i's track (see Track), with room to get through the gates in and out of it */
@@ -57,19 +82,49 @@ export class World {
     if (!spec.rooms) spec = Track.fromPaths(spec);
     const rooms = [...spec.rooms];
     for (const g of [this.gates[i - 1], this.gates[i]]) {
-      if (g) rooms.push({ rect: [g.x - g.hw - 0.5, g.z - 3, g.x + g.hw + 0.5, g.z + 3], ground: 'dirt' });
+      if (!g) continue;
+      // (3 m either side of it, and the width of the gateway: along x for a fence across the first leg, z the second)
+      const ex = g.d[0] ? 3 : g.hw + 0.5, ez = g.d[0] ? g.hw + 0.5 : 3;
+      rooms.push({ rect: [g.x - ex, g.z - ez, g.x + ex, g.z + ez], ground: 'dirt' });
     }
     return new Track({ ...spec, rooms });
   }
 
-  zoneOf(z) {
-    for (let i = 0; i < ZONES.length - 1; i++) if (z > ZONES[i].zMin) return i;
-    return ZONES.length - 1;
+  /** which area (x, z) is in (anywhere off the map counts as in the nearest one) */
+  zoneOf(x, z) {
+    let best = 0, bd = Infinity;
+    for (let i = 0; i < ZONES.length; i++) {
+      const [x0, z0, x1, z1] = ZONES[i].rect;
+      // (the line between one area and the next belongs to the one further on)
+      if (ZONES[i].leg ? x >= x0 && x < x1 && z >= z0 && z <= z1 : x >= x0 && x <= x1 && z > z0 && z <= z1) return i;
+      const d = Math.hypot(Math.max(x0 - x, 0, x - x1), Math.max(z0 - z, 0, z - z1));
+      if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+  }
+
+  /** how far (x, z) is into area i (negative: outside it) */
+  depthIn(i, x, z) {
+    const [x0, z0, x1, z1] = ZONES[i].rect;
+    return Math.min(x - x0, x1 - x, z - z0, z1 - z);
+  }
+
+  /** what keeps everything in area i: its rect (the ferry's is its deck, wherever that's got to) */
+  boundsOf(i) {
+    return i === FERRY && this.game.ferry ? this.game.ferry.bounds : ZONES[i].rect;
   }
 
   groundHeight(x, z) {
-    if (z < -300) return beachGround(x, z);
-    // bumpy bush that flattens out towards the suburbs, rising into a rim at the edges
+    const zone = this.zoneOf(x, z);
+    if (zone === BEACH) return beachGround(x, z);
+    if (zone === WHARF) return wharfGround(x, z);
+    if (zone === FERRY) return this.game.ferry ? this.game.ferry.groundAt(x, z) : DECK;
+    if (zone === CITY) return quayGround(x, z);
+    return this.bushHeight(x, z);
+  }
+
+  /** the lie of the land down the first leg: bumpy bush that flattens out towards the suburbs, rising into a rim at the edges */
+  bushHeight(x, z) {
     const bush = smoothstep(-38, -26, z);
     if (bush <= 0) return 0;
     const h = 0.45 * Math.sin(x * 0.11 + 0.7) * Math.cos(z * 0.09 - 0.3)
@@ -104,12 +159,23 @@ export class World {
     s.left = -28; s.right = 28; s.top = 28; s.bottom = -28; s.near = 1; s.far = 110;
     sun.shadow.bias = -0.0006;
     sun.shadow.normalBias = 0.03;
-    this.sunOffset = new THREE.Vector3(18, 40, 14);
-    // (which ways are across and up on the sun's shadow map, and how big one of its squares is: see followSun)
-    const fwd = this.sunOffset.clone().normalize(), across = new THREE.Vector3(0, 1, 0).cross(fwd).normalize();
-    this.sunGrid = { axes: [across, fwd.cross(across)], step: (s.right - s.left) / sun.shadow.mapSize.x };
     this.scene.add(sun, sun.target);
     this.sun = sun;
+    this.sunOffset = new THREE.Vector3();
+    this.setSunYaw(0);
+  }
+
+  /**
+   * Round the corner, the sun comes round with you: `yaw` is how far round (the way the camera looks down the
+   * leg you're on), so it's always over the same shoulder, lighting up the side of things you're looking at
+   */
+  setSunYaw(yaw) {
+    if (this.sunYaw === yaw) return;
+    this.sunYaw = yaw;
+    this.sunOffset.copy(SUN).applyAxisAngle(_v.set(0, 1, 0), yaw);
+    // (which ways are across and up on the sun's shadow map, and how big one of its squares is: see followSun)
+    const s = this.sun.shadow.camera, fwd = this.sunOffset.clone().normalize(), across = new THREE.Vector3(0, 1, 0).cross(fwd).normalize();
+    this.sunGrid = { axes: [across, fwd.cross(across)], step: (s.right - s.left) / this.sun.shadow.mapSize.x };
   }
 
   /** keep the sun (and its shadows) over the player, and the sky round him */
@@ -128,8 +194,8 @@ export class World {
   }
 
   buildGround() {
-    const W = 280, D = 460, cz = -70; // stops at the Oval; the beach has its own finer ground
-    const g = new THREE.PlaneGeometry(W, D, 140, 230);
+    const W = 280, D = 338, cz = -9; // down the first leg, to the oval's far fence (round the corner, each place has its own)
+    const g = new THREE.PlaneGeometry(W, D, 140, 169);
     g.rotateX(-Math.PI / 2);
     g.translate(0, 0, cz);
     const pos = g.attributes.position;
@@ -139,8 +205,8 @@ export class World {
     const track = new THREE.Color(0xa48558), mould = new THREE.Color(0x4d5a2f);
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i), z = pos.getZ(i);
-      pos.setY(i, this.groundHeight(x, z));
-      const zone = Math.min(3, this.zoneOf(z));
+      pos.setY(i, this.bushHeight(x, z));
+      const zone = Math.min(2, this.zoneOf(x, z));
       if (zone === 0) {
         const n = 0.5 + 0.5 * Math.sin(x * 0.37 + Math.sin(z * 0.21) * 2) * Math.cos(z * 0.29 - x * 0.05);
         c.copy(grassA).lerp(grassB, n);
@@ -152,8 +218,8 @@ export class World {
         c.lerp(mould, smoothstep(0.5, 3, this.track.depth(x, z)) * 0.85);
       } else if (zone === 1) {
         c.copy(lawn);
-      } else if (zone === 2) {
-        c.copy(concrete);
+      } else if (x < -47 || x > 47) {
+        c.copy(concrete); // (off either side of the oval, round the back of the beach's buildings)
       } else {
         c.copy(oval);
       }
@@ -207,13 +273,41 @@ export class World {
     this.occluders.push({ mesh, solid, fade, box: new THREE.Box3().setFromObject(mesh) });
   }
 
-  /** the lie of the land in the zone at z (null where it's all open ground) */
-  trackAt(z) { return this.tracks[this.zoneOf(z)] ?? null; }
+  /** the lie of the land in the zone at (x, z) (null where it's all open ground) */
+  trackAt(x, z) { return this.tracks[this.zoneOf(x, z)] ?? null; }
+
+  /**
+   * Keep p (radius r) in the area it's in: off its edges, bar along a fence into the area before or after it (the
+   * fence sees to it there, and lets you through its gate). The ferry's ends are only open while she's in at them
+   */
+  keepIn(p, r) {
+    const i = this.zoneOf(p.x, p.z), ferry = i === FERRY ? this.game.ferry : null;
+    let [x0, z0, x1, z1] = this.boundsOf(i);
+    for (const [g, s] of [[this.gates[i - 1], -1], [this.gates[i], 1]]) {
+      if (!g || (ferry && ferry.docked !== (s < 0 ? 'wharf' : 'quay'))) continue;
+      const along = g.d[0] ? p.z : p.x;
+      if (along < g.span[0] || along > g.span[1]) continue;
+      // (the side facing the gate: s is +1 for the way on out of it, -1 for the way back in)
+      const dx = g.d[0] * s, dz = g.d[1] * s;
+      if (dx > 0) x1 = Infinity; else if (dx < 0) x0 = -Infinity;
+      if (dz > 0) z1 = Infinity; else if (dz < 0) z0 = -Infinity;
+    }
+    const x = clamp(p.x, x0 + r, x1 - r), z = clamp(p.z, z0 + r, z1 - r);
+    if (x === p.x && z === p.z) return false;
+    if (ferry) {
+      // (off her deck, out over the water: back onto whichever's nearest, her deck or the wharf or the Quay, not
+      // onto her wherever she's got to)
+      const [h0, , h1] = ZONES[FERRY].rect, shore = p.x - h0 < h1 - p.x ? h0 - r : h1 + r;
+      if (Math.abs(shore - p.x) < Math.abs(x - p.x)) { p.x = shore; return true; }
+    }
+    p.x = x;
+    p.z = z;
+    return true;
+  }
 
   isFree(x, z, r = 0.5) {
-    const b = this.bounds;
-    if (x < b.xMin + r || x > b.xMax - r || z < b.zMin + r || z > b.zMax - r) return false;
-    const tr = this.trackAt(z);
+    if (this.keepIn(_k.set(x, 0, z), r)) return false;
+    const tr = this.trackAt(x, z);
     if (tr && !tr.inside(x, z, r)) return false;
     for (const c of this.colliders) if (Math.hypot(x - c.x, z - c.z) < c.r + r) return false;
     for (const s of this.segments) if (s.active && segDist(x, z, s) < s.r + r) return false;
@@ -237,11 +331,9 @@ export class World {
         hit = true;
       }
     }
-    const b = this.bounds;
-    const x = clamp(p.x, b.xMin + r, b.xMax - r), z = clamp(p.z, b.zMin + r, b.zMax - r);
-    if (x !== p.x || z !== p.z) { p.x = x; p.z = z; hit = true; }
+    if (this.keepIn(p, r)) hit = true;
     // (nothing gets out of a zone's open ground: into the bush's scrub, say, or a building)
-    const tr = this.trackAt(p.z);
+    const tr = this.trackAt(p.x, p.z);
     if (tr && tr.clamp(p, r)) hit = true;
     return hit;
   }
@@ -290,7 +382,7 @@ export class World {
     // (nor over the bush's scrub, or a building)
     const n = Math.ceil((Math.hypot(bx - ax, bz - az) * best) / 0.4);
     for (let i = 1; i <= n; i++) {
-      const x = ax + ((bx - ax) * best * i) / n, z = az + ((bz - az) * best * i) / n, tr = this.trackAt(z);
+      const x = ax + ((bx - ax) * best * i) / n, z = az + ((bz - az) * best * i) / n, tr = this.trackAt(x, z);
       if (tr && !tr.inside(x, z)) return (best * (i - 1)) / n;
     }
     return best;
@@ -298,24 +390,26 @@ export class World {
 
   /** can something at a see as far as b? (not through scrub, buildings or fences) */
   canSee(ax, az, bx, bz) {
-    const za = this.zoneOf(az), tr = this.tracks[za];
-    return !tr || za !== this.zoneOf(bz) || tr.clearLine(ax, az, bx, bz, false);
+    const za = this.zoneOf(ax, az), tr = this.tracks[za];
+    return !tr || za !== this.zoneOf(bx, bz) || tr.clearLine(ax, az, bx, bz, false);
   }
 
   /**
    * Next point to walk to on the way from (fx,fz) to (tx,tz), going through gates between zones, and in
-   * the bush, along the track. Returns null if the way is still fenced off (or barricaded).
+   * the bush, along the track. Returns null if the way is still fenced off (or barricaded). `ferry`: count
+   * the harbour as crossed, if the ferry's running at all (it comes to whichever side you're on)
    */
-  route(fx, fz, tx, tz, out) {
-    const zf = this.zoneOf(fz), zt = this.zoneOf(tz);
+  route(fx, fz, tx, tz, out, ferry = false) {
+    const zf = this.zoneOf(fx, fz), zt = this.zoneOf(tx, tz);
     if (zf !== zt) {
-      const dir = zt > zf ? 1 : -1; // +1 = heading north (-z)
-      const gate = this.gates[dir > 0 ? zf : zf - 1];
-      if (!gate.open) return null;
-      const nearGap = Math.abs(fx - gate.x) < gate.hw - 0.3 && Math.abs(fz - gate.z) < 1.6;
-      if (nearGap) return out.set(gate.x, 0, gate.z - dir * 2.5);
-      tx = gate.x;
-      tz = gate.z + dir * 1.3;
+      const s = zt > zf ? 1 : -1; // (+1: on the way you're headed, -1: back the way you came)
+      const gate = this.gates[s > 0 ? zf : zf - 1];
+      if (!gate.open && !(ferry && gate.ferry && this.gates[WHARF].unlocked)) return null;
+      const [dx, dz] = gate.d, rx = fx - gate.x, rz = fz - gate.z;
+      const nearGap = Math.abs(rz * dx - rx * dz) < gate.hw - 0.3 && Math.abs(rx * dx + rz * dz) < 1.6;
+      if (nearGap) return out.set(gate.x + dx * s * 2.5, 0, gate.z + dz * s * 2.5);
+      tx = gate.x - dx * s * 1.3;
+      tz = gate.z - dz * s * 1.3;
     }
     const tr = this.tracks[zf];
     return tr ? tr.route(fx, fz, tx, tz, out) : out.set(tx, 0, tz);
@@ -343,6 +437,8 @@ export class World {
 
   update(dt, t) {
     this.beach.update(dt, t);
+    this.wharf.update(dt, t);
+    this.harbour.update(dt, t);
     this.city.update(dt, t);
     for (const s of this.swayers) {
       s.m.rotation.z = Math.sin(t * 0.7 + s.ph) * 0.012;

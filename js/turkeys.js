@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { Turkey, S } from './turkey.js';
 import { STAGES } from './turkeyModel.js';
-import { SpatialHash, damp, rand, TAU } from './util.js';
+import { SpatialHash, damp, clamp, rand, TAU } from './util.js';
+import { FERRY } from './world.js';
 
 export const MAX_TURKEYS = 100;
 const _v = new THREE.Vector3();
@@ -165,6 +166,12 @@ export class Turkeys {
       const f = p.focus(_v), side = p.heading + Math.PI / 2;
       rx = f.x + Math.sin(side) * (0.8 + this.blobR);
       rz = f.z + Math.cos(side) * (0.8 + this.blobR);
+    }
+    // (aboard the ferry, they gather round you on her deck, not back on the wharf you've just stepped off)
+    if (g.world.zoneOf(p.pos.x, p.pos.z) === FERRY) {
+      const [x0, z0, x1, z1] = g.ferry.bounds, m = this.blobR + 0.5;
+      rx = clamp(rx, x0 + m, x1 - m);
+      rz = clamp(rz, z0 + m, z1 - m);
     }
     const moving = p.speed > 0.5;
     const lam = moving ? 6 : 2;

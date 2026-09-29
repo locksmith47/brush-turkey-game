@@ -8,14 +8,19 @@ import { part, merge, vcMesh, G, limb, rand, damp, dampAngle, TAU } from './util
  * at it, yellow spurs out. A red circle marks where it'll come through: clear out of it, or lose a turkey (a
  * helmet saves one). Then it climbs away and lands back by the nest. Up in the air there's no touching it; on
  * the ground it's small and easily mobbed, though it won't stay down for long unless it's being held. A taste
- * of what Big Kev's got coming.
+ * of what Big Kev's got coming. (The gulls at the wharf go about it the same way: see Gull.)
  */
 const DEF = {
   name: 'Plover', hp: 16, scale: 1.15, radius: 0.26, bodyY: 0.42, labelY: 0.8, carcassLabelY: 0.45, dieTime: 0.6,
   alarmR: 9.5, maxLatch: 5, shakeAt: 3, shakeEvery: 3, value: 8, weight: 2, carryR: 0.55, slots: 6,
   swoopR: 0.8, speed: 3.4, hurt: 10,
+  // (how many turkeys a swoop can take out, its cry, what flies off it when it's hit, and a word about it the
+  // first time it goes up, and the first time it gets you)
+  kills: 1, cry: 'kek', squawk: 0.5,
+  feathers: [0xf6f4ec, 0x9c8b63, 0x1a1a1a], dead: [0xf6f4ec, 0x9c8b63, 0x1a1a1a, 0xf7d417],
+  tips: { up: ['plover', 'Plovers! Keep clear of the red circle, and pile on once they land'], you: ['plover-you', 'Swooped! Plovers go for your head too'] },
 };
-const ALT = 3.2; // how high it gets before a dive
+const ALT = 3.2; // how high it gets before a dive (metres: unless its def says otherwise)
 // a swoop: sounding off, taking off, lining up (the spot's marked from here on), the dive, climbing away, landing
 const ALARM_T = 0.55, RISE_T = 0.6, AIM_T = 0.8, DIVE_T = 0.42, CLIMB_T = 0.55, LAND_T = 0.35;
 const FLYING = new Set(['rise', 'aim', 'dive', 'climb', 'return', 'land']);
@@ -123,11 +128,11 @@ function createPloverRig(scale) {
 const ease = (k) => k * k * (3 - 2 * k);
 
 export class Plover extends Foe {
-  /** `nest`: [x, z] of the nest it guards */
-  constructor(game, x, z, nest) {
-    super(game, DEF, x, z);
+  /** `nest`: [x, z] of the nest it guards (`def` and `rig`: for its cousins that swoop the same way, like the gulls) */
+  constructor(game, x, z, nest, def = DEF, rig = createPloverRig) {
+    super(game, def, x, z);
     this.nest = new THREE.Vector3(nest[0], 0, nest[1]);
-    this.setRig(createPloverRig(this.s));
+    this.setRig(rig(this.s));
     this.state = 'guard';
     this.airborne = false;
     this.alt = 0; // how high it's flying
@@ -145,6 +150,7 @@ export class Plover extends Foe {
     this.dir = new THREE.Vector3(); // which way it's coming at it
     this.leg = { from: new THREE.Vector3(), to: new THREE.Vector3(), T: 1, a0: 0, a1: 0, k: (x) => x };
     this.mate = null; // the other one of the pair: they take it in turns
+    this.crew = null; // (or a whole flock of them, a few at a time: see mateBusy)
   }
 
   get targetable() { return this.alive && !this.airborne; }
@@ -165,7 +171,7 @@ export class Plover extends Foe {
     return new THREE.Vector3(dir.x * 0.12, dir.y * 0.1, dir.z * 0.19).add(c);
   }
 
-  hitFx(p) { this.game.fx.feathers(p, [WHITE, BROWN, BLACK], 2); }
+  hitFx(p) { this.game.fx.feathers(p, this.def.feathers, 2); }
 
   onDamage() {
     // mobbed on the ground: up it goes (unless something's hanging off it)
@@ -179,8 +185,8 @@ export class Plover extends Foe {
     this.warn?.hide();
     this.rig.eyes.visible = false;
     this.rig.deadEyes.visible = true;
-    g.audio.squawk(0.5, true);
-    g.fx.feathers(this.bodyCenter(_v).clone(), [WHITE, BROWN, BLACK, YELLOW], 8);
+    g.audio.squawk(this.def.squawk, true);
+    g.fx.feathers(this.bodyCenter(_v).clone(), this.def.dead, 8);
   }
 
   dispose() {
@@ -189,22 +195,26 @@ export class Plover extends Foe {
   }
 
   /* ---------------------------------------------------------------- AI */
-  /** the nearest turkey on the ground near the nest (or the player, come too close), in plain sight */
+  /** the nearest turkey on the ground near the nest (or the player, come too close), in plain sight (and this side of the fence) */
   intruder() {
-    const g = this.game, n = this.nest, w = g.world;
+    const g = this.game, n = this.nest, w = g.world, here = (v) => w.zoneOf(v.x, v.z) === this.zone;
     let best = null, bd = this.def.alarmR;
     for (const t of g.turkeys.list) {
       if (!t.grounded) continue;
       const d = Math.hypot(t.pos.x - n.x, t.pos.z - n.z);
-      if (d < bd && w.canSee(this.pos.x, this.pos.z, t.pos.x, t.pos.z)) { bd = d; best = t; }
+      if (d < bd && here(t.pos) && w.canSee(this.pos.x, this.pos.z, t.pos.x, t.pos.z)) { bd = d; best = t; }
     }
     if (best) return best;
     const p = g.player;
-    return Math.hypot(p.pos.x - n.x, p.pos.z - n.z) < this.def.alarmR * 0.7 && w.canSee(this.pos.x, this.pos.z, p.pos.x, p.pos.z) ? p : null;
+    return Math.hypot(p.pos.x - n.x, p.pos.z - n.z) < this.def.alarmR * 0.7 && here(p.pos) && w.canSee(this.pos.x, this.pos.z, p.pos.x, p.pos.z) ? p : null;
   }
 
-  /** the other one's already having a go (they take it in turns) */
-  mateBusy() { return !!this.mate && this.mate.alive && (this.mate.state === 'alarm' || FLYING.has(this.mate.state)); }
+  /** the other one's already having a go (they take it in turns); or in a flock, enough of the others are */
+  mateBusy() {
+    const busy = (m) => m !== this && m.alive && (m.state === 'alarm' || FLYING.has(m.state));
+    if (this.mate) return busy(this.mate);
+    return !!this.crew && this.crew.filter(busy).length >= (this.def.together ?? 1);
+  }
 
   /** kek-kek-kek! wings up, spurs out: about to go for `tg` */
   sound(tg) {
@@ -213,8 +223,8 @@ export class Plover extends Foe {
     this.state = 'alarm';
     this.t = 0;
     this.engaged = true;
-    this.game.audio.kek();
-    this.game.hud.toastOnce('plover', 'Plovers! Keep clear of the red circle, and pile on once they land', 5, 120);
+    this.game.audio[this.def.cry](this.s);
+    this.game.hud.toastOnce(...this.def.tips.up, 5, 120);
   }
 
   /** the next stretch of a flight: from where it is to (x, z) at height a1, over T seconds, eased by k */
@@ -255,7 +265,7 @@ export class Plover extends Foe {
           if (!tg) { this.state = 'guard'; this.cool = 1; break; }
           const ax = this.pos.x - tg.pos.x, az = this.pos.z - tg.pos.z, ad = Math.hypot(ax, az) || 1;
           this.airborne = true;
-          this.fly('rise', this.pos.x + (ax / ad) * 2.2, this.pos.z + (az / ad) * 2.2, ALT, RISE_T, (k) => 1 - (1 - k) * (1 - k));
+          this.fly('rise', this.pos.x + (ax / ad) * 2.2, this.pos.z + (az / ad) * 2.2, d.alt ?? ALT, RISE_T, (k) => 1 - (1 - k) * (1 - k));
           g.audio.whoosh();
         }
         break;
@@ -268,7 +278,7 @@ export class Plover extends Foe {
           this.dir.set(this.strike.x - this.pos.x, 0, this.strike.z - this.pos.z);
           const dl = this.dir.length() || 1;
           this.dir.multiplyScalar(1 / dl);
-          this.fly('aim', this.strike.x - this.dir.x * 4.5, this.strike.z - this.dir.z * 4.5, ALT, AIM_T);
+          this.fly('aim', this.strike.x - this.dir.x * 4.5, this.strike.z - this.dir.z * 4.5, d.alt ?? ALT, AIM_T);
         }
         break;
       case 'aim':
@@ -291,7 +301,7 @@ export class Plover extends Foe {
           this.airborne = false;
           this.alt = 0;
           this.state = 'guard';
-          this.cool = rand(2.2, 3.6);
+          this.cool = rand(...(d.rest ?? [2.2, 3.6])); // (a breather on the ground: the time to pile on)
           this.wanderT = rand(1, 2.5);
           this.wanderTo.copy(this.pos);
         }
@@ -324,13 +334,14 @@ export class Plover extends Foe {
   /** at the bottom of the dive: spurs out, through whoever's still standing there */
   swoop() {
     const g = this.game, d = this.def, s = this.strike;
-    const hit = this.turkeysNear(s, d.swoopR)[0];
-    if (hit) { hit.die('swoop'); g.audio.squawk(0.5); }
+    const hits = this.turkeysNear(s, d.swoopR).slice(0, d.kills);
+    for (const t of hits) t.die('swoop');
+    if (hits.length) g.audio.squawk(d.squawk);
     if (this.hurtPlayer(s, d.swoopR + 0.2, d.hurt, { knock: 6, stun: 0.5 }, _v.set(s.x - this.dir.x, 0, s.z - this.dir.z))) {
-      g.hud.toastOnce('plover-you', 'Swooped! Plovers go for your head too', 2.5, 60);
+      g.hud.toastOnce(...d.tips.you, 2.5, 60);
     }
     g.fx.dust(s, 5);
-    g.fx.feathers(_v.set(s.x, s.y + 0.4, s.z), [WHITE, BROWN], 2);
+    g.fx.feathers(_v.set(s.x, s.y + 0.4, s.z), d.feathers, 2);
     this.fly('climb', s.x + this.dir.x * 4, s.z + this.dir.z * 4, 2.4, CLIMB_T, (k) => 1 - (1 - k) * (1 - k));
   }
 

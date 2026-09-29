@@ -3,17 +3,18 @@ import { part, merge, vcMesh, G, limb, rand, pick, TAU, canvasTexture, toonMat }
 import { picketGeo, wireGeo, wireMat, placeAlong } from './fences.js';
 
 /*
- * The oval. You come in from the city at the near end, by the oval's own mound, but the left of the ground's
- * shut off: the members' stand is across it, with the players' race (the caged-in lane the players run out
- * down) from it to the field. The way on is round to the right, past the plovers' nests and a snake or two,
- * and up behind the grandstand, which is hard up against the field on the far side: the players' tunnel
- * through the middle of it takes you out onto the field (Kev's ride-on mower is parked at the back of it).
- * Beat Big Kev for his key rake, and the way out is the gap in the fence on the far left, straight down from
- * the gate to the beach. The field's white picket fence keeps you out bar those two ways (you can throw over it,
- * mind), and the gate in it at the near end is latched on the field side: once you're on the field you can let
- * yourself out of it, a shortcut back to the mound. Turkeys can sit in either stand, and on the mower.
+ * The oval. You come in from the backyards at the near end, the oval's own mound off to your left, but the
+ * left of the ground's shut off: the members' stand is across it, with the players' race (the caged-in lane
+ * the players run out down) from it to the field. The way on is round to the right, past the plovers' nests
+ * and a snake or two, and up behind the grandstand, which is hard up against the field on the far side: the
+ * players' tunnel through the middle of it takes you out onto the field (Kev's ride-on mower is parked at the
+ * back of it). Beat Big Kev for his key rake, and the way out is the gap in the fence on the far left,
+ * straight down from the gate to the beach (and the sea's straight ahead of you, through it). The field's
+ * white picket fence keeps you out bar those two ways (you can throw over it, mind), and the gate in it at the
+ * near end is latched on the field side: once you're on the field you can let yourself out of it, a shortcut
+ * back to the mound. Turkeys can sit in either stand, and on the mower.
  */
-const CX = 0, CZ = -262; // centre of the oval
+const CX = 0, CZ = -140; // centre of the oval
 const RX = 28, RZ = 24; // (the fence round the field: an ellipse)
 const ell = (a) => [CX + RX * Math.cos(a), CZ + RZ * Math.sin(a)];
 const NEAR = Math.asin(4 / RX); // (the gate at the near end: 8 m across)
@@ -24,7 +25,7 @@ const OUT_HW = 6 / Math.hypot(RX * Math.sin(OUT), RZ * Math.cos(OUT)); // (half 
 // grandstand on the right, its front on x = RIGHT_X, with a straight bit of the field's fence along in front of
 // it (on x = RIGHT_FENCE). The tunnel through the grandstand is TUN either side of the middle, the players' race
 // RACE either side
-const STAND_N = -276, STAND_S = -248;
+const STAND_N = -154, STAND_S = -126;
 const LEFT_X = -38, LEFT_D = 8, RIGHT_X = 28.4, RIGHT_D = 8.6, RIGHT_FENCE = 28;
 const BACK = RIGHT_X + RIGHT_D; // (the back of the grandstand: the way up to the tunnel runs along behind it)
 const TUN = 3, RACE = 1.2;
@@ -36,16 +37,16 @@ export const FIELD_GATE = { a: [CX - 4, NEAR_Z], b: [CX + 4, NEAR_Z], latch: [0,
 // grandstand, and the tunnel. Waypoints at the gates and the tunnel's ends, and round the outside of the field
 export const FIELD = {
   nodes: {
-    in: [-20, -226], gs: [CX, NEAR_Z], se: [31, -238], se2: [41.5, -243], back: [41, -252], tunE: [41, CZ], tunW: [24, CZ],
-    out: ell(OUT), nw: [-32, -279], n: [CX, -294], ne: [38, -288],
+    in: [-8, -104], gs: [CX, NEAR_Z], se: [31, -116], se2: [41.5, -121], back: [41, -130], tunE: [41, CZ], tunW: [24, CZ],
+    out: ell(OUT), nw: [-32, -157], n: [CX, -172], ne: [38, -166],
   },
   rooms: [
-    { rect: [-46, STAND_S, 46, -220], nodes: ['in', 'gs', 'se', 'se2'] },
-    { rect: [-46, -300, 46, STAND_N], nodes: ['out', 'nw', 'n', 'ne'] },
-    { rect: [CX - RX + 0.5, -300, RIGHT_FENCE, -220], nodes: ['in', 'gs', 'tunW', 'out', 'n'] },
-    { rect: [LEFT_X, CZ + RACE, RIGHT_FENCE, -220], nodes: ['in', 'gs'] },
-    { rect: [LEFT_X, -300, RIGHT_FENCE, CZ - RACE], nodes: ['out', 'nw', 'n'] },
-    { rect: [BACK, -300, 46, -220], nodes: ['se2', 'back', 'tunE', 'ne'] },
+    { rect: [-46, STAND_S, 46, -98], nodes: ['in', 'gs', 'se', 'se2'] },
+    { rect: [-46, -178, 46, STAND_N], nodes: ['out', 'nw', 'n', 'ne'] },
+    { rect: [CX - RX + 0.5, -178, RIGHT_FENCE, -98], nodes: ['in', 'gs', 'tunW', 'out', 'n'] },
+    { rect: [LEFT_X, CZ + RACE, RIGHT_FENCE, -98], nodes: ['in', 'gs'] },
+    { rect: [LEFT_X, -178, RIGHT_FENCE, CZ - RACE], nodes: ['out', 'nw', 'n'] },
+    { rect: [BACK, -178, 46, -98], nodes: ['se2', 'back', 'tunE', 'ne'] },
     { rect: [20, CZ - TUN, 46, CZ + TUN], nodes: ['tunW', 'tunE'] },
   ],
 };
@@ -57,29 +58,29 @@ const ARCS = [
   [OUT + OUT_HW, 2 * Math.PI - A_R, 0.7 * OUT_HW, 0],
 ];
 // the oval's own mound, by the way in (it's got a bit of the kit in it already)
-export const OVAL_MOUND = [-34, -232];
+export const OVAL_MOUND = [-34, -110];
 // the stumps at either end of the pitch (turkeys can dig them up); a pair of plovers on each nest and snakes in
 // the grass on the way round to the right (and one up behind the grandstand); a funnel-web's burrow out past the
 // way out; and cricket gear left lying about: plenty by the mound, bits and pieces all over, and the team's kit
 // piled up at the end of the grandstand
 export const STUMPS = [[CX, CZ - 9.2], [CX, CZ + 9.2]];
-export const PLOVER_NESTS = [[-6, -231], [22, -240]];
-export const OVAL_SNAKES = [[9, -225], [39.5, -246]];
-export const OVAL_SPIDER = [-36, -290];
+export const PLOVER_NESTS = [[6, -109], [22, -118]];
+export const OVAL_SNAKES = [[21, -103], [39.5, -124]];
+export const OVAL_SPIDER = [-36, -168];
 export const CRICKET_KIT = [
-  ['bat', -26, -241], ['ball', -24, -233.5], ['gloves', -41, -242], ['cap', -29, -224], ['helmet', -12, -237],
-  ['ball', 5, -233], ['pads', 13, -229], ['ball', 27, -236],
-  ['kitbag', 32, -246.2], ['cooler', 35.5, -246], ['bat', 30.2, -244.8], ['pads', 34, -244], ['helmet', 36.6, -244.4],
-  ['bat', 2.6, -251], ['helmet', -2.2, -251.8], ['pads', -2.5, -273.5], ['gloves', 2.8, -273], ['ball', 11, -247], ['ball', -13, -280],
-  ['cap', 9, -296], ['ball', -31, -287],
+  ['bat', -26, -119], ['ball', -24, -111.5], ['gloves', -41, -120], ['cap', -29, -102], ['helmet', -12, -115],
+  ['ball', 5, -111], ['pads', 13, -107], ['ball', 27, -114],
+  ['kitbag', 32, -124.2], ['cooler', 35.5, -124], ['bat', 30.2, -122.8], ['pads', 34, -122], ['helmet', 36.6, -122.4],
+  ['bat', 2.6, -129], ['helmet', -2.2, -129.8], ['pads', -2.5, -151.5], ['gloves', 2.8, -151], ['ball', 11, -125], ['ball', -13, -158],
+  ['cap', 9, -174], ['ball', -31, -165],
 ];
 // bins by Kev's shed and at the end of the members' stand (tip them over for what's inside): [kind, x, z, facing]
 export const OVAL_BINS = [
-  ['red', 38.6, -222.3, 0.1], ['yellow', 40.3, -222.1, -0.1], ['green', 45, -231.2, -Math.PI / 2],
-  ['green', -44, -243.5, Math.PI / 2], ['red', -44, -245.1, Math.PI / 2],
+  ['red', 38.6, -100.3, 0.1], ['yellow', 40.3, -100.1, -0.1], ['green', 45, -109.2, -Math.PI / 2],
+  ['green', -44, -121.5, Math.PI / 2], ['red', -44, -123.1, Math.PI / 2],
 ];
 // Big Kev's ride-on mower, parked at the back of the tunnel, pointing the way in (see Toys): [x, z, facing]
-export const MOWER = [43.4, -254, -2.47];
+export const MOWER = [43.4, -132, -2.47];
 
 function put(world, geo, x, z, rotY = 0, colliders = []) {
   const m = vcMesh(geo, { cast: true, receive: true });
@@ -186,7 +187,7 @@ function tunnelSign() {
 }
 
 export function buildOval(world) {
-  const s = world.scene, track = world.tracks[3];
+  const s = world.scene, track = world.tracks[2];
 
   // mowing rings, the pitch and the boundary rope
   const ground = [];
@@ -246,7 +247,7 @@ export function buildOval(world) {
   world.addSegment(BACK - 0.3, CZ - TUN, 47, CZ - TUN, 0.1, true);
   track.addWall({ ax: BACK - 0.3, az: CZ - TUN, bx: 47, bz: CZ - TUN, active: true }, false);
   // (and all down both sides of the ground: decoration, the bounds stop you anyway)
-  for (const x of [-46.3, 46.3]) wire(world, x, -220.3, x, -299.7, 2.4);
+  for (const x of [-46.3, 46.3]) wire(world, x, -98.3, x, -177.7, 2.4);
   track.plan();
   s.add(vcMesh(merge([...pickets, ...posts]), { cast: true, receive: true }));
 
@@ -285,7 +286,7 @@ export function buildOval(world) {
   s.add(sign);
   world.colliders.push({ x: 44.3, z: CZ + 2.7, r: 0.15 });
   // (the grass worn bare along the way up to it, and through it)
-  for (const [x, z] of [[41, -238], [41, -244], [41, -250], [41, -256], [40, -262], [34, -262], [27, -262]]) world.stainGround(x, z, 2.6, 0x9c8a5f, 0.3);
+  for (const [x, z] of [[41, -116], [41, -122], [41, -128], [41, -134], [40, -140], [34, -140], [27, -140]]) world.stainGround(x, z, 2.6, 0x9c8a5f, 0.3);
 
   // the plovers' nests: a scrape in the grass, with a clutch of speckled eggs
   const nest = [part(G.cyl(0.42, 0.46, 0.04, 14), 0xb09a64, [0, 0.015, 0])];
@@ -307,8 +308,8 @@ export function buildOval(world) {
     part(G.box(0.2, 0.8, 0.2), 0x9a9a9a, [-3, 0.4, 0]),
     part(G.box(0.2, 0.8, 0.2), 0x9a9a9a, [3, 0.4, 0]),
   ]);
-  put(world, screen, CX, -228, 0, [[-2.6, 0, 0.8], [0, 0, 0.8], [2.6, 0, 0.8]]);
-  put(world, screen, CX, -289.5, 0, [[-2.6, 0, 0.8], [0, 0, 0.8], [2.6, 0, 0.8]]);
+  put(world, screen, CX, -106, 0, [[-2.6, 0, 0.8], [0, 0, 0.8], [2.6, 0, 0.8]]);
+  put(world, screen, CX, -167.5, 0, [[-2.6, 0, 0.8], [0, 0, 0.8], [2.6, 0, 0.8]]);
 
   // the scoreboard, up over the back of the members' stand (outside the play area)
   const board = canvasTexture(256, 128, (c, w, h) => {
@@ -325,7 +326,7 @@ export function buildOval(world) {
   s.add(vcMesh(merge([part(G.box(0.4, 5, 0.4), 0x5a5a5a, [-54, 2.5, CZ - 9]), part(G.box(0.4, 5, 0.4), 0x5a5a5a, [-54, 2.5, CZ - 3])])));
 
   // autumn trees shedding red & gold leaves
-  for (const [x, z] of [[-41, -228], [10, -223], [44, -236], [-43, -283], [-26, -296], [40, -297], [26, -294]]) {
+  for (const [x, z] of [[-41, -106], [10, -101], [44, -114], [-43, -161], [-26, -174], [40, -175], [26, -172]]) {
     const h = rand(5, 6.5);
     const m = vcMesh(autumnTree(h));
     m.position.set(x, 0, z);
@@ -342,7 +343,7 @@ export function buildOval(world) {
     part(G.box(5.4, 0.15, 4.2), 0x6d6d6d, [0, 2.95, 0], [0.1, 0, 0]),
     part(G.box(2, 2.2, 0.06), 0x5d7a5a, [0.8, 1.1, 1.82]),
     part(G.box(0.9, 0.6, 0.06), 0x9fd0ee, [-1.4, 1.8, 1.82]),
-  ]), 42.5, -226, -Math.PI / 2, [[0, -1.6, 1.9], [0, 1.6, 1.9]]);
+  ]), 42.5, -104, -Math.PI / 2, [[0, -1.6, 1.9], [0, 1.6, 1.9]]);
 
   return { stands };
 }

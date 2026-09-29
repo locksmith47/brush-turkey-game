@@ -38,7 +38,7 @@ export function picketGeo(len, { height = 1.15, weathered = false } = {}) {
   return merge(p);
 }
 
-/* the blue-painted iron railing along the Bondi promenade */
+/* the blue-painted iron railing along Manly's promenade */
 export function railGeo(len, { height = 1.2 } = {}) {
   const blue = 0x2f6fb0, p = [];
   const posts = Math.max(2, Math.round(len / 1.6) + 1);

@@ -3,6 +3,7 @@ import { vcMat, vcMesh, toonMat, part, merge, G, rand, pick, TAU, clamp, labelFa
 import { PALETTES, JUNK, LEAF_SPLIT, litterGeo } from './leaves.js';
 import { flagMesh } from './items.js';
 import { stumpsMesh, kitTrophy } from './cricket.js';
+import { OVAL, FERRY } from './world.js';
 
 const SOIL = [0x5b3b22, 0x6e4a2b, 0x8a6238, 0xa8683a, 0xb08a55, 0x7a7040, 0x654326];
 const LEAF_COLS = [0x9b6b3a, 0xb8834a, 0xc49a5a, 0x8e8a4b, 0xa0522d, 0xd2a15e];
@@ -521,7 +522,7 @@ export class Mound {
     // on the oval, some come out padded up for a game of cricket (a turkey coming back out keeps its kit,
     // bar out of a beach mound: boardshorts and a snorkel don't go with a helmet)
     let gear = back?.gear && (back.gear.helmet || back.gear.pads) ? back.gear : null;
-    if (!gear && w.zoneOf(this.pos.z) === 3 && Math.random() < PADDED) gear = { helmet: true, pads: true };
+    if (!gear && w.zoneOf(this.pos.x, this.pos.z) === OVAL && Math.random() < PADDED) gear = { helmet: true, pads: true };
     if (this.beach) gear = null;
     this.game.turkeys.launchChick(top, tx, tz, this.beach ? 'beach' : 'normal', back?.stage ?? 0, back?.hen, gear);
     if (gear && !back) g.hud.toastOnce('padded', 'Padded up! Turkeys hatched on the oval come out in helmets and leg guards: the first time one gets hurt, its kit takes the hit instead', 6, 600);
@@ -533,9 +534,9 @@ export class Mound {
 
   updateLabel(camera, v) {
     const g = this.game, p = g.player.pos;
-    // (nothing about beach turkeys shows until Bondi's open, and nothing far away shows at all; nor while
+    // (nothing about beach turkeys shows until the beach is open, and nothing far away shows at all; nor while
     // you're buried in it, being dug out)
-    if ((this.beach && !g.bondiOpen()) || (g.player.digSite === this && g.player.life !== 'ok')) { this.dial.hide(); return; }
+    if ((this.beach && !g.beachOpen()) || (g.player.digSite === this && g.player.life !== 'ok')) { this.dial.hide(); return; }
     v.copy(this.pos);
     v.y += this.h * this.group.scale.y + 0.8;
     // (only shows when you're nearby: it fades out quickly as you walk off)
@@ -584,12 +585,15 @@ export class Mounds {
     return best;
   }
 
-  /** how far it is to walk from pos to mound m (through open gates, round the bush's track), or Infinity if there's no way there yet */
-  walk(pos, m) {
+  /**
+   * How far it is to walk from pos to mound m (through open gates, round the bush's track), or Infinity if there's
+   * no way there yet. `ferry`: counting on the ferry to take you over the harbour, once it's running (see World.route)
+   */
+  walk(pos, m, ferry = false) {
     const w = this.game.world, p = _p.set(pos.x, 0, pos.z);
     let len = 0;
     for (let i = 0; i < 24; i++) { // (the way round the bush's track takes a fair few turns)
-      if (!w.route(p.x, p.z, m.pos.x, m.pos.z, _wp)) return Infinity;
+      if (!w.route(p.x, p.z, m.pos.x, m.pos.z, _wp, ferry)) return Infinity;
       len += Math.hypot(_wp.x - p.x, _wp.z - p.z);
       if (_wp.x === m.pos.x && _wp.z === m.pos.z) return len;
       p.copy(_wp);
@@ -610,14 +614,15 @@ export class Mounds {
 
   /**
    * Where you come back to when you go down at pos: the nearest finished mound (of either kind), as the crow
-   * flies, of the ones you could walk to from there (never one past a gate you've not got through yet)
+   * flies, of the ones you could walk to from there (never one past a gate you've not got through yet; the ferry
+   * counts, though, even halfway across the harbour, with its gangways shut)
    */
   refuge(pos) {
     let best = null, bd = Infinity;
     for (const m of this.list) {
       if (m.building) continue;
       const d = Math.hypot(m.pos.x - pos.x, m.pos.z - pos.z);
-      if (d < bd && this.walk(pos, m) < Infinity) { bd = d; best = m; }
+      if (d < bd && this.walk(pos, m, true) < Infinity) { bd = d; best = m; }
     }
     return best ?? this.list.find((m) => m.home) ?? this.nearest(pos);
   }
@@ -642,9 +647,10 @@ export class Mounds {
   whyNot(x, z) {
     for (const m of this.list) if (Math.hypot(m.pos.x - x, m.pos.z - z) < 12) return 'Too close to another mound';
     const w = this.game.world;
+    if (w.zoneOf(x, z) === FERRY) return "Not on the ferry! It'd be left behind";
     if (!w.isFree(x, z, 2.2)) return 'Not enough room here';
     // (only out in the open: a mound grows, and one on a path, by a gateway or up against a fence would end up in the way)
-    const tr = w.trackAt(z);
+    const tr = w.trackAt(x, z);
     if (tr && (!tr.inside(x, z, 4.2) || tr.keepClear(x, z, 8) || tr.nearWall(x, z, 4.2))) return 'Not enough room here: find somewhere more open';
     // (and never right up against a gate, where the key has to be carried)
     for (const g of w.gates) if (Math.hypot(g.x - x, g.z - z) < 9) return 'Too close to the gate';

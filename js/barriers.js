@@ -1,19 +1,20 @@
 import * as THREE from 'three';
 import { vcMesh, part, merge, tint, G, limb, clamp, rand, pick, pinLabel } from './util.js';
 import { palingGeo, picketGeo, railGeo, wireGeo, wireMat, placeAlong } from './props/fences.js';
-import { BOUNDS, ZONES } from './world.js';
+import { ZONES } from './world.js';
 import { Key } from './key.js';
 import { Foe } from './foe.js';
 import { TRACK } from './props/bush.js';
 import { webTexture } from './spider.js';
+import { POOLS } from './props/beach.js';
 
-/* One giant key per area; each needs more turkeys to lift than the last. */
+/* One giant key per area (bar the city: the King Ibis is the end of the line); each needs more turkeys to lift than the last. */
 const KEYS = [
   { x: TRACK.clearings.key[0], z: TRACK.clearings.key[1], size: 1.0, weight: 4, slots: 8, heading: 0.6, buried: 18 }, // buried behind the funnel-web's web, off to the right of the gate
   { x: -34, z: -86, size: 1.6, weight: 10, slots: 14, heading: 2.2 }, // in the far yard on the left, the giant ibis's
-  { holder: 'king', size: 2.3, weight: 20, slots: 24 }, // round the King Ibis's neck
-  { holder: 'keeper', model: 'rake', size: 2.7, weight: 22, slots: 26 }, // Big Kev's rake is a key rake
-  { x: -3, z: -387, size: 3.0, weight: 26, slots: 28, heading: 0.4 }, // sunk in the King Crab's rock pool
+  { holder: 'keeper', model: 'rake', size: 2.3, weight: 18, slots: 24 }, // Big Kev's rake is a key rake
+  { x: POOLS[0].x - 3, z: POOLS[0].z + 1, size: 2.7, weight: 22, slots: 26, heading: -1.2 }, // sunk in the King Crab's rock pool
+  { holder: 'captain', model: 'ferry', size: 3.0, weight: 26, slots: 28 }, // the ferry keys: Captain Gull's nicked them
 ];
 
 function leafGeo(kind, w) {
@@ -58,25 +59,38 @@ class Gate {
     this.gate = gate;
     this.index = index;
     this.kind = gate.kind;
-    const hw = gate.hw, z = gate.z;
-    this.seg = game.world.addSegment(gate.x - hw, z, gate.x + hw, z, 0.25, true);
-    this.center = new THREE.Vector3(gate.x, 0, z);
+    const hw = gate.hw, [dx, dz] = gate.d, px = -dz, pz = dx; // (d: the way on through it; p: along the fence)
+    this.seg = game.world.addSegment(gate.x - px * hw, gate.z - pz * hw, gate.x + px * hw, gate.z + pz * hw, 0.25, true);
+    this.center = new THREE.Vector3(gate.x, 0, gate.z);
+    // (all of it built in the gate's own frame: the fence along x, and the side you come at it from towards +z)
+    this.frame = new THREE.Group();
+    this.frame.position.set(gate.x, game.world.groundHeight(gate.x - dx, gate.z - dz), gate.z);
+    this.frame.rotation.y = Math.atan2(-dx, -dz);
+    game.scene.add(this.frame);
 
     // double gate: two leaves hinged at the outer posts, chained & padlocked in the middle
     this.leaves = [-1, 1].map((side) => {
       const pivot = new THREE.Group();
-      pivot.position.set(gate.x + side * hw, 0, z);
+      pivot.position.x = side * hw;
       pivot.scale.x = -side; // the right leaf is mirrored
       const g = leafGeo(this.kind, hw);
       pivot.add(vcMesh(g.solid, { cast: true, receive: true }));
       if (g.mesh) pivot.add(new THREE.Mesh(g.mesh, wireMat()));
-      game.scene.add(pivot);
+      this.frame.add(pivot);
       return pivot;
     });
+    this.state = 'locked';
+    this.t = 0;
+    this.openK = 0; // (how far open the leaves are swung)
+    if (!gate.lock) {
+      // (no padlock on this one: it's shut till it's opened for you, see Ferry)
+      this.state = 'shut';
+      return;
+    }
 
     const h = this.kind === 'picket' ? 0.75 : this.kind === 'rail' ? 0.85 : 1.05;
     this.lock = new THREE.Group();
-    this.lock.position.set(gate.x, h, z + 0.18);
+    this.lock.position.set(0, h, 0.18);
     const pl = padlockGeo();
     const body = vcMesh(pl.body);
     this.shackle = new THREE.Group();
@@ -90,22 +104,20 @@ class Gate {
     }
     this.lock.add(vcMesh(merge(chain)));
     this.lock.scale.setScalar(1.7);
-    game.scene.add(this.lock);
+    this.frame.add(this.lock);
 
     // a glowing see-through ring marks the gate
     const glow = { color: 0xffd21f, transparent: true, depthWrite: false };
     this.ring = new THREE.Group();
-    this.ring.position.set(gate.x, 0.07, z);
+    this.ring.position.y = 0.07;
     this.ring.scale.set(hw + 1.3, 1, 2.1);
     this.ringLine = new THREE.Mesh(new THREE.TorusGeometry(1, 0.05, 6, 64).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ ...glow, opacity: 0.85 }));
     this.ringDisc = new THREE.Mesh(new THREE.CircleGeometry(1, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ ...glow, opacity: 0.12 }));
     this.ringWall = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1.8, 48, 1, true).translate(0, 0.9, 0), new THREE.MeshBasicMaterial({ ...glow, opacity: 0.1, side: THREE.DoubleSide }));
     this.ring.add(this.ringLine, this.ringDisc, this.ringWall);
-    game.scene.add(this.ring);
+    this.frame.add(this.ring);
     this.ringFade = 1;
 
-    this.state = 'locked';
-    this.t = 0;
     this.label = document.createElement('div');
     this.label.className = 'mound-label small';
     this.label.innerHTML = '🔒 Needs the key';
@@ -124,18 +136,28 @@ class Gate {
     const g = this.game;
     this.state = 'opening';
     this.t = 0;
-    this.seg.active = false;
-    this.gate.open = true;
+    this.gate.unlocked = true;
     this.label.style.display = 'none';
+    // (the ferry's gangway only opens with the ferry in: it's got the say from here on, see Ferry)
+    if (!this.gate.ferry || g.ferry?.docked === 'wharf') this.setOpen(true);
     if (silent) return;
     g.audio.unlock();
     g.fx.sparkle(this.lockWorld(new THREE.Vector3()), 24);
     g.hud.banner('GATE UNLOCKED', 3);
-    g.hud.toast(`${ZONES[this.index + 1].name} awaits...`, 3);
+    g.hud.toast(this.gate.ferry ? 'The ferry keys fit! All aboard for Circular Quay' : `${ZONES[this.index + 1].name} awaits...`, 3);
+  }
+
+  /** open for everyone to go through, or shut (not locked: the ferry's gangways, as it comes and goes) */
+  setOpen(open) {
+    this.seg.active = !open;
+    this.gate.open = open;
+    if (this.locked || this.state === 'opening') return; // (the padlock's got to come off first: it swings open after)
+    this.state = open ? 'swing' : 'shut';
   }
 
   update(dt, camera, v) {
     this.t += dt;
+    if (!this.lock) { this.swingLeaves(dt); return; }
     if (this.ring.visible) {
       this.ringFade = this.locked ? 1 : Math.max(0, this.ringFade - dt * 1.5);
       const pulse = 0.75 + Math.sin(this.game.time * 3.2 + this.index) * 0.25;
@@ -158,17 +180,28 @@ class Gate {
         if (f > 1.6) this.lock.visible = false;
       }
       const k = clamp((t - 0.45) / 1.1, 0, 1);
-      const open = 1.8 * (1 - (1 - k) ** 3);
-      this.leaves[0].rotation.y = open;
-      this.leaves[1].rotation.y = -open;
-      if (t > 2.2) this.state = 'open';
-    }
+      this.openK = 1 - (1 - k) ** 3;
+      this.leaves[0].rotation.y = 1.8 * this.openK;
+      this.leaves[1].rotation.y = -1.8 * this.openK;
+      if (t > 2.2) this.state = this.gate.open ? 'open' : 'shut';
+    } else this.swingLeaves(dt);
 
     // "needs the key" hint when the player is near a locked gate
     const p = this.game.player.pos;
     const near = this.locked && Math.hypot(p.x - this.center.x, p.z - this.center.z) < 14;
     if (!near) { if (this.label.style.display !== 'none') this.label.style.display = 'none'; return; }
     pinLabel(this.label, v.set(this.center.x, 2.9, this.center.z), camera);
+  }
+
+  /** the leaves swinging open (or shut again) as the gate's opened and shut for the ferry */
+  swingLeaves(dt) {
+    const want = this.gate.open ? 1 : 0;
+    if (this.openK === want) return;
+    this.openK = want ? Math.min(1, this.openK + dt / 1.1) : Math.max(0, this.openK - dt / 1.1);
+    const e = this.openK * this.openK * (3 - 2 * this.openK);
+    this.leaves[0].rotation.y = 1.8 * e;
+    this.leaves[1].rotation.y = -1.8 * e;
+    if (this.openK === want) this.state = want ? 'open' : 'shut';
   }
 }
 
@@ -394,7 +427,7 @@ class SideGate {
     this.center = new THREE.Vector3((ax + bx) / 2, 0, (az + bz) / 2);
     this.latch = latch;
     this.seg = w.addSegment(ax, az, bx, bz, 0.25, true);
-    this.track = w.trackAt(this.center.z);
+    this.track = w.trackAt(this.center.x, this.center.z);
     this.track?.addWall(this.seg);
     this.group = new THREE.Group();
     this.group.position.copy(this.center);
@@ -463,24 +496,26 @@ export class Barriers {
     this.gates = [];
     const w = game.world;
     w.gates.forEach((gate, i) => {
-      const z = gate.z, x0 = BOUNDS.xMin - 3, x1 = BOUNDS.xMax + 3;
-      const left = gate.x - gate.hw, right = gate.x + gate.hw;
-      w.addSegment(x0, z, left, z, 0.25, true);
-      w.addSegment(right, z, x1, z, 0.25, true);
-      // solid fence either side of the gate
-      for (const [a, b] of [[x0, left], [right, x1]]) {
-        for (let x = a; x < b - 0.01; x += 12) {
-          const len = Math.min(12, b - x);
+      // the fence runs right across (along x on the first leg, z on the second), bar the gate in it
+      const along = !gate.d[0], c = along ? gate.z : gate.x, g0 = (along ? gate.x : gate.z) - gate.hw, g1 = g0 + 2 * gate.hw;
+      const at = (u) => (along ? [u, c] : [c, u]);
+      for (const [a, b] of [[gate.span[0], g0], [g1, gate.span[1]]]) {
+        w.addSegment(...at(a), ...at(b), 0.25, true);
+        // (the posts stood on whatever the ground's like there: a wharf's decking is up off the water, and
+        // out in the water, they stand in it)
+        for (let u = a; u < b - 0.01; u += 12) {
+          const len = Math.min(12, b - u), [ax, az] = at(u), [bx, bz] = at(u + len);
+          const y = Math.max(0, w.groundHeight((ax + bx) / 2, (az + bz) / 2));
           if (gate.kind === 'wood') {
-            w.scene.add(placeAlong(vcMesh(palingGeo(len), { cast: true, receive: true }), x, z, x + len, z));
+            w.scene.add(placeAlong(vcMesh(palingGeo(len), { cast: true, receive: true }), ax, az, bx, bz, y));
           } else if (gate.kind === 'picket') {
-            w.scene.add(placeAlong(vcMesh(picketGeo(len), { cast: true, receive: true }), x, z, x + len, z));
+            w.scene.add(placeAlong(vcMesh(picketGeo(len), { cast: true, receive: true }), ax, az, bx, bz, y));
           } else if (gate.kind === 'rail') {
-            w.scene.add(placeAlong(vcMesh(railGeo(len), { cast: true, receive: true }), x, z, x + len, z));
+            w.scene.add(placeAlong(vcMesh(railGeo(len), { cast: true, receive: true }), ax, az, bx, bz, y));
           } else {
             const g = wireGeo(len);
-            w.scene.add(placeAlong(vcMesh(g.frame, { cast: true, receive: true }), x, z, x + len, z));
-            w.scene.add(placeAlong(new THREE.Mesh(g.mesh, wireMat()), x, z, x + len, z));
+            w.scene.add(placeAlong(vcMesh(g.frame, { cast: true, receive: true }), ax, az, bx, bz, y));
+            w.scene.add(placeAlong(new THREE.Mesh(g.mesh, wireMat()), ax, az, bx, bz, y));
           }
         }
       }
@@ -520,6 +555,7 @@ export class Barriers {
 
   /** debug helper: open gate i straight away (and tidy away its key, wherever it is) */
   unlock(i, silent = false) {
+    if (!this.gates[i].lock) return; // (the gangway at Circular Quay: that's the ferry's to open)
     this.gates[i].unlock(silent);
     const k = this.keys?.[i];
     if (k && !k.gone && k.state !== 'unlock') k.dispose();

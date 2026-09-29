@@ -5,7 +5,7 @@ import { S } from './turkey.js';
 /*
  * Backyard toys: a trampoline turkeys bounce on, and "rides" they can sit on: a swing set,
  * the Hills Hoist (roost on it and it spins), the low branches of the gums out in the bush, the
- * oval's stands and Big Kev's ride-on mower and, at Bondi, the beach chairs.
+ * oval's stands and Big Kev's ride-on mower and, at Manly, the beach chairs.
  *
  * A ride has seats [{ rider }] and:
  *   seatPose               'swing' | 'perch' | 'roost' | 'lounge' (how the rider sits)
@@ -18,7 +18,7 @@ import { S } from './turkey.js';
  *   hop(i)                 optional: { T, h } for the hop up into seat i (how long, how high)
  *   hopDown(i)             optional: { x, z, T, h }, where (and how) to hop down to if called away
  */
-const _v = new THREE.Vector3();
+const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _e = new THREE.Euler(0, 0, 0, 'YXZ');
 
 class Trampoline {
   constructor(game, x, z) {
@@ -463,7 +463,8 @@ class Perches {
   }
 
   seatPos(i, out) { return this.obj.localToWorld(out.set(...this.perches[i].at)); }
-  seatHeading(i) { return this.obj.rotation.y + this.perches[i].face; }
+  /** (which way the seat faces in the world: the thing it's on might be turned inside something else that's turned, like the city) */
+  seatHeading(i) { return _e.setFromQuaternion(this.obj.getWorldQuaternion(_q), 'YXZ').y + this.perches[i].face; }
   poseOf(i) { return this.perches[i].pose ?? this.seatPose; }
 
   nearestSeat(p) {

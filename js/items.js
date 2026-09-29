@@ -4,7 +4,7 @@ import { S } from './turkey.js';
 import { part, merge, vcMesh, G, limb, tint, rand, pick, TAU } from './util.js';
 
 /*
- * Stuff left lying around Bondi. Turkeys nick it and haul it to a beach mound,
+ * Stuff left lying around Manly Beach. Turkeys nick it and haul it to a beach mound,
  * which hatches beach turkeys. Light things need one turkey; eskies and surfboards need a team.
  * Beach chairs are also rides: a turkey will happily lounge in one, and if there's a spare
  * pair of legs when a chair is being carried, one of the carriers hops in for the trip.
@@ -251,7 +251,7 @@ export class BeachItem extends Foe {
     const root = new THREE.Group();
     root.add(vcMesh(itemGeo(type, Math.floor(rand(0, BRIGHT.length)))));
     this.setRig({ root });
-    this.heading = T.seat ? Math.PI / 2 + rand(-0.5, 0.5) : rand(0, TAU); // chairs face the surf
+    this.heading = T.seat ? Math.PI + rand(-0.5, 0.5) : rand(0, TAU); // chairs face the surf (out to sea, -z)
     this.ph = rand(0, TAU);
     this.rippleT = rand(0, 2);
     this.alive = false;
