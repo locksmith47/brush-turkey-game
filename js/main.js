@@ -5,6 +5,9 @@ import { Enemies } from './enemies.js';
 import { Ghosts } from './ghosts.js';
 import { FX } from './fx.js';
 import { Audio } from './audio.js';
+import { Ambience } from './ambience.js';
+import { Flyovers } from './flyover.js';
+import { Footprints } from './footprints.js';
 import { Leaves } from './leaves.js';
 import { Grubs } from './grubs.js';
 import { Mounds } from './mound.js';
@@ -46,12 +49,15 @@ const scene = new THREE.Scene();
 const aspect = () => (innerWidth > 0 && innerHeight > 0 ? innerWidth / innerHeight : 16 / 9);
 const camera = new THREE.PerspectiveCamera(50, aspect(), 0.1, 700);
 
-const game = { scene, camera, renderer, time: 0, timeScale: 1, started: false, stats: { leaves: 0, hatched: 0, plucked: 0, thrown: 0, lost: 0, converted: 0, saved: 0, wasted: 0 }, dev: { invincible: false } };
+const game = { scene, camera, renderer, time: 0, timeScale: 1, started: false, paused: false, stats: { leaves: 0, hatched: 0, plucked: 0, thrown: 0, lost: 0, converted: 0, saved: 0, wasted: 0 }, dev: { invincible: false } };
 // nothing about beach turkeys shows up until the gate into Bondi is open (or you've got some anyway)
 game.bondiOpen = () => game.world.gates[3].open || game.turkeys.counts.beach > 0 || game.turkeys.list.some((t) => t.kind === 'beach');
 let shakeAmt = 0;
 game.shake = (a) => { if (!game.loading) shakeAmt = Math.min(1.2, shakeAmt + a); };
 game.audio = new Audio();
+game.ambience = new Ambience(game); // (the sound of wherever you are, under everything else)
+game.flyovers = new Flyovers(game); // (galahs, cockies and gulls going over, every so often)
+game.footprints = new Footprints(game); // (in the sand at Bondi)
 game.world = new World(game);
 game.barriers = new Barriers(game);
 game.fx = new FX(game);
@@ -128,6 +134,8 @@ game.toys.addSwingSet(-7, -43, 0);
 game.toys.addHoist(-26, -46);
 // and out in the bush, the gums' low branches to roost on
 for (const r of world.roosts) game.toys.addRoost(r);
+// in the city, the backs of the park benches, the bus stop's seat and the fountain's rim
+for (const st of world.city.seats) game.toys.addPerches(st.obj, st.perches, { spread: 1, time: [10, 30] });
 // at the oval, the stands (turkeys come and watch) and Big Kev's ride-on mower
 for (const st of world.oval.stands) game.toys.addPerches(st.obj, st.perches, { spread: 3, time: [15, 40] });
 game.toys.addMower(...MOWER);
@@ -429,6 +437,7 @@ new DevMenu(game, {
     if (m) m.addLeaves(m.threshold - m.fill, null);
   },
   invincible() { game.dev.invincible = !game.dev.invincible; return game.dev.invincible; }, // (you and your turkeys)
+  flyover() { if (!game.flyovers.send()) hud.toast('No clear way over from here (or some are going over already)', 3); },
   hurtMe() { player.hurt(25, null); },
   healMe() { player.hp = MAX_HP; },
   wasteMe() {
@@ -446,6 +455,7 @@ new DevMenu(game, {
 
 /* ------------------------------------------------------------------ zones & boss */
 const visited = new Set([0]);
+game.visited = visited; // (the HUD only counts the mounds in places you've been)
 let zonePrompt = null; // { t, text }: a hint shown a moment after arriving somewhere new
 let farPrompted = false;
 // the bosses with a key on them: said the first time you're close to one
@@ -467,6 +477,8 @@ function updateZones(dt) {
     if (z === 1) zonePrompt = { t: 3.5, text: `Press M and ${BUILD_CREW} of your turkeys will scratch up a new mound here` };
     // (the oval's got one already, with a bit of the team's kit in it)
     if (z === 3) zonePrompt = { t: 3.5, text: "The oval's mound has cricket gear in it already! Throw turkeys at the gear lying about and they'll carry it in" };
+    // (and the wharf's the end of the line, for now: the ferry's just given you a toot)
+    if (z === 5) zonePrompt = { t: 3.5, text: "You made it to the wharf! That's the end of the line, for now" };
   }
   if (zonePrompt && (zonePrompt.t -= dt) <= 0) { hud.toast(zonePrompt.text, 6); zonePrompt = null; }
   for (const h of keyHolders) {
@@ -481,8 +493,22 @@ function updateZones(dt) {
 const clock = new THREE.Clock();
 let first = true;
 
+/** Esc: everything stands still (the sound too), with the controls up, till you press it again */
+function setPaused(on) {
+  game.paused = on;
+  if (on) letGo();
+  audio.pause(on);
+  hud.pause(on);
+}
+
 /** `real`: seconds since the last frame (time itself can go slower: see game.timeScale) */
 function step(real) {
+  // (Esc pauses, and N turns the sound off or back on: any time, even while you're down)
+  if (game.started) {
+    if (input.pressed('Escape')) setPaused(!game.paused);
+    if (input.pressed('KeyN')) hud.soundOff(audio.toggleOff(), true);
+  }
+  if (game.paused) { input.endFrame(); return; }
   const dt = real * game.timeScale;
   game.time += dt;
   const down = game.wasted.active;
@@ -501,6 +527,9 @@ function step(real) {
   leaves.update(dt);
   game.grubs.update(dt, game.time);
   world.update(dt, game.time);
+  game.ambience.update(dt);
+  game.flyovers.update(dt);
+  game.footprints.update(dt);
   saves.update(dt);
   fx.update(dt);
   game.cursor.update(dt, target, whistle, camera, !down);
@@ -542,6 +571,7 @@ function start() {
   audio.init();
   document.getElementById('splash').classList.add('hidden');
   hud.show();
+  hud.soundOff(audio.off); // (turned off last time: it still is)
   saves.on = true; // (from now on, it saves as you go)
   setTimeout(() => { input.endFrame(); input.lmb = false; game.started = true; }, 50);
   setTimeout(() => hud.zoneTitle(ZONES[world.zoneOf(player.pos.z)].name), 400);

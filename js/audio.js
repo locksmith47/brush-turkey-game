@@ -1,4 +1,8 @@
 /* Tiny WebAudio synth: every sound is generated, no assets needed. */
+const VOL = 0.45; // the lot, all together
+// (sound off, remembered in the browser for next time: each copy of the game keeps its own, like the save)
+const OFF_KEY = `turkmin-sound-off:${location.pathname.replace(/index\.html$/, '')}`;
+
 export class Audio {
   constructor() {
     this.ctx = null;
@@ -6,6 +10,7 @@ export class Audio {
     this.whistleOsc = null;
     this.last = {};
     this.muted = false; // (while a save's being put back)
+    try { this.off = localStorage.getItem(OFF_KEY) === '1'; } catch { this.off = false; } // (you've turned it off: N)
   }
 
   init() {
@@ -14,7 +19,7 @@ export class Audio {
     if (!AC) return;
     this.ctx = new AC();
     this.master = this.ctx.createGain();
-    this.master.gain.value = 0.45;
+    this.master.gain.value = this.off ? 0 : VOL;
     this.master.connect(this.ctx.destination);
     const len = this.ctx.sampleRate;
     this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
@@ -22,16 +27,35 @@ export class Audio {
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
   }
 
+  /** N: all the sound off, or back on again (fading what's playing, and remembered for next time); true if it's off */
+  toggleOff() {
+    this.off = !this.off;
+    try { localStorage.setItem(OFF_KEY, this.off ? '1' : '0'); } catch { /* (it just won't be remembered) */ }
+    if (this.ctx) this.master.gain.setTargetAtTime(this.off ? 0 : VOL, this.ctx.currentTime, 0.03);
+    return this.off;
+  }
+
+  /** paused (Esc): everything stops where it is, mid-honk and all, and carries on from there after */
+  pause(on) {
+    if (!this.ctx) return;
+    if (on) this.ctx.suspend();
+    else this.ctx.resume();
+  }
+
+  /** nothing to be heard: no sound yet, a save being put back, or you've turned it off */
+  get quiet() { return !this.ctx || this.muted || this.off; }
+
   ok(name, ms) {
-    if (!this.ctx || this.muted) return false;
+    if (this.quiet) return false;
     const now = performance.now();
     if (name && this.last[name] && now - this.last[name] < ms) return false;
     if (name) this.last[name] = now;
     return true;
   }
 
-  tone({ freq = 440, freq2 = null, type = 'sine', dur = 0.15, vol = 0.3, attack = 0.005, delay = 0, vib = 0, vibHz = 0 }) {
-    if (!this.ctx || this.muted) return;
+  /** `out`: where it goes (straight to the speakers, unless it's panned or part of the background: see Ambience) */
+  tone({ freq = 440, freq2 = null, type = 'sine', dur = 0.15, vol = 0.3, attack = 0.005, delay = 0, vib = 0, vibHz = 0, out = this.master }) {
+    if (this.quiet) return;
     const c = this.ctx, t0 = c.currentTime + delay;
     const o = c.createOscillator(), g = c.createGain();
     o.type = type;
@@ -46,22 +70,23 @@ export class Audio {
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.exponentialRampToValueAtTime(vol, t0 + attack);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    o.connect(g).connect(this.master);
+    o.connect(g).connect(out);
     o.start(t0); o.stop(t0 + dur + 0.05);
   }
 
-  noise({ dur = 0.2, vol = 0.2, type = 'bandpass', f1 = 1000, f2 = null, q = 1, delay = 0, attack = 0.01 }) {
-    if (!this.ctx || this.muted) return;
+  noise({ dur = 0.2, vol = 0.2, type = 'bandpass', f1 = 1000, f2 = null, q = 1, delay = 0, attack = 0.01, out = this.master }) {
+    if (this.quiet) return;
     const c = this.ctx, t0 = c.currentTime + delay;
     const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
     s.buffer = this.noiseBuf;
+    s.loop = true; // (the buffer's only a second long: a long one would stop dead when it ran out)
     f.type = type; f.Q.value = q;
     f.frequency.setValueAtTime(f1, t0);
     if (f2) f.frequency.exponentialRampToValueAtTime(f2, t0 + dur);
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.exponentialRampToValueAtTime(vol, t0 + attack);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    s.connect(f).connect(g).connect(this.master);
+    s.connect(f).connect(g).connect(out);
     s.start(t0, Math.random() * 0.5); s.stop(t0 + dur + 0.05);
   }
 
@@ -363,6 +388,30 @@ export class Audio {
     if (!this.ok('jet', 400)) return;
     this.noise({ dur: 0.9, vol: 0.3, type: 'bandpass', f1: 2200, f2: 900, q: 0.7, attack: 0.04 });
     this.noise({ dur: 0.7, vol: 0.18, type: 'lowpass', f1: 600, f2: 300, delay: 0.05 });
+  }
+
+  /** the ferry's horn, out on the harbour: a long low blast and a short one (two notes a third apart, scooping up into it) */
+  horn() {
+    if (!this.ok('horn', 2000)) return;
+    const c = this.ctx;
+    for (const [at, len] of [[0, 1.5], [1.9, 0.7]]) {
+      const t0 = c.currentTime + at, t1 = t0 + len;
+      const f = c.createBiquadFilter(), g = c.createGain();
+      f.type = 'lowpass'; f.frequency.value = 600; f.Q.value = 0.8;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.13, t0 + 0.12);
+      g.gain.setValueAtTime(0.13, t1 - 0.25);
+      g.gain.exponentialRampToValueAtTime(0.0001, t1);
+      f.connect(g).connect(this.master);
+      for (const hz of [98, 123.5]) {
+        const o = c.createOscillator();
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(hz * 0.95, t0);
+        o.frequency.exponentialRampToValueAtTime(hz, t0 + 0.18);
+        o.connect(f);
+        o.start(t0); o.stop(t1 + 0.05);
+      }
+    }
   }
 
   /** the Hills Hoist squeaking round */

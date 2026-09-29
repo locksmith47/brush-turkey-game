@@ -237,7 +237,11 @@ export function buildCity(world) {
     part(G.box(0.08, 0.5, 0.5), 0x333333, [-0.9, 0.25, 0]),
     part(G.box(0.08, 0.5, 0.5), 0x333333, [0.9, 0.25, 0]),
   ]);
-  for (const [x, z, r] of [[-30, -151, 0], [6, -155, 0], [-44, -106, Math.PI / 2], [44, -162, -Math.PI / 2]]) put(world, bench, x, z, r, [[-0.6, 0, 0.45], [0.6, 0, 0.45]].map(([a, b, c]) => [a * Math.cos(r), -a * Math.sin(r), c]));
+  // (turkeys come and perch along the backs of the benches, like they own the place: see Perches)
+  const seats = [], backs = [-0.66, 0, 0.66].map((x) => ({ at: [x, 1.05, -0.26], face: 0, ground: [x, 1.1], hop: [0.45, 0.8] }));
+  for (const [x, z, r] of [[-30, -151, 0], [6, -155, 0], [-44, -106, Math.PI / 2], [44, -162, -Math.PI / 2]]) {
+    seats.push({ obj: put(world, bench, x, z, r, [[-0.6, 0, 0.45], [0.6, 0, 0.45]].map(([a, b, c]) => [a * Math.cos(r), -a * Math.sin(r), c])), perches: backs });
+  }
   const lamp = merge([
     part(G.cyl(0.07, 0.09, 4, 8), 0x3a3f44, [0, 2, 0]),
     limb([0, 3.9, 0], [0.6, 4.1, 0], 0.05, 0.05, 0x3a3f44, 6),
@@ -246,13 +250,15 @@ export function buildCity(world) {
   for (const x of [-40, -24, 8, 24, 40]) put(world, lamp, x, -99.4, -Math.PI / 2, [[0, 0, 0.15]]); // (none in front of the gate)
   for (const x of [-20, -8, 11, 36]) put(world, lamp, x, -117.2, Math.PI / 2, [[0, 0, 0.15]]);
   for (const [x, z] of [[-30, -168.6], [2, -168.6], [30, -168.6]]) put(world, lamp, x, z, Math.PI / 2, [[0, 0, 0.15]]); // (none in front of the bin alley)
-  put(world, merge([
+  const stop = put(world, merge([
     part(G.box(4, 0.1, 1.6), 0x6c7a89, [0, 2.5, 0]),
     part(G.box(0.08, 2.5, 0.08), 0x6c7a89, [-1.9, 1.25, -0.7]),
     part(G.box(0.08, 2.5, 0.08), 0x6c7a89, [1.9, 1.25, -0.7]),
     part(G.box(3.6, 2.0, 0.04), 0xbfe3f5, [0, 1.4, -0.75]),
     part(G.box(2.4, 0.08, 0.4), 0x8a5a3a, [0, 0.5, -0.4]),
   ]), 26, -101, 0, [[-1.3, -0.5, 0.6], [0, -0.5, 0.6], [1.3, -0.5, 0.6]]);
+  // (a couple of them waiting for the bus, sat side by side on the seat, looking up the street for it)
+  seats.push({ obj: stop, perches: [-0.55, 0.65].map((x) => ({ at: [x, 0.54, -0.4], face: -Math.PI / 2, ground: [x, 0.6], hop: [0.35, 0.5] })) });
 
   // out the back: pallets and crates stacked against the walls of the alley
   const crates = [];
@@ -262,14 +268,22 @@ export function buildCity(world) {
   }
   s.add(vcMesh(merge(crates), { cast: true, receive: true }));
 
-  // fountain
-  put(world, merge([
-    part(G.cyl(2.3, 2.4, 0.6, 28), 0xbab3a4, [0, 0.3, 0]),
-    part(G.cyl(2.05, 2.05, 0.03, 28), 0x6cc3ea, [0, 0.52, 0]),
+  // fountain: a basin of water with a rounded stone lip round it (turkeys perch on the lip, looking out)
+  const fountain = put(world, merge([
+    part(G.cyl(2.3, 2.4, 0.42, 28), 0xbab3a4, [0, 0.21, 0]),
+    part(G.torus(2.14, 0.16, 8, 44), 0xc4bdae, [0, 0.46, 0], [Math.PI / 2, 0, 0]),
+    part(G.cyl(2.05, 2.05, 0.03, 28), 0x6cc3ea, [0, 0.5, 0]),
     part(G.cyl(0.25, 0.35, 1.6, 10), 0xbab3a4, [0, 0.8, 0]),
     part(G.cyl(0.8, 0.5, 0.25, 16), 0xbab3a4, [0, 1.6, 0]),
     part(G.ico(0.35, 1), 0xbfe9ff, [0, 1.9, 0]),
   ]), 24, -159, 0, [[0, 0, 2.4]]);
+  seats.push({
+    obj: fountain,
+    perches: Array.from({ length: 6 }, (_, i) => {
+      const a = (i / 6) * TAU + 0.3, x = Math.cos(a), z = Math.sin(a);
+      return { at: [x * 2.14, 0.62, z * 2.14], face: Math.PI / 2 - a, ground: [x * 3.1, z * 3.1], hop: [0.38, 0.55] };
+    }),
+  });
 
   // down the bin alley: the bins and bags the ibises have been into, and what was in them strewn about (they've
   // had the lot), the backs of the buildings, a dumpster or two, and festoon lights strung across it
@@ -294,6 +308,7 @@ export function buildCity(world) {
   const flames = [];
   for (const x of [COURT.x0 + 10, COURT.x1 - 10]) fireBarrel(world, x, COURT.z0 - 1.5, flames);
   return {
+    seats, // (for turkeys to perch on: see main.js)
     update(dt, t) {
       const p = world.game.player.pos;
       for (const f of flames) {

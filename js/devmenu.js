@@ -24,6 +24,7 @@ export class DevMenu {
         <button data-a="killNearby">Clear nearby foes</button>
         <button data-a="hatch">Hatch nearest mound</button>
         <button data-a="invincible" class="toggle">Invincible: off</button>
+        <button data-a="flyover">Send some birds over</button>
       </div>
       <div class="dev-lbl">You</div>
       <div class="dev-row">

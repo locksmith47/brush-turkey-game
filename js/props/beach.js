@@ -263,8 +263,10 @@ export function buildBeach(world) {
   ]), 32, -408, 0.05, [], SEA);
   ferry.userData.bob = true;
 
-  // --- animation: swell, foam rolling in, glinting pools
-  let t0 = 0;
+  // --- animation: swell, foam rolling in, glinting pools; and the ferry, which gives you a toot (and puffs steam out
+  // of its funnel) whenever you come out onto the wharf
+  let t0 = 0, onWharfNow = true, tootT = 0, tootCool = 0;
+  const funnel = new THREE.Vector3();
   return {
     update(dt, t) {
       t0 += dt;
@@ -282,6 +284,17 @@ export function buildBeach(world) {
       for (const m of poolMats) m.opacity = 0.68 + 0.06 * Math.sin(t * 2);
       ferry.position.y = SEA + Math.sin(t * 0.9) * 0.08;
       ferry.rotation.z = Math.sin(t * 0.7) * 0.02;
+      const g = world.game, p = g.player.pos, was = onWharfNow;
+      onWharfNow = onWharf(p.x, p.z);
+      tootCool -= dt;
+      if (onWharfNow && !was && tootCool <= 0) { tootT = 2.6; tootCool = 30; g.audio.horn(); }
+      if (tootT > 0) {
+        tootT -= dt;
+        // (a puff for each blast: see Audio.horn)
+        if ((tootT > 1.1 || tootT < 0.7) && Math.random() < dt * 30) {
+          g.fx.burst(ferry.localToWorld(funnel.set(0, 5, 0)), { n: 1, colors: [0xffffff, 0xf2f2ee], speed: [0.2, 0.7], up: [2.5, 3.5], grav: -0.3, drag: 0.9, size: [0.2, 0.3], grow: 2.4, life: [1.4, 2.2], jitter: 0.2 });
+        }
+      }
     },
   };
 }

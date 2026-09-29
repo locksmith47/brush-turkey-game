@@ -45,7 +45,12 @@ kbd {
 }
 #stats b { color: #ffe066; }
 
-#help-mini { position: absolute; right: 18px; top: 16px; font-size: 14px; opacity: .9; }
+#help-mini { position: absolute; right: 18px; top: 16px; display: flex; align-items: center; gap: 4px; font-size: 14px; opacity: .9; }
+#help-mini kbd:not(:first-of-type) { margin-left: 8px; }
+/* (the sound's off: a crossed-out speaker) */
+#muted { display: flex; margin-right: 10px; }
+#muted svg { width: 22px; height: 22px; fill: #fff; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
+#muted .x { fill: none; stroke: #ff6b5a; stroke-width: 2.4; stroke-linecap: round; }
 #saved { position: absolute; right: 18px; top: 42px; font-size: 13px; opacity: 0; transition: opacity .5s; text-shadow: 0 1px 2px #000; }
 #saved.show { opacity: .8; }
 
@@ -60,10 +65,13 @@ kbd {
 #help td:first-child { white-space: nowrap; }
 #help p { margin: 10px 0 0; opacity: .9; }
 
+/* (a long one wraps, rather than running off the sides of a smaller window, or over the stats up in the corner;
+   and never leaves one word hanging on a line of its own) */
 #toast {
   position: fixed; left: 50%; top: 70px; transform: translateX(-50%); padding: 10px 22px;
-  background: rgba(30, 30, 30, .7); border-radius: 30px; font-size: 20px; font-weight: bold;
-  opacity: 0; transition: opacity .25s; pointer-events: none; white-space: nowrap;
+  width: max-content; max-width: clamp(300px, 100vw - 480px, 1000px); text-align: center; text-wrap: pretty;
+  background: rgba(30, 30, 30, .7); border-radius: 30px; font-size: clamp(16px, 1.55vw, 20px); font-weight: bold;
+  line-height: 1.3; opacity: 0; transition: opacity .25s; pointer-events: none;
 }
 #toast.show { opacity: 1; }
 
@@ -146,8 +154,9 @@ kbd {
 .mound-label.small { font-size: 12px; padding: 2px 8px; min-width: 64px; text-align: center; border-color: rgba(255,255,255,.6); }
 .mound-label.small.ok { border-color: #7bd34f; }
 
+/* (narrower on a small window, so it's clear of the squad counter and the next-throw panel in the corners) */
 #boss {
-  position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%); width: min(820px, 64vw);
+  position: fixed; left: 50%; bottom: 64px; transform: translateX(-50%); width: clamp(240px, min(64vw, 100vw - 540px), 820px);
   pointer-events: none; z-index: 4;
 }
 #boss-name {
@@ -270,3 +279,15 @@ kbd {
 /* (everything else gets out of the way) */
 body.wasted #hud, body.wasted #labels, body.wasted #boss, body.wasted #toast, body.wasted #banner,
 body.wasted #zone-title, body.wasted #help, body.wasted #hurt { opacity: 0 !important; transition: opacity .5s; }
+
+/* paused (Esc): the lot stands still under a dimmer, and the controls come up alongside */
+#paused {
+  position: fixed; inset: 0; z-index: 11; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding-right: 396px; background: rgba(12, 18, 10, .55); pointer-events: none; text-shadow: 0 2px 6px rgba(0,0,0,.7);
+}
+#paused .word {
+  font-family: 'Cinzel', 'Times New Roman', serif; font-size: clamp(40px, 6vw, 72px); font-weight: 700; letter-spacing: 8px;
+  color: #fff8e6; text-transform: uppercase;
+}
+#paused p { margin: 8px 0 0; font-size: 18px; opacity: .9; }
+body.paused #help { z-index: 12; opacity: 1 !important; }
