@@ -1,6 +1,6 @@
 /* Tiny WebAudio synth: every sound is generated, no assets needed. */
 const VOL = 0.45; // the lot, all together
-// (sound off, remembered in the browser for next time: each copy of the game keeps its own, like the save)
+// (sound off, remembered in the browser for next time: each copy of the game keeps its own, under the game's old name, like the save)
 const OFF_KEY = `turkmin-sound-off:${location.pathname.replace(/index\.html$/, '')}`;
 
 export class Audio {

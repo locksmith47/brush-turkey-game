@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Turkmin: a browser game about brush turkeys, built on three.js. Plain ES modules: no build step, no
+Brush Hour: a browser game about brush turkeys, built on three.js. Plain ES modules: no build step, no
 package.json, no test suite. `index.html` pulls three@0.170.0 from jsdelivr through an importmap and
 `js/main.js` does the rest. The map runs north to south through Sydney, in an L: down the first leg (-z)
 through The Bush, The Backyards and The Oval, then right at the beach and down the second leg (+x) along Manly
@@ -17,7 +17,7 @@ only open while she's in, and the King Ibis in the city is the end of the line, 
 - **See a change working:** `node tools/playtest.cjs [scenario.cjs] [outDir]`. It serves the repo, plays it in
   headless Chromium and clicks Play. With no scenario it's a smoke test: one screenshot and a one-line report.
   It exits 1 if the page threw anything. The scenario API is in the file's header; screenshots go to
-  `$TMPDIR/turkmin-playtest/shots/` unless you give `outDir`. For example, to see the player go down:
+  `$TMPDIR/brush-turkey-playtest/shots/` unless you give `outDir`. For example, to see the player go down:
   ```js
   module.exports = async ({ ev, adv, shot }) => {
     await ev(() => window.game.player.hurt(999, null));
