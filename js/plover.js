@@ -24,6 +24,12 @@ const ALT = 3.2; // how high it gets before a dive (metres: unless its def says 
 // a swoop: sounding off, taking off, lining up (the spot's marked from here on), the dive, climbing away, landing
 const ALARM_T = 0.55, RISE_T = 0.6, AIM_T = 0.8, DIVE_T = 0.42, CLIMB_T = 0.55, LAND_T = 0.35;
 const FLYING = new Set(['rise', 'aim', 'dive', 'climb', 'return', 'land']);
+// (gulls) grabbed hold of, it tries to get up and away, turkeys and all: straining up off the ground for LIFT_T
+// seconds, as high as LIFT_ALT (at 1x: less, the more of them there are hanging off it). Enough of them (its def's
+// drag) and they drag it back down (that takes DROP_T), and it's out for a while (its def's stun), seeing stars,
+// slumped down on its belly (SLUMP lower, at 1x)
+const LIFT_T = 0.7, LIFT_ALT = 0.5, DROP_T = 0.3, SLUMP = 0.2;
+const HAULED = new Set(['lift', 'drop']); // (up off the ground, but still fair game: there's turkeys hanging off it)
 const BROWN = 0x9c8b63, BROWN2 = 0x857552, WHITE = 0xf6f4ec, CREAM = 0xe9e5d8, BLACK = 0x1a1a1a;
 const YELLOW = 0xf7d417, YELLOW2 = 0xe8bf12, LEG = 0xc76b72, RED = 0xc42b2b;
 const _v = new THREE.Vector3(), _w = new THREE.Vector3();
@@ -125,6 +131,18 @@ function createPloverRig(scale) {
   return { root, bodyPivot, neck, head, eyes, deadEyes, legL, legR, wingL, wingR };
 }
 
+let starGeo = null, starMat = null;
+/** a ring of little stars (it's been knocked silly), to go round over its head: on `root`, where its head is when it's slumped */
+function starRing(root) {
+  starGeo ??= new THREE.OctahedronGeometry(0.035, 0);
+  starMat ??= new THREE.MeshBasicMaterial({ color: 0xffe066 });
+  const ring = new THREE.Group();
+  for (let i = 0; i < 5; i++) ring.add(new THREE.Mesh(starGeo, starMat));
+  ring.position.set(0, 0.67, 0.23);
+  root.add(ring);
+  return ring;
+}
+
 const ease = (k) => k * k * (3 - 2 * k);
 
 export class Plover extends Foe {
@@ -151,13 +169,16 @@ export class Plover extends Foe {
     this.leg = { from: new THREE.Vector3(), to: new THREE.Vector3(), T: 1, a0: 0, a1: 0, k: (x) => x };
     this.mate = null; // the other one of the pair: they take it in turns
     this.crew = null; // (or a whole flock of them, a few at a time: see mateBusy)
+    this.slump = 0; // (how far it's slumped down, stunned)
   }
 
-  get targetable() { return this.alive && !this.airborne; }
+  get targetable() { return this.alive && (!this.airborne || HAULED.has(this.state)); }
 
   /* ---------------------------------------------------------------- body */
+  bodyCenter(out) { return out.set(this.pos.x, this.pos.y + (this.def.bodyY - SLUMP * this.slump) * this.s, this.pos.z); }
+
   hits(p) {
-    if (this.airborne) return false;
+    if (!this.targetable) return false;
     this.bodyCenter(_v);
     const s = this.s, dx = p.x - _v.x, dz = p.z - _v.z, dy = p.y - _v.y;
     return dx * dx + dz * dz < (0.2 * s + 0.15) ** 2 && Math.abs(dy) < 0.2 * s + 0.15;
@@ -183,6 +204,7 @@ export class Plover extends Foe {
     this.airborne = false;
     this.alt = 0;
     this.warn?.hide();
+    if (this.stars) this.stars.visible = false;
     this.rig.eyes.visible = false;
     this.rig.deadEyes.visible = true;
     g.audio.squawk(this.def.squawk, true);
@@ -216,9 +238,9 @@ export class Plover extends Foe {
     return !!this.crew && this.crew.filter(busy).length >= (this.def.together ?? 1);
   }
 
-  /** kek-kek-kek! wings up, spurs out: about to go for `tg` */
-  sound(tg) {
-    if (!tg) return;
+  /** kek-kek-kek! wings up, spurs out: about to go for `tg` (or, `grabbed` hold of, just to get away: see lift) */
+  sound(tg, grabbed = false) {
+    if (!tg && !grabbed) return;
     this.target = tg;
     this.state = 'alarm';
     this.t = 0;
@@ -251,23 +273,47 @@ export class Plover extends Foe {
           this.wanderPoint(0.6, 2.6, this.wanderTo);
         }
         this.walk(this.wanderTo.x, this.wanderTo.z, d.speed, dt, 0.3, 9);
-        if (this.latched.length) { this.state = 'shake'; this.t = 0; break; }
+        // (grabbed hold of: a plover stands and shakes them off, but a gull tries to get away with them: see lift)
+        if (this.latched.length) {
+          if (d.drag) this.sound(this.intruder(), true);
+          else { this.state = 'shake'; this.t = 0; }
+          break;
+        }
         if (this.cool <= 0 && !this.mateBusy()) this.sound(this.intruder());
         break;
       }
       case 'alarm':
         this.speedNow = damp(this.speedNow, 0, 10, dt);
         if (this.target) this.heading = dampAngle(this.heading, Math.atan2(this.target.pos.x - this.pos.x, this.target.pos.z - this.pos.z), 8, dt);
-        if (this.latched.length) { this.state = 'shake'; this.t = 0; break; }
+        if (this.latched.length && !d.drag) { this.state = 'shake'; this.t = 0; break; }
         if (this.t >= ALARM_T) {
-          // up and away from it first, to get a run at it
+          if (this.latched.length) { this.lift(); break; } // (turkeys hanging off it or not, up it goes)
           const tg = this.target && !this.target.dead ? this.target : this.intruder();
           if (!tg) { this.state = 'guard'; this.cool = 1; break; }
-          const ax = this.pos.x - tg.pos.x, az = this.pos.z - tg.pos.z, ad = Math.hypot(ax, az) || 1;
-          this.airborne = true;
-          this.fly('rise', this.pos.x + (ax / ad) * 2.2, this.pos.z + (az / ad) * 2.2, d.alt ?? ALT, RISE_T, (k) => 1 - (1 - k) * (1 - k));
-          g.audio.whoosh();
+          this.takeOff(tg);
         }
+        break;
+      case 'lift': {
+        // straining to get up with them hanging off it (the more of them there are, the less far it gets)
+        const n = this.latched.length;
+        this.speedNow = damp(this.speedNow, 0, 10, dt);
+        this.alt = damp(this.alt, (LIFT_ALT * this.s) / (1 + 0.4 * Math.max(0, n - 1)), 3.5, dt);
+        if (this.t >= LIFT_T) {
+          if (n >= d.drag) this.dragDown();
+          else this.breakFree();
+        }
+        break;
+      }
+      case 'drop': {
+        // down it comes, flapping for all it's worth
+        const k = Math.min(1, this.t / DROP_T);
+        this.alt = this.dropFrom * (1 - k * k);
+        if (k >= 1) this.crashLand();
+        break;
+      }
+      case 'stunned':
+        this.speedNow = damp(this.speedNow, 0, 10, dt);
+        if (this.t >= d.stun) this.comeTo();
         break;
       case 'rise':
         if (this.t >= RISE_T) {
@@ -327,8 +373,72 @@ export class Plover extends Foe {
       const mx = this.pos.x - px, mz = this.pos.z - pz;
       if (mx * mx + mz * mz > 1e-6) this.heading = dampAngle(this.heading, Math.atan2(mx, mz), 10, dt);
       this.pitch = damp(this.pitch, this.state === 'dive' ? 0.7 : this.state === 'climb' || this.state === 'rise' ? -0.45 : 0, 8, dt);
-    } else this.pitch = damp(this.pitch, 0, 8, dt);
+    } else this.pitch = damp(this.pitch, this.state === 'lift' ? -0.3 : this.state === 'drop' ? 0.25 : 0, 8, dt);
     if (this.airborne) this.pos.y = g.world.groundHeight(this.pos.x, this.pos.z) + this.alt;
+  }
+
+  /** up and away from `tg` first, to get a run at it */
+  takeOff(tg) {
+    const d = this.def, ax = this.pos.x - tg.pos.x, az = this.pos.z - tg.pos.z, ad = Math.hypot(ax, az) || 1;
+    this.airborne = true;
+    this.fly('rise', this.pos.x + (ax / ad) * 2.2, this.pos.z + (az / ad) * 2.2, d.alt ?? ALT, RISE_T, (k) => 1 - (1 - k) * (1 - k));
+    this.game.audio.whoosh();
+  }
+
+  /* ---------------------------------------------------------------- (gulls) held down */
+  /** grabbed hold of, it tries to get up and away anyway, with whoever's hanging off it along for the ride */
+  lift() {
+    this.state = 'lift';
+    this.t = 0;
+    this.airborne = true; // (though with turkeys hanging off it, it's still fair game: more can grab on)
+    this.game.audio.whoosh();
+  }
+
+  /** not enough of them to hold it down: it shakes them off, and it's away */
+  breakFree() {
+    const g = this.game, d = this.def;
+    if (this.latched.length) {
+      this.shakeOff();
+      g.audio.squawk(d.squawk);
+      g.hud.toastOnce(...d.tips.away, 3.5, 60);
+    }
+    // (back to whoever it was after, or, with nobody about, off to land somewhere quieter)
+    const tg = this.target && !this.target.dead ? this.target : this.intruder();
+    if (tg) this.takeOff(tg);
+    else this.fly('climb', this.pos.x + rand(-2, 2), this.pos.z + rand(-2, 2), 2.4, CLIMB_T, (k) => 1 - (1 - k) * (1 - k));
+  }
+
+  /** too many of them hanging off it to get away: they drag it back down */
+  dragDown() {
+    this.state = 'drop';
+    this.t = 0;
+    this.dropFrom = this.alt;
+    this.game.audio.squawk(this.def.squawk);
+  }
+
+  /** down it comes with a thump, and there it sits, seeing stars: pile on! */
+  crashLand() {
+    const g = this.game, d = this.def;
+    this.airborne = false;
+    this.alt = 0;
+    this.state = 'stunned';
+    this.t = 0;
+    g.fx.dust(this.pos, 4 + Math.round(this.s * 2));
+    g.fx.feathers(this.bodyCenter(_v).clone(), d.feathers, 2 + Math.round(this.s));
+    g.audio.land();
+    g.audio.dazed();
+    if (d.boss) { g.audio.stomp(this.s * 0.5); g.shake(0.25); }
+    g.hud.toastOnce(...d.tips.down, 3, d.boss ? 20 : 60);
+  }
+
+  /** it comes to: shakes the lot of them off and gets out of there, straight up */
+  comeTo() {
+    const g = this.game, a = rand(0, TAU);
+    this.shakeOff();
+    g.audio[this.def.cry](this.s);
+    this.airborne = true;
+    this.fly('climb', this.pos.x + Math.cos(a) * 3, this.pos.z + Math.sin(a) * 3, 2.4, CLIMB_T, (k) => 1 - (1 - k) * (1 - k));
+    g.audio.whoosh();
   }
 
   /** at the bottom of the dive: spurs out, through whoever's still standing there */
@@ -356,11 +466,18 @@ export class Plover extends Foe {
     const r = this.rig, t = this.t, st = this.state, time = this.game.time;
     const moving = Math.min(1, this.speedNow / 2);
     this.phase += dt * (3 + this.speedNow * 5);
-    let spread = 0, flapA = 0, raise = 0, sweep = 0, legX = Math.sin(this.phase) * 0.7 * moving, neckX = 0;
+    let spread = 0, flapA = 0, raise = 0, sweep = 0, legX = Math.sin(this.phase) * 0.7 * moving, neckX = 0, neckZ = 0, roll = 0;
     if (st === 'guard') neckX = moving > 0.1 ? Math.sin(this.phase * 2) * 0.1 : Math.max(0, Math.sin(time * 1.7 + this.bob)) * 0.35;
     else if (st === 'alarm' || st === 'shake') {
-      // wings up and half open, showing off the spurs
-      spread = 0.55; raise = 0.8 + Math.sin(time * 30) * (st === 'shake' ? 0.5 : 0.08); neckX = -0.25;
+      // wings up and half open, showing off the spurs (flapping like mad, with something hanging off it)
+      spread = 0.55; raise = 0.8 + Math.sin(time * 30) * (st === 'shake' || this.latched.length ? 0.5 : 0.08); neckX = -0.25;
+    } else if (HAULED.has(st)) {
+      // beating its wings for all it's worth, legs kicking (and going down in a flurry)
+      spread = 1; flapA = 1; raise = st === 'drop' ? 0.4 : 0.1; legX = Math.sin(time * 14) * 0.45; neckX = st === 'drop' ? 0.3 : -0.35;
+    } else if (st === 'stunned') {
+      // slumped on its belly, wings drooping out either side, its head lolling about
+      spread = 0.75; raise = -0.4; legX = 1.3;
+      neckX = 0.45 + Math.sin(time * 2.6) * 0.15; neckZ = Math.sin(time * 1.9) * 0.35; roll = Math.sin(time * 1.9 + 0.8) * 0.07;
     } else if (FLYING.has(st)) {
       legX = 1.3; // (tucked back)
       if (st === 'dive') { spread = 0.55; sweep = 0.6; raise = 0.25; } // swept back, arrowing in
@@ -368,14 +485,15 @@ export class Plover extends Foe {
       else { spread = 1; flapA = st === 'aim' ? 0.35 : 0.85; }
     }
     this.spread = damp(this.spread, spread, 12, dt);
-    this.flap += dt * (st === 'aim' ? 9 : 16);
+    this.flap += dt * (HAULED.has(st) ? 24 : st === 'aim' ? 9 : 16);
     const wz = raise + Math.sin(this.flap) * flapA, wy = 1.45 * (1 - this.spread) + sweep;
     r.wingL.rotation.set(0, wy, wz * this.spread + (1 - this.spread) * -0.12);
     r.wingR.rotation.set(0, -wy, -(wz * this.spread + (1 - this.spread) * -0.12));
     r.legL.rotation.x = legX;
-    r.legR.rotation.x = FLYING.has(st) ? legX : -legX;
-    r.neck.rotation.x = neckX;
-    r.bodyPivot.rotation.z = this.flinch > 0 ? Math.sin(time * 50) * 0.08 * this.flinch : 0;
+    r.legR.rotation.x = FLYING.has(st) || st === 'stunned' ? legX : -legX;
+    r.neck.rotation.set(neckX, 0, neckZ);
+    r.bodyPivot.rotation.z = roll + (this.flinch > 0 ? Math.sin(time * 50) * 0.08 * this.flinch : 0);
+    this.slump = damp(this.slump, this.alive && st === 'stunned' ? 1 : 0, 8, dt);
 
     if (!this.alive) {
       // keeled over on its side, feet in the air
@@ -386,7 +504,22 @@ export class Plover extends Foe {
       r.wingL.rotation.set(0, 1.3, -0.1); r.wingR.rotation.set(0, -1.3, 0.1);
     } else {
       r.root.position.copy(this.pos);
+      r.root.position.y -= SLUMP * this.s * this.slump;
       r.root.rotation.set(this.pitch, this.heading, 0);
+    }
+
+    // (stunned) stars going round and round over its head
+    const dazed = this.alive && st === 'stunned';
+    if (dazed) this.stars ??= starRing(r.root);
+    if (this.stars) {
+      this.stars.visible = dazed;
+      if (dazed) {
+        this.stars.children.forEach((m, i) => {
+          const a = (i / 5) * TAU + time * 4;
+          m.position.set(Math.cos(a) * 0.13, Math.sin(a * 2 + i) * 0.015, Math.sin(a) * 0.13);
+          m.rotation.y = time * 3;
+        });
+      }
     }
 
     // the red circle where it'll come through, filling in as it lines up and dives

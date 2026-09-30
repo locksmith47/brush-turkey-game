@@ -306,6 +306,12 @@ export class Audio {
     }
   }
 
+  /** knocked silly: a little tweet-tweet-tweet, going round and round */
+  dazed() {
+    if (!this.ok('dazed', 400)) return;
+    for (let i = 0; i < 4; i++) this.tone({ freq: 2200 + (i % 2) * 500, freq2: 2600 + (i % 2) * 500, dur: 0.07, vol: 0.05, type: 'sine', delay: 0.05 + i * 0.13 });
+  }
+
   clang() {
     if (!this.ok('clang', 120)) return;
     this.tone({ freq: 1300, freq2: 1250, dur: 0.18, vol: 0.07, type: 'square' });
