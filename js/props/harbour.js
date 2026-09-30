@@ -15,6 +15,15 @@ const HX0 = 72, HX1 = 392, HZ0 = -500, HZ1 = -120; // the water (on the ocean's 
 export const LANE = -224; // z: the ferry's way across
 export const OTHER_LANE = -198; // (and the other ferry's)
 
+/**
+ * The harbour's surface at (x, z), t seconds in: riding the same swell as the sea, and with a storm on (`storm`,
+ * 0..1: see Storm), great grey rollers heaving through under the lot
+ */
+export function swell(x, z, t, storm = 0) {
+  const y = SEA + seaWave(x, z, t);
+  return storm ? y + storm * (0.34 * Math.sin(x * 0.085 + t * 0.95) + 0.22 * Math.sin(z * 0.12 - t * 1.25) + 0.1 * Math.sin((x - z) * 0.27 + t * 2.3)) : y;
+}
+
 /* ------------------------------------------------------------------ the lie of the land */
 // each headland, point or hill a lump: [x, z, rx, rz, how high, how gently it goes down into the water (0: sheer
 // cliffs, 1: hillside all the way)]. The land's as high as the highest lump under it
@@ -311,6 +320,7 @@ export function buildHarbour(world) {
   const water = new THREE.PlaneGeometry(HX1 - HX0, HZ1 - HZ0, (HX1 - HX0) / 4, (HZ1 - HZ0) / 4).rotateX(-Math.PI / 2).translate((HX0 + HX1) / 2, SEA, (HZ0 + HZ1) / 2);
   const wpos = water.attributes.position;
   s.add(new THREE.Mesh(water, seaMat()));
+  let rough = false; // (whether it's catching the light like a rough sea: see update)
 
   // --- the shores either side, and what's on them
   shore(world, [HX0, -476, HX1, -256], LEFT);
@@ -383,8 +393,17 @@ export function buildHarbour(world) {
       sail(dt, t); // (they keep going with nobody about, too: you can see them from up high, on the map)
       const p = world.game.player.pos;
       if (world.zoneOf(p.x, p.z) < BEACH) return; // (nobody to see the swell, or the wheel going round, from back there)
-      for (let i = 0; i < wpos.count; i++) wpos.setY(i, SEA + seaWave(wpos.getX(i), wpos.getZ(i), t));
+      const storm = world.game.storm?.k ?? 0;
+      for (let i = 0; i < wpos.count; i++) wpos.setY(i, swell(wpos.getX(i), wpos.getZ(i), t, storm));
       wpos.needsUpdate = true;
+      // (in a storm the rollers catch the light, so it looks as rough as it is; after, it's flat calm again)
+      if (storm > 0.01) { water.computeVertexNormals(); rough = true; }
+      else if (rough) {
+        rough = false;
+        const n = water.attributes.normal;
+        for (let i = 0; i < n.count; i++) n.setXYZ(i, 0, 1, 0);
+        n.needsUpdate = true;
+      }
       wheel.rotation.z += dt * 0.12;
       for (const c of cars) c.rotation.z = -wheel.rotation.z;
     },

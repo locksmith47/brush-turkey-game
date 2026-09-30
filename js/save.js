@@ -3,14 +3,16 @@ import { LeafBag } from './keeper.js';
 import { PALETTES } from './leaves.js';
 import { S } from './turkey.js';
 import { LEGS } from './world.js';
+import { QUAY_MOUND } from './props/city.js';
 
 /*
  * Saving your progress, in the browser (localStorage): a snapshot of whatever's changed since the game
  * began. That's the mounds (where, how full, what's stuck in them), the flock (every turkey, how big,
  * what kind, where), the litter lying about, which gates, barricades and side gates are open and where
  * the keys are, which foes have been beaten (and whether they've been carried off yet), what's been
- * hauled away, where the ferry's got to, and where you are. Everything else starts out the way a new game does, so a foe that
- * hasn't been beaten is back at home, good as new.
+ * hauled away, where the ferry's got to, whether the giant cuttlefish has been seen off (and where the fish it left
+ * are), and where you are. Everything else starts out the way a new game does, so a foe that hasn't been beaten is
+ * back at home, good as new (and a fight that was still going, like the cuttlefish's, starts again).
  *
  * Continuing puts it all back quietly (game.loading): no banners, no fanfares, no bins spilling a
  * second time. It saves every little while once you're playing, and whenever you leave the page.
@@ -104,6 +106,7 @@ export class Saves {
       // gangway is only open while she's in)
       gates: w.gates.map((gt, i) => gt.unlocked || keys[i]?.state === 'unlock'),
       ferry: g.ferry.save(),
+      cuttle: g.cuttle.save(),
       sideGates: b.sideGates.map((s) => !s.shut),
       barricades: b.barricades.map((x) => !x.alive),
       keys: keys.map((k) => this.keyState(k)),
@@ -196,6 +199,7 @@ export class Saves {
     const g = this.game, b = g.barriers;
     // (the ferry first: whatever's aboard her goes back where she is)
     if (d.ferry) g.ferry.load(d.ferry);
+    if (d.cuttle) g.cuttle.load(d.cuttle);
     d.barricades.forEach((open, i) => { if (open) b.barricades[i]?.open(true); });
     d.sideGates.forEach((open, i) => { if (open) b.sideGates[i]?.open(true); });
     // foes that were beaten go down again (quietly), and lie where they were, or are done with
@@ -222,6 +226,9 @@ export class Saves {
       else if (s?.hp !== undefined && k.alive) k.hp = Math.max(0.5, s.hp);
     });
     g.mounds.restore(d.mounds);
+    // (a save from before there was a mound on the Quay: it's there now, bar where you've built one of your own)
+    const [qx, qz] = QUAY_MOUND;
+    if (!g.mounds.list.some((m) => Math.hypot(m.pos.x - qx, m.pos.z - qz) < 12)) g.mounds.add(qx, qz).startWith(3, 'fish');
     // the litter lying about, and the grubs in it
     g.leaves.clear();
     const L = d.litter;

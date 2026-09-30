@@ -255,6 +255,9 @@ kbd {
 #health.mid #hp-fill { background: #ffc53d; }
 #health.low #hp-fill { background: #ff5a3d; }
 
+/* lightning: the whole world lit up for a moment, under everything else on the screen (see Storm) */
+#flash { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: #eef3ff; }
+
 /* red round the edges when you're hurt */
 #hurt {
   position: fixed; inset: 0; pointer-events: none; z-index: 3; opacity: 0;

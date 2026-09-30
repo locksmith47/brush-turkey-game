@@ -431,6 +431,54 @@ export class Audio {
     }
   }
 
+  /* ---------------------------------------------------------------- out on the harbour, in a storm */
+  /** thunder: a crack, if it's close (`near`, 0..1), and a long roll after it; `delay`: s till it gets to you */
+  thunder(near = 0.5, delay = 0) {
+    if (!this.ok('thunder', 400)) return;
+    if (near > 0.4) this.noise({ dur: 0.35, vol: 0.35 * near, type: 'highpass', f1: 1800, f2: 600, q: 0.6, delay, attack: 0.005 });
+    this.noise({ dur: 2.8 + near, vol: 0.28 + 0.2 * near, type: 'lowpass', f1: 380 + 500 * near, f2: 60, q: 0.8, delay: delay + 0.05, attack: 0.08 });
+    this.noise({ dur: 1.8, vol: 0.18, type: 'lowpass', f1: 200, f2: 50, delay: delay + 0.5 + Math.random() * 0.4, attack: 0.3 });
+    this.tone({ freq: 55, freq2: 32, dur: 1.6, vol: 0.2 * (0.5 + near), delay, attack: 0.05 });
+  }
+
+  /** the giant cuttlefish, somewhere down below: a long, deep groan (`size`: how big it sounds) */
+  moan(size = 1) {
+    if (!this.ok('moan', 900)) return;
+    const f = 70 / Math.sqrt(size);
+    this.tone({ freq: f * 1.3, freq2: f * 0.8, dur: 1.8 * size, vol: 0.22, type: 'sawtooth', vib: 6, vibHz: 5, attack: 0.25 });
+    this.tone({ freq: f * 2.02, freq2: f * 1.5, dur: 1.5 * size, vol: 0.08, type: 'triangle', vib: 9, vibHz: 7, attack: 0.3 });
+    this.noise({ dur: 1.6 * size, vol: 0.1, type: 'lowpass', f1: 300, f2: 90, attack: 0.3 });
+  }
+
+  /** something big coming up out of the water, or going under */
+  sploosh() {
+    if (!this.ok('sploosh', 150)) return;
+    this.noise({ dur: 0.9, vol: 0.32, type: 'bandpass', f1: 900, f2: 300, q: 0.7, attack: 0.02 });
+    this.noise({ dur: 1.2, vol: 0.2, type: 'lowpass', f1: 500, f2: 120, delay: 0.05 });
+    this.tone({ freq: 140, freq2: 60, dur: 0.5, vol: 0.14, delay: 0.02 });
+  }
+
+  /** a tentacle slapping down on the deck: wet, heavy, and felt through the whole boat */
+  splat() {
+    if (!this.ok('splat', 150)) return;
+    this.noise({ dur: 0.5, vol: 0.4, type: 'lowpass', f1: 1600, f2: 150, attack: 0.004 });
+    this.noise({ dur: 0.3, vol: 0.2, type: 'bandpass', f1: 1100, f2: 500, q: 2 });
+    this.tone({ freq: 90, freq2: 40, dur: 0.45, vol: 0.35 });
+  }
+
+  /** a wet, slimy squelch (a tentacle thrashing about, grabbing hold, or letting go) */
+  squelch() {
+    if (!this.ok('squelch', 120)) return;
+    this.noise({ dur: 0.28, vol: 0.22, type: 'bandpass', f1: 700, f2: 260, q: 4 });
+    this.tone({ freq: 190, freq2: 90, dur: 0.22, vol: 0.12, vib: 40, vibHz: 30 });
+  }
+
+  /** a fish flapping about on the deck */
+  flop() {
+    if (!this.ok('flop', 90)) return;
+    for (let i = 0; i < 3; i++) this.noise({ dur: 0.06, vol: 0.12, type: 'bandpass', f1: 1400 + Math.random() * 500, q: 2.5, delay: i * 0.11 });
+  }
+
   /** the Hills Hoist squeaking round */
   creak(speed = 1) {
     if (!this.ok('creak', 250)) return;

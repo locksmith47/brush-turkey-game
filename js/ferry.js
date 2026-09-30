@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { vcMesh, rand, clamp, damp, TAU, canvasTexture, toonMat } from './util.js';
-import { ferryParts, CABIN_X, CABIN_R, LANE } from './props/harbour.js';
+import { vcMesh, rand, clamp, damp, lerp, TAU, canvasTexture, toonMat } from './util.js';
+import { ferryParts, swell, CABIN_X, CABIN_R, LANE } from './props/harbour.js';
 import { SEA } from './props/beach.js';
 import { DECK } from './props/wharf.js';
 import { makeBird } from './flyover.js';
@@ -12,11 +12,16 @@ import { S } from './turkey.js';
  * Captain Gull. After that, she takes you over to Circular Quay (or back) whenever you come aboard, giving
  * your flock a moment to follow you on; everything on her deck goes with her. Gulls keep up with her either
  * side, all the way across. And if you're over the other side from her, she comes across to fetch you.
+ *
+ * Halfway over, the first time you're aboard, she's brought up dead in the water by a giant cuttlefish (see
+ * Cuttle), and sits there wallowing in the storm it brings up with it till it's seen off.
  */
 const DOCK = { wharf: 158.5, quay: 337.5 }; // x: where she ties up at either end (her gangway at the gate)
 const HALF = 18, BEAM = 6; // m: her deck, either way from the middle of her
 const TOP = 7.5; // m/s, flat out
 const ACCEL = 1.1; // m/s²: getting up to speed, and slowing to come in
+const BRAKE = 2.6; // m/s²: pulled up short, with a cuttlefish hanging off her
+const JOLT = { k: 55, damp: 3.2 }; // (the rocking a knock sets off: how stiff she is, and how quick it dies away)
 const BOARD_T = 2.5; // s from you coming aboard to her casting off...
 const WAIT_MAX = 8; // s: ...and at most this long, waiting on the stragglers in your flock
 const FETCH_T = 4; // s you're over the other side of the harbour before she comes to get you
@@ -38,6 +43,9 @@ export class Ferry {
     this.t = this.boardT = this.fetchT = this.puffT = this.wakeT = 0;
     this.bounds = [0, LANE - BEAM, 0, LANE + BEAM];
     this.heave = this.roll = this.pitch = 0;
+    this.held = false; // (stopped dead halfway over: see hold)
+    this.rough = 0; // (0..1: how much she's being thrown about, in a storm)
+    this.jolts = { roll: { a: 0, v: 0 }, pitch: { a: 0, v: 0 } }; // (knocks she's still rocking from: see jolt)
 
     this.group = new THREE.Group();
     const { hull, rails, cabins } = ferryParts();
@@ -85,8 +93,17 @@ export class Ferry {
     });
   }
 
-  /** the ground at (x, z) on her deck (it rocks a little, under way) */
-  groundAt(x, z) { return DECK + this.heave - (z - LANE) * this.roll + (x - this.x) * this.pitch; }
+  /** the ground at (x, z) on her deck (it rocks a little, under way); over the side of her, it's the water */
+  groundAt(x, z) {
+    if (!this.onDeck(x, z, 0.8)) return swell(x, z, this.game.time, this.game.storm?.k ?? 0);
+    return DECK + this.heave - (z - LANE) * this.roll + (x - this.x) * this.pitch;
+  }
+
+  /** is (x, z) aboard her (anywhere over her deck, give or take `pad` m)? */
+  onDeck(x, z, pad = 0) { return Math.abs(z - LANE) < BEAM + 0.45 + pad && Math.abs(x - this.x) < HALF + 0.5 + pad; }
+
+  /** how far over she's got: 0 at the wharf, 1 at the Quay */
+  get across() { return (this.x - DOCK.wharf) / (DOCK.quay - DOCK.wharf); }
 
   /** the top of her funnel */
   funnel(out) { return out.set(this.x, DECK + 7.1, LANE); }
@@ -97,7 +114,7 @@ export class Ferry {
     if (this.state === 'docked') { if (w.gates[WHARF].unlocked) this.waitAt(dt, aboard); }
     else if (this.state === 'casting') { if ((this.t += dt) >= CAST_T) this.state = 'sailing'; }
     else this.sail(dt);
-    this.rock();
+    this.rock(dt);
     this.fly(dt, aboard);
   }
 
@@ -122,6 +139,7 @@ export class Ferry {
   castOff(to) {
     const g = this.game;
     this.state = 'casting';
+    this.held = false;
     this.to = to;
     this.dir = to === 'quay' ? 1 : -1;
     this.docked = null;
@@ -134,8 +152,9 @@ export class Ferry {
 
   sail(dt) {
     const g = this.game, left = Math.abs(DOCK[this.to] - this.x);
-    // (up to speed, then easing off to come in, stopping dead at the gangway)
-    this.v = Math.min(this.v + ACCEL * dt, TOP, Math.sqrt(2 * ACCEL * left) + 0.2);
+    // (up to speed, then easing off to come in, stopping dead at the gangway; or pulled up short, and going nowhere)
+    if (this.held) this.v = Math.max(0, this.v - BRAKE * dt);
+    else this.v = Math.min(this.v + ACCEL * dt, TOP, Math.sqrt(2 * ACCEL * left) + 0.2);
     const step = Math.min(left, this.v * dt);
     this.shift(this.dir * step);
     // (smoke from the funnel, and her wake spreading out behind her)
@@ -150,6 +169,33 @@ export class Ferry {
       g.fx.ripple(this.x + this.dir * (HALF + 0.8), SEA + 0.13, LANE, 2.2, 1.2, 0.1 * k, 1); // (and a bow wave)
     }
     if (step >= left) this.arrive();
+  }
+
+  /** stopped dead in the water, halfway over (something's got hold of her: see Cuttle) */
+  hold() { this.held = true; }
+
+  /** and on her way again */
+  release() { this.held = false; }
+
+  /** out in the harbour, turned round for the other side (to fetch you, if you've ended up back over there) */
+  headFor(to) {
+    if (this.state === 'docked' || this.to === to) return;
+    this.to = to;
+    this.dir = to === 'quay' ? 1 : -1;
+    this.v = 0;
+  }
+
+  /** (dev) her, and everyone aboard her, a share `k` of the way over, and on her way to the Quay */
+  skipTo(k) {
+    if (this.state === 'docked') this.castOff('quay');
+    else this.headFor('quay');
+    this.shift(lerp(DOCK.wharf, DOCK.quay, k) - this.x);
+  }
+
+  /** a knock at (x, z) on her deck (a tentacle slapping down on her, say), `power` hard: it sets her rocking */
+  jolt(x, z, power) {
+    this.jolts.roll.v += power * clamp((z - LANE) / BEAM, -1, 1);
+    this.jolts.pitch.v -= power * 0.35 * clamp((x - this.x) / HALF, -1, 1);
   }
 
   /** in at the other end: down goes the gangway */
@@ -215,12 +261,20 @@ export class Ferry {
     this.bounds[2] = x + HALF;
   }
 
-  /** a gentle roll and pitch, under way (none at all tied up: the gangway has to line up) */
-  rock() {
-    const t = this.game.time, k = this.state === 'sailing' ? this.v / TOP : 0;
-    this.heave = Math.sin(t * 0.9) * 0.04 * k;
-    this.roll = Math.sin(t * 0.7) * 0.008 * k;
-    this.pitch = Math.sin(t * 0.5 + 1) * 0.004 * k;
+  /**
+   * A gentle roll and pitch, under way (none at all tied up: the gangway has to line up). In a storm she's thrown
+   * about by the swell, and a knock sets her rocking on top of that (see jolt)
+   */
+  rock(dt) {
+    const t = this.game.time, sailing = this.state === 'sailing', k = sailing ? this.v / TOP : 0;
+    const s = (this.rough = damp(this.rough, sailing ? this.game.storm?.k ?? 0 : 0, 1.5, dt));
+    for (const j of [this.jolts.roll, this.jolts.pitch]) {
+      j.v -= (j.a * JOLT.k + j.v * JOLT.damp) * dt;
+      j.a += j.v * dt;
+    }
+    this.heave = Math.sin(t * 0.9) * 0.04 * k + (0.2 * Math.sin(t * 0.83) + 0.07 * Math.sin(t * 1.9 + 1)) * s;
+    this.roll = Math.sin(t * 0.7) * 0.008 * k + (0.032 * Math.sin(t * 0.61 + 0.5) + 0.01 * Math.sin(t * 1.37)) * s + this.jolts.roll.a;
+    this.pitch = Math.sin(t * 0.5 + 1) * 0.004 * k + 0.01 * Math.sin(t * 0.47 + 2) * s + this.jolts.pitch.a;
     this.group.position.y = DECK + this.heave;
     this.group.rotation.x = this.roll;
     this.group.rotation.z = this.pitch;
@@ -228,7 +282,7 @@ export class Ferry {
 
   /** the gulls: catching up with her as she gets going, gliding along either side, and dropping back as she comes in */
   fly(dt, aboard) {
-    const g = this.game, t = g.time, sailing = this.state === 'sailing';
+    const g = this.game, t = g.time, sailing = this.state === 'sailing' && (g.storm?.k ?? 0) < 0.15; // (they're off at the first sign of a storm)
     this.escort = damp(this.escort, sailing ? 1 : 0, sailing ? 0.8 : 1.2, dt);
     const k = this.escort, show = k > 0.02;
     for (const b of this.gulls) {
