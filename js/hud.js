@@ -4,9 +4,10 @@ export class HUD {
   constructor(game) {
     this.game = game;
     this.el = {};
-    for (const id of ['health', 'hp-fill', 'hp-lag', 'hurt', 'hud', 'help', 'toast', 'c-squad', 'c-field', 'c-sprouts', 'c-s0', 'c-s1', 'c-s2', 'throw-name', 'c-leaves', 'c-hatched', 'c-mounds', 'c-lost', 'boss', 'boss-name', 'boss-hp', 'boss-lag', 'banner', 'banner-text', 'zone-title', 'zone-name', 'boss-grip', 'boss-grip-fill', 'boss-grip-time', 'c-beach', 'tk-normal', 'tk-beach', 'throw-type', 'throw-kind', 'c-beach-box', 'help-tab', 'c-kit', 'c-kit-box', 'saved', 'paused', 'muted']) {
+    for (const id of ['health', 'hp-fill', 'hp-lag', 'hurt', 'hud', 'help', 'toast', 'c-squad', 'c-stages', 'c-s0', 'c-s1', 'c-s2', 'c-padded', 'c-beach', 'c-s0-box', 'c-s1-box', 'c-s2-box', 'c-padded-box', 'c-beach-box', 'c-about', 'c-sprouts', 'throw-name', 't-hatched', 't-mounds', 't-lost', 'boss', 'boss-name', 'boss-hp', 'boss-lag', 'banner', 'banner-text', 'zone-title', 'zone-name', 'boss-grip', 'boss-grip-fill', 'boss-grip-time', 'tk-normal', 'tk-padded', 'tk-beach', 'throw-type', 'throw-kind', 'help-tab', 'saved', 'paused', 'muted']) {
       this.el[id] = document.getElementById(id);
     }
+    this.told = new Set(); // (the things you've been told the once: see toastOnce)
     this.toastT = 0;
     this.bannerT = 0;
     this.zoneT = 0;
@@ -19,18 +20,28 @@ export class HUD {
   show() { this.el.hud.classList.remove('hidden'); }
   toggleHelp() { this.el.help.classList.toggle('hidden'); }
 
-  /** paused (Esc): the screen dims, and the controls come up alongside (then go back to how they were) */
+  /** paused (Esc): the screen dims, with how you're going, and the controls come up alongside (then go back to how they were) */
   pause(on) {
     this.el.paused.classList.toggle('hidden', !on);
     document.body.classList.toggle('paused', on);
     if (on) this.helpWas = !this.el.help.classList.contains('hidden');
     this.el.help.classList.toggle('hidden', !on && !this.helpWas);
+    if (on) this.tally();
+  }
+
+  /** how you're going, on the pause screen */
+  tally() {
+    const g = this.game;
+    this.el['t-hatched'].textContent = g.stats.hatched;
+    // (your mounds: not the ones still waiting for you further on, at the oval and the beach)
+    this.el['t-mounds'].textContent = g.mounds.list.filter((m) => g.visited.has(g.world.zoneOf(m.pos.x, m.pos.z))).length;
+    this.el['t-lost'].textContent = g.stats.lost;
   }
 
   /** the sound's off (N): a crossed-out speaker up in the corner, so you know. `say`: and a word about it */
   soundOff(off, say = false) {
     this.el.muted.classList.toggle('hidden', !off);
-    if (say) this.toast(off ? 'Sound off (N turns it back on)' : 'Sound on', 1.8);
+    if (say) this.toast(off ? 'Sound off: press N to turn it back on' : 'Sound on', 1.8);
   }
 
   toast(msg, secs = 2) {
@@ -46,22 +57,27 @@ export class HUD {
     this.el.toast.classList.remove('show');
   }
 
-  /** a toast that won't repeat itself for a while */
-  toastOnce(key, msg, secs = 3, every = 15) {
-    this.onceT ??= {};
-    const now = performance.now() / 1000;
-    if (this.onceT[key] && now - this.onceT[key] < every) return;
-    this.onceT[key] = now;
+  /**
+   * A toast that's only ever said the once, such as how something's done, the first time it's needed. What's been
+   * said is remembered in the save (see main.js), by `key`. Not while you're down, where it'd go unseen: it'll
+   * keep till next time. Returns whether it was said
+   */
+  toastOnce(key, msg, secs = 3) {
+    if (this.told.has(key) || this.game.loading || this.game.wasted.active) return false;
+    this.told.add(key);
     this.toast(msg, secs);
+    return true;
   }
 
   /** you've been hurt (`k`: how badly, as a share of your health): the edges of the screen flash red */
   hurt(k) { this.hurtK = Math.min(1, this.hurtK + 0.45 + k * 2); }
 
-  /** a little note in the corner that your progress has just been saved */
+  /** a little note in the corner that your progress is saved (the first time it saves as you play: after that, you know) */
   saved() {
+    if (this.savedOnce) return;
+    this.savedOnce = true;
     this.el.saved.classList.add('show');
-    this.savedT = 1.8;
+    this.savedT = 2.5;
   }
 
   banner(text, secs = 4.5) {
@@ -115,6 +131,12 @@ export class HUD {
     this.el[id].className = v;
   }
 
+  hide(id, v) {
+    if (this.cache['hide:' + id] === v) return;
+    this.cache['hide:' + id] = v;
+    this.el[id].classList.toggle('hidden', v);
+  }
+
   update(dt) {
     if (this.bannerT > 0) {
       this.bannerT -= dt;
@@ -150,31 +172,32 @@ export class HUD {
       this.el['hp-lag'].style.width = pct;
     }
     this.setClass('health', hp > 0.5 ? '' : hp > 0.25 ? 'mid' : 'low');
+    // your squad, and what's in it (chicks, juveniles and adults, then the padded-up turkeys and the beach turkeys:
+    // bar any you've none of)
     this.set('c-squad', c.squad);
-    this.set('c-field', c.field);
-    this.set('c-sprouts', c.sprouts);
-    this.set('c-s0', c.stages[0]);
-    this.set('c-s1', c.stages[1]);
-    this.set('c-s2', c.stages[2]);
-    this.set('c-beach', c.beach);
-    this.set('c-kit', c.kit);
-    // (the padded-up count turns up once you've got some)
-    if (c.kit && !this.kitShown) { this.kitShown = true; this.el['c-kit-box'].classList.remove('hidden'); }
-    // beach turkey bits of the HUD stay hidden until the beach is open
-    const beach = g.beachOpen();
-    if (beach !== this.beachShown) {
-      this.beachShown = beach;
-      for (const id of ['throw-type', 'throw-kind', 'c-beach-box', 'help-tab']) this.el[id].classList.toggle('hidden', !beach);
+    this.hide('c-stages', !c.squad);
+    for (const [id, n] of [['c-s0', c.stages[0]], ['c-s1', c.stages[1]], ['c-s2', c.stages[2]], ['c-padded', c.padded], ['c-beach', c.beach]]) {
+      this.set(id, n);
+      this.hide(`${id}-box`, !n);
+    }
+    // and the rest of your flock, if there's any: out and about, and still in the ground
+    const about = c.field - c.squad;
+    this.set('c-about', `${about} out and about`);
+    this.hide('c-about', !about);
+    this.set('c-sprouts', `${c.sprouts} to pluck`);
+    this.hide('c-sprouts', !c.sprouts);
+    // Next throw (and Tab) turn up once there's a choice of who to throw: padded turkeys, while there are any about,
+    // and beach turkeys, once the beach is open
+    const tu = g.turkeys, beach = g.beachOpen(), padded = tu.list.some((t) => !t.dead && tu.kindOf(t) === 'padded');
+    if ((beach || padded) !== this.choiceShown) {
+      this.choiceShown = beach || padded;
+      for (const id of ['throw-type', 'throw-kind', 'help-tab']) this.el[id].classList.toggle('hidden', !this.choiceShown);
     }
     // next throw: the kind Tab picked (or whichever you've got), biggest first
-    const cand = g.turkeys.candidate, kind = cand ? cand.kind : g.turkeys.preferred;
-    this.set('throw-name', cand ? g.turkeys.stageName(cand.stage) : '—');
+    const cand = tu.candidate, kind = cand ? tu.kindOf(cand) : tu.preferred;
+    this.set('throw-name', cand ? tu.stageName(cand.stage) : '—');
     this.setClass('tk-normal', (kind === 'normal' ? 'on' : '') + (c.normal ? '' : ' none'));
-    this.setClass('tk-beach', (kind === 'beach' ? 'on' : '') + (c.beach ? '' : ' none'));
-    this.set('c-leaves', Math.floor(g.stats.leaves));
-    this.set('c-hatched', g.stats.hatched);
-    // (your mounds: not the ones still waiting for you further on, at the oval and the beach)
-    this.set('c-mounds', g.mounds.list.filter((m) => g.visited.has(g.world.zoneOf(m.pos.x, m.pos.z))).length);
-    this.set('c-lost', g.stats.lost);
+    this.setClass('tk-padded', (kind === 'padded' ? 'on' : '') + (c.padded ? '' : ' none') + (padded ? '' : ' hidden'));
+    this.setClass('tk-beach', (kind === 'beach' ? 'on' : '') + (c.beach ? '' : ' none') + (beach ? '' : ' hidden'));
   }
 }

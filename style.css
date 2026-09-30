@@ -19,7 +19,9 @@ kbd {
 #counter .row { display: flex; justify-content: space-between; font-size: 18px; font-weight: bold; }
 #counter .row.big { font-size: 30px; color: #ffe066; }
 #counter .lbl { opacity: .85; margin-right: 18px; }
-#counter .stages { display: flex; gap: 12px; margin-top: 8px; font-weight: bold; font-size: 17px; }
+#counter .stages { display: flex; gap: 12px; margin-top: 6px; font-weight: bold; font-size: 17px; }
+/* (the rest of your flock: out and about, and still in the ground) */
+#counter .more { margin-top: 5px; font-size: 14px; font-weight: bold; opacity: .8; }
 #counter .stage { display: flex; align-items: center; gap: 5px; }
 #counter .stage i { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; display: inline-block; }
 .s0 i { background: #a57a4c; }
@@ -35,27 +37,21 @@ kbd {
 #throw-kind { display: flex; align-items: center; gap: 4px; margin-top: 6px; font-size: 13px; font-weight: bold; }
 #throw-kind span { padding: 2px 9px; border-radius: 10px; background: rgba(255,255,255,.12); opacity: .55; }
 #throw-kind span.on { opacity: 1; background: #ffd21f; color: #3a2a10; text-shadow: none; }
+#throw-kind #tk-padded.on { background: #1d2b5e; color: #fff; }
 #throw-kind #tk-beach.on { background: #1fb5c9; color: #fff; }
 #throw-kind span.none { opacity: .25; }
 #throw-kind kbd { margin-left: 4px; }
 
-#stats {
-  position: absolute; left: 18px; top: 58px; padding: 8px 14px; font-size: 15px; line-height: 1.5;
-  background: rgba(33, 44, 25, .5); border-radius: 12px;
-}
-#stats b { color: #ffe066; }
-
-#help-mini { position: absolute; right: 18px; top: 16px; display: flex; align-items: center; gap: 4px; font-size: 14px; opacity: .9; }
-#help-mini kbd:not(:first-of-type) { margin-left: 8px; }
+#corner { position: absolute; right: 18px; top: 16px; display: flex; align-items: center; gap: 12px; }
 /* (the sound's off: a crossed-out speaker) */
-#muted { display: flex; margin-right: 10px; }
+#muted { display: flex; }
 #muted svg { width: 22px; height: 22px; fill: #fff; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
 #muted .x { fill: none; stroke: #ff6b5a; stroke-width: 2.4; stroke-linecap: round; }
-#saved { position: absolute; right: 18px; top: 42px; font-size: 13px; opacity: 0; transition: opacity .5s; text-shadow: 0 1px 2px #000; }
+#saved { font-size: 13px; opacity: 0; transition: opacity .5s; text-shadow: 0 1px 2px #000; }
 #saved.show { opacity: .8; }
 
 #help {
-  position: fixed; right: 18px; top: 48px; width: 360px; padding: 14px 18px; z-index: 5;
+  position: fixed; right: 18px; top: 48px; width: 390px; padding: 14px 18px; z-index: 5;
   max-height: calc(100vh - 66px); overflow-y: auto;
   background: rgba(25, 34, 20, .82); border-radius: 14px; font-size: 14px; line-height: 1.45;
 }
@@ -65,8 +61,8 @@ kbd {
 #help td:first-child { white-space: nowrap; }
 #help p { margin: 10px 0 0; opacity: .9; }
 
-/* (a long one wraps, rather than running off the sides of a smaller window, or over the stats up in the corner;
-   and never leaves one word hanging on a line of its own) */
+/* (a long one wraps, rather than running right across a smaller window, and never leaves one word hanging on a line
+   of its own) */
 #toast {
   position: fixed; left: 50%; top: 70px; transform: translateX(-50%); padding: 10px 22px;
   width: max-content; max-width: clamp(300px, 100vw - 480px, 1000px); text-align: center; text-wrap: pretty;
@@ -218,6 +214,7 @@ kbd {
 }
 #dev button:hover { background: #3a4a64; }
 .s3 i { background: linear-gradient(135deg, #1fb5c9 50%, #ff8c1a 50%); }
+/* (padded up: a navy helmet over white leg guards) */
 .s4 i { background: linear-gradient(180deg, #1d2b5e 55%, #f5f5f0 55%); }
 
 #zone-title .line { width: 110px; height: 2px; background: linear-gradient(90deg, transparent, #fff8e6, transparent); }
@@ -284,13 +281,18 @@ body.wasted #zone-title, body.wasted #help, body.wasted #hurt { opacity: 0 !impo
 /* paused (Esc): the lot stands still under a dimmer, and the controls come up alongside */
 #paused {
   position: fixed; inset: 0; z-index: 11; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  padding-right: 396px; background: rgba(12, 18, 10, .55); pointer-events: none; text-shadow: 0 2px 6px rgba(0,0,0,.7);
+  padding-right: 426px; background: rgba(12, 18, 10, .55); pointer-events: none; text-shadow: 0 2px 6px rgba(0,0,0,.7);
 }
 #paused .word {
   font-family: 'Cinzel', 'Times New Roman', serif; font-size: clamp(40px, 6vw, 72px); font-weight: 700; letter-spacing: 8px;
   color: #fff8e6; text-transform: uppercase;
 }
 #paused p { margin: 8px 0 0; font-size: 18px; opacity: .9; }
+/* (how you're going: what used to sit up in the corner the whole time) */
+#paused .tally { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 34px; margin-top: 34px; }
+#paused .tally div { display: flex; flex-direction: column; align-items: center; min-width: 80px; }
+#paused .tally b { font-size: 34px; line-height: 1.1; color: #ffe066; }
+#paused .tally span { font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; opacity: .8; }
 body.paused #help { z-index: 12; opacity: 1 !important; }
 
 /* ---------------------------------------------------------------- down the tunnels, and the map (see Travel) */

@@ -71,7 +71,6 @@ export class BinBag extends Foe {
 
   onDeath() {
     this.game.audio.rip();
-    this.game.hud.toastOnce('bag', 'Torn open! Carry the rubbish back to a mound', 2.5, 60);
   }
 
   /** split open: out spills the rubbish, and it's left lying flat (not in anyone's way now) */

@@ -110,7 +110,7 @@ export class Player {
     else if (!this.toldHurt) {
       this.toldHurt = true;
       g.hud.toast('Ouch! Foes go for you too. Keep out of the red circles, and get clear to heal', 5);
-    } else if (this.hp < MAX_HP * 0.3) g.hud.toastOnce('low-hp', "You're in a bad way! Get clear of trouble to get your breath back", 3, 45);
+    }
     return true;
   }
 

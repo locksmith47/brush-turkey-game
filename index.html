@@ -28,35 +28,27 @@
 
     <div id="counter">
       <div class="row big"><span class="lbl">Squad</span><span id="c-squad">0</span></div>
-      <div class="row"><span class="lbl">Field</span><span id="c-field">0</span></div>
-      <div class="row"><span class="lbl">In ground</span><span id="c-sprouts">0</span></div>
-      <div class="stages">
-        <div class="stage s0"><i></i><span id="c-s0">0</span></div>
-        <div class="stage s1"><i></i><span id="c-s1">0</span></div>
-        <div class="stage s2"><i></i><span id="c-s2">0</span></div>
-        <div class="stage s3 hidden" id="c-beach-box" title="beach turkeys"><i></i><span id="c-beach">0</span></div>
-        <div class="stage s4 hidden" id="c-kit-box" title="padded up (helmets and leg guards)"><i></i><span id="c-kit">0</span></div>
+      <div class="stages hidden" id="c-stages">
+        <div class="stage s0 hidden" id="c-s0-box"><i></i><span id="c-s0">0</span></div>
+        <div class="stage s1 hidden" id="c-s1-box"><i></i><span id="c-s1">0</span></div>
+        <div class="stage s2 hidden" id="c-s2-box"><i></i><span id="c-s2">0</span></div>
+        <div class="stage s4 hidden" id="c-padded-box"><i></i><span id="c-padded">0</span></div>
+        <div class="stage s3 hidden" id="c-beach-box"><i></i><span id="c-beach">0</span></div>
       </div>
+      <div class="more hidden" id="c-about"></div>
+      <div class="more hidden" id="c-sprouts"></div>
     </div>
 
     <div id="throw-type" class="hidden">
       <div class="lbl">Next throw</div>
       <div id="throw-name">—</div>
-      <div id="throw-kind" class="hidden"><span id="tk-normal" class="on">Normal</span><span id="tk-beach">Beach</span><kbd>Tab</kbd></div>
+      <div id="throw-kind" class="hidden"><span id="tk-normal" class="on">Normal</span><span id="tk-padded" class="hidden">Padded</span><span id="tk-beach" class="hidden">Beach</span><kbd>Tab</kbd></div>
     </div>
 
-    <div id="stats">
-      <div>Leaves mounded: <b id="c-leaves">0</b></div>
-      <div>Chicks hatched: <b id="c-hatched">0</b></div>
-      <div>Mounds: <b id="c-mounds">1</b></div>
-      <div>Turkeys lost: <b id="c-lost">0</b></div>
+    <div id="corner">
+      <span id="saved">Progress saved</span>
+      <span id="muted" class="hidden"><svg viewBox="0 0 24 24"><path d="M3 9.2h4.2L12.5 5v14l-5.3-4.2H3z"/><path class="x" d="M15.8 9.3l5.4 5.4m0-5.4l-5.4 5.4"/></svg></span>
     </div>
-
-    <div id="help-mini">
-      <span id="muted" class="hidden" title="The sound's off: press N to turn it back on"><svg viewBox="0 0 24 24"><path d="M3 9.2h4.2L12.5 5v14l-5.3-4.2H3z"/><path class="x" d="M15.8 9.3l5.4 5.4m0-5.4l-5.4 5.4"/></svg></span>
-      <kbd>Esc</kbd> pause <kbd>H</kbd> controls
-    </div>
-    <div id="saved">Progress saved</div>
   </div>
 
   <div id="help" class="hidden">
@@ -64,18 +56,18 @@
     <table>
       <tr><td><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></td><td>Walk</td></tr>
       <tr><td>Mouse</td><td>Aim</td></tr>
-      <tr><td>Left click</td><td>Throw a turkey (hold to keep throwing)</td></tr>
-      <tr><td>Right click / <kbd>Space</kbd></td><td>Whistle (hold). Calls turkeys in the ring</td></tr>
-      <tr><td><kbd>E</kbd></td><td>Pluck a turkey out of the ground (hold)</td></tr>
-      <tr><td><kbd>X</kbd></td><td>Dismiss the squad</td></tr>
-      <tr id="help-tab" class="hidden"><td><kbd>Tab</kbd></td><td>Switch between normal and beach turkeys (the biggest are always thrown first)</td></tr>
-      <tr><td><kbd>M</kbd></td><td>Scratch up a new mound (takes 10 turkeys)</td></tr>
-      <tr><td><kbd>F</kbd></td><td>Dive into a mound, to come out of another</td></tr>
-      <tr><td><kbd>Z</kbd> <kbd>C</kbd> / middle-drag</td><td>Rotate the camera</td></tr>
-      <tr><td>Wheel</td><td>Zoom (zoom right in to see his face)</td></tr>
-      <tr><td><kbd>H</kbd></td><td>Toggle this panel</td></tr>
+      <tr><td>Left click</td><td>Throw a turkey (hold for more)</td></tr>
+      <tr><td>Right click<br>or <kbd>Space</kbd></td><td>Whistle turkeys back (hold)</td></tr>
+      <tr><td><kbd>E</kbd></td><td>Pluck a turkey (hold for more)</td></tr>
+      <tr><td><kbd>X</kbd></td><td>Dismiss your squad</td></tr>
+      <tr id="help-tab" class="hidden"><td><kbd>Tab</kbd></td><td>Pick which kind to throw</td></tr>
+      <tr><td><kbd>M</kbd></td><td>Scratch up a mound (10 turkeys)</td></tr>
+      <tr><td><kbd>F</kbd></td><td>Dive into a mound to travel</td></tr>
+      <tr><td><kbd>Z</kbd><kbd>C</kbd><br>or middle-drag</td><td>Turn the camera</td></tr>
+      <tr><td>Wheel</td><td>Zoom (right in to see his face)</td></tr>
+      <tr><td><kbd>H</kbd></td><td>Show or hide the controls</td></tr>
       <tr><td><kbd>Esc</kbd></td><td>Pause</td></tr>
-      <tr><td><kbd>N</kbd></td><td>Sound off (or back on)</td></tr>
+      <tr><td><kbd>N</kbd></td><td>Sound on or off</td></tr>
     </table>
     <p>Foes can hurt you too: keep out of the red circles, and get clear of trouble to heal. Go down, and your turkeys will dig you out of the nearest mound.</p>
   </div>
@@ -107,7 +99,15 @@
     </div>
   </div>
   <div id="zone-title"><div class="line"></div><span id="zone-name"></span><div class="line"></div></div>
-  <div id="paused" class="hidden"><div class="word">Paused</div><p>Press <kbd>Esc</kbd> to carry on</p></div>
+  <div id="paused" class="hidden">
+    <div class="word">Paused</div>
+    <p>Press <kbd>Esc</kbd> to carry on</p>
+    <div class="tally">
+      <div><b id="t-hatched">0</b><span>chicks hatched</span></div>
+      <div><b id="t-mounds">0</b><span>mounds</span></div>
+      <div><b id="t-lost">0</b><span>turkeys lost</span></div>
+    </div>
+  </div>
 
   <div id="splash">
     <div class="card">

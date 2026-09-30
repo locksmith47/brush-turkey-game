@@ -5,6 +5,9 @@ import { SpatialHash, damp, clamp, rand, TAU } from './util.js';
 import { FERRY } from './world.js';
 
 export const MAX_TURKEYS = 100;
+// the kinds Tab picks between, in turn: plain normal turkeys, normal ones padded up in their cricket kit, and beach
+// turkeys
+const KINDS = ['normal', 'padded', 'beach'];
 const _v = new THREE.Vector3();
 
 /* Owns every turkey: squad logic, throwing, whistling, plucking and personal space. */
@@ -18,7 +21,7 @@ export class Turkeys {
     this.nbrs = [];
     this.preferred = 'normal'; // which kind Tab has picked to throw (the biggest of that kind always goes first)
     this.candidate = null;
-    this.counts = { squad: 0, field: 0, sprouts: 0, stages: [0, 0, 0], beach: 0, normal: 0, kit: 0 };
+    this.counts = { squad: 0, field: 0, sprouts: 0, stages: [0, 0, 0], normal: 0, padded: 0, beach: 0 }; // (stages: the plain normal ones only)
   }
 
   spawnSprout(x, z, stage = 0, kind = 'normal') {
@@ -64,7 +67,7 @@ export class Turkeys {
     const t = this.nearestSprout(pos, maxD);
     if (!t) return null;
     if (this.plucked >= MAX_TURKEYS) {
-      this.game.hud.toast(`Your flock is full (${MAX_TURKEYS})!`);
+      this.game.hud.toast(`That's ${MAX_TURKEYS} turkeys: your flock's full`);
       this.game.audio.nope();
       return null;
     }
@@ -72,9 +75,12 @@ export class Turkeys {
     return t;
   }
 
+  /** which of Tab's kinds it is: a beach turkey, a normal one still padded up in its cricket kit, or a plain normal one */
+  kindOf(t) { return t.kind === 'beach' ? 'beach' : t.gear?.helmet || t.gear?.pads ? 'padded' : 'normal'; }
+
   /**
    * Who gets thrown next: the biggest turkey of the chosen kind (nearest first among equals).
-   * If there are none of that kind with you, the other kind stands in, unless `strict`.
+   * If there are none of that kind with you, another kind stands in, unless `strict`.
    */
   findCandidate(kind = this.preferred, strict = false) {
     const p = this.game.player.pos;
@@ -84,7 +90,7 @@ export class Turkeys {
       const d = Math.hypot(t.pos.x - p.x, t.pos.z - p.z);
       if (d > 9) continue;
       const score = t.stage * 100 - d;
-      if (t.kind === kind) { if (score > bs) { bs = score; best = t; } }
+      if (this.kindOf(t) === kind) { if (score > bs) { bs = score; best = t; } }
       else if (score > as) { as = score; alt = t; }
     }
     return best ?? (strict ? null : alt);
@@ -132,26 +138,31 @@ export class Turkeys {
     return present.reduce((n, s) => n + groups[s].length, 0);
   }
 
-  /** Tab: swap between throwing normal and beach turkeys; false if you've none of the other kind with you */
+  /**
+   * Tab: on from the kind you'd throw now to the next you've got with you (normal, padded, beach, and round again);
+   * false if you've none of any other kind with you
+   */
   cyclePreferred() {
-    const other = this.preferred === 'beach' ? 'normal' : 'beach';
-    if (!this.list.some((t) => t.state === S.FOLLOW && t.kind === other)) return false;
-    this.preferred = other;
-    return true;
+    const at = KINDS.indexOf(this.candidate ? this.kindOf(this.candidate) : this.preferred);
+    for (let i = 1; i < KINDS.length; i++) {
+      const kind = KINDS[(at + i) % KINDS.length];
+      if (this.list.some((t) => t.state === S.FOLLOW && this.kindOf(t) === kind)) { this.preferred = kind; return true; }
+    }
+    return false;
   }
 
   update(dt) {
     const g = this.game, p = g.player;
     const c = this.counts;
     c.squad = c.field = c.sprouts = 0;
-    c.stages[0] = c.stages[1] = c.stages[2] = c.beach = c.normal = c.kit = 0;
+    c.stages[0] = c.stages[1] = c.stages[2] = c.normal = c.padded = c.beach = 0;
     for (const t of this.list) {
       if (t.dead) continue;
       if (t.state === S.FOLLOW || t.state === S.DIVE || t.state === S.TUNNEL || t.state === S.DIGOUT) { // (with you down the tunnels, too, and digging you out)
         c.squad++;
-        c.stages[t.stage]++;
-        if (t.kind === 'beach') c.beach++; else c.normal++;
-        if (t.gear?.helmet || t.gear?.pads) c.kit++;
+        const kind = this.kindOf(t);
+        c[kind]++;
+        if (kind === 'normal') c.stages[t.stage]++;
       }
       if (t.state === S.SPROUT || t.state === S.BURROW || t.state === S.LAUNCHED) c.sprouts++;
       else c.field++;
