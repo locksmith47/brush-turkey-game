@@ -6,37 +6,37 @@ import { part, merge, vcMesh, G, limb } from './util.js';
 /*
  * Silver gulls: seagulls, chip thieves, the terror of every wharf. They loaf about round a spilt packet of
  * chips, and go for anything that comes near it the way the plovers do: up, round and down, beak first (see
- * Plover), a few of them at a time. Grab hold of one on the ground and it's off, turkey and all, shaking it
- * off on the way up; but it can't get away with two of them hanging off it. They drag it back down, and there it
- * sits for a few seconds, seeing stars: the time to mob it.
+ * Plover), a few of them at a time. Grab hold of one on the ground and it tries to take off, turkey and all,
+ * but it can't get away with one hanging off it. The turkey drags it back down, and there it sits for a few
+ * seconds, seeing stars: the time to mob it.
  *
  * And Captain Gull, who's nicked the ferry keys: a great big gull in a skipper's cap, with the keys (on their
  * cork float) in his beak. He guards the gangway onto the ferry, and his swoops can take out a couple of
  * turkeys at once, but he has to come down for a breather after every one, and that's when to pile on: it takes
- * four to drag him down (fewer, and he shakes them off in no time). Bring him down and the keys are yours.
+ * two to drag him down (just the one, and he shakes it off in no time). Bring him down and the keys are yours.
  */
 const WHITE = 0xf7f7f4, GREY = 0xb9c3cb, GREY2 = 0xa7b1ba, BLACK = 0x1c1c1c, RED = 0xd33a2c, RED2 = 0xb52a20, GOLD = 0xf2c230;
 const GULL = {
   name: 'Seagull', hp: 20, scale: 1.3, radius: 0.28, bodyY: 0.42, labelY: 0.85, carcassLabelY: 0.45, dieTime: 0.6,
   alarmR: 8, maxLatch: 5, shakeAt: 3, shakeEvery: 3, value: 8, weight: 2, carryR: 0.6, slots: 6,
   swoopR: 0.8, speed: 3.2, hurt: 8, kills: 1, cry: 'gull', squawk: 0.6, together: 2, rest: [2.5, 4.5],
-  drag: 2, stun: 4, // (how many turkeys hanging off it drag it down as it takes off, and how long it's out for, in seconds)
+  drag: 1, stun: 4, // (how many turkeys hanging off it drag it down as it takes off, and how long it's out for, in seconds)
   feathers: [WHITE, GREY, BLACK], dead: [WHITE, GREY, BLACK, RED],
   tips: {
-    up: ['gull', 'Seagulls! Dodge the red circle, and when one lands, throw two turkeys on it: it can\'t take off with both'],
+    up: ['gull', 'Seagulls! Dodge the red circle, and when one lands, throw a turkey on it: it can\'t take off with one hanging off'],
     you: ['gull-you', 'Swooped! Those gulls are after your chips'],
-    away: ['gull-away', "One turkey's not enough to hold a seagull down. Get two on it before it's up"],
+    away: ['gull-away', "It got away! Get a turkey on it before it's up"],
     down: ['gull-down', "Dragged down! It's seeing stars: mob it"],
   },
 };
 const CAPTAIN = {
   ...GULL, name: 'Captain Gull', boss: true, hp: 260, scale: 2.6, radius: 0.6, labelY: 0.9, carcassLabelY: 0.5, dieTime: 0.9,
   alarmR: 13, maxLatch: 12, shakeAt: 7, shakeEvery: 5, value: 45, weight: 12, carryR: 1.3, slots: 16,
-  swoopR: 1.6, speed: 3.0, hurt: 20, kills: 2, squawk: 1.6, alt: 4.5, rest: [3.5, 5.5], drag: 4, stun: 3.5,
+  swoopR: 1.6, speed: 3.0, hurt: 20, kills: 2, squawk: 1.6, alt: 4.5, rest: [3.5, 5.5], drag: 2, stun: 3.5,
   tips: {
-    up: ['captain', "Captain Gull! He's got the ferry keys. Dodge his swoops, and when he lands, get four turkeys on him"],
+    up: ['captain', "Captain Gull! He's got the ferry keys. Dodge his swoops, and when he lands, get two turkeys on him"],
     you: ['captain-you', 'Swooped by the Captain! He goes for you as well'],
-    away: ['captain-away', 'He shook them off! It takes four turkeys to hold the Captain down'],
+    away: ['captain-away', 'He shook it off! It takes two turkeys to hold the Captain down'],
     down: ['captain-down', "The Captain's down, seeing stars! Pile on!"],
   },
 };
