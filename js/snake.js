@@ -147,7 +147,6 @@ export class Snake extends Foe {
       const m = this.meal;
       this.meal = null;
       m.releaseFromBelly(this.bellyPos(_v));
-      this.game.hud.toast('The turkey popped out alive!', 2);
     }
   }
 
@@ -213,7 +212,7 @@ export class Snake extends Foe {
           this.state = 'digest';
           this.t = 0;
           g.audio.gulp();
-          g.hud.toast('A snake swallowed a turkey! Quick, beat it before it digests!', 3);
+          g.hud.toastOnce('swallowed', "A snake's swallowed a turkey! Beat the snake before it's digested", 3.5);
         } else if (this.hurtPlayer(this.pos, 0.45, d.bite, { knock: 4, stun: 0.35 })) {
           // (you're a bit big to swallow: a venomous bite will have to do)
           this.state = 'recover';

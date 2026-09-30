@@ -387,7 +387,6 @@ export class Mound {
     g.fx.dirt(top, 26, 1.2);
     g.fx.ring(this.pos, 0xffd21f, this.r * 2.4, 0.6);
     g.audio.build();
-    g.hud.toast(this.beach ? 'Beach mound built! Bring it beach gear.' : 'Mound built! Bring it leaves.', 2.5);
     this.refreshLabel();
   }
 
@@ -488,9 +487,9 @@ export class Mound {
     g.fx.ring(this.pos, this.beach ? 0x7fd6ff : 0xffd21f, this.r * 1.8, 0.5);
     g.audio.gloop();
     g.stats.converted++;
-    if (same) g.hud.toastOnce('replant', "Back into the ground: it'll grow while it's planted", 2.5, 40);
-    else if (this.beach) g.hud.toastOnce('convert', 'Into the beach mound... out comes a beach turkey!', 2.5, 40);
-    else g.hud.toastOnce('unconvert', 'Into the mound... out comes a normal turkey again!', 2.5, 40);
+    if (same) g.hud.toastOnce('replant', 'Back in the ground it goes, to grow some more', 2.5);
+    else if (this.beach) g.hud.toastOnce('convert', 'In it goes, and out comes a beach turkey', 2.5);
+    else g.hud.toastOnce('unconvert', 'In it goes, and out comes a normal turkey again', 2.5);
   }
 
   /** something's plopped into the top of it (or out of it): dirt (or sand) and bits of leaf flying, `power` as high */
@@ -685,7 +684,7 @@ export class Mound {
     if (!gear && w.zoneOf(this.pos.x, this.pos.z) === OVAL && Math.random() < PADDED) gear = { helmet: true, pads: true };
     if (this.beach) gear = null;
     this.game.turkeys.launchChick(top, tx, tz, this.beach ? 'beach' : 'normal', back?.stage ?? 0, back?.hen, gear);
-    if (gear && !back) g.hud.toastOnce('padded', 'Padded up! Turkeys hatched on the oval come out in helmets and leg guards: the first time one gets hurt, its kit takes the hit instead', 6, 600);
+    if (gear && !back) g.hud.toastOnce('padded', 'Padded up! Chicks hatched on the oval come out in cricket kit, and it takes the first hit for them', 5);
     const converted = !!back;
     if (!converted) this.game.stats.hatched++;
     this.game.audio.fwoop();
@@ -817,7 +816,7 @@ export class Mounds {
     // (and never right up against a gate, where the key has to be carried)
     for (const g of w.gates) if (Math.hypot(g.x - x, g.z - z) < 9) return 'Too close to the gate';
     // (the builders need room to stand round it, so nothing big can be in the way: keys, bins, carcasses...)
-    for (const c of this.game.enemies.colliders) if (Math.hypot(c.x - x, c.z - z) < c.r + 2.6) return 'Something is in the way';
+    for (const c of this.game.enemies.colliders) if (Math.hypot(c.x - x, c.z - z) < c.r + 2.6) return "Something's in the way";
     return null;
   }
 

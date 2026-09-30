@@ -731,7 +731,6 @@ export class Turkey {
     g.audio.clonk();
     g.fx.sparkle(_v.set(this.pos.x, this.pos.y + 0.6 * this.scale, this.pos.z), 8, [0xffffff, 0xc9ced4, 0xffe066]);
     g.stats.saved++;
-    g.hud.toastOnce('kit', 'Clonk! Its cricket kit took that one (and came off: the next one counts)', 2.5, 30);
     // (knocked back a step, and a bit dazed)
     this.dropEverything();
     this.workCenter = null;

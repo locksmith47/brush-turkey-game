@@ -99,8 +99,8 @@ only open while she's in, and the King Ibis in the city is the end of the line, 
 - **Saves** (`save.js`) are a snapshot of what's changed since a new game, with foes keyed by name and home.
   - Bump `VERSION` when the map changes.
   - Progress flags go through main.js's `Saves` get/set with defaults, so old saves still load.
-  - The tips list in main.js is saved by index, so never insert tips in its middle. For a one-off message use
-    `hud.toastOnce`, or a flag saved with progress (like `player.toldHurt`).
+  - What you've been told is saved by name (`hud.told`): the tips list in main.js, and every `hud.toastOnce`. A
+    new one just needs a key of its own.
 - **Models** are merged primitives with vertex colours, sharing one toon material (`util.js`: `part`, `merge`,
   `vcMesh`). So one thing can't be tinted through its material. Every sound is synthesized in `audio.js`.
 
@@ -111,5 +111,8 @@ only open while she's in, and the King Ibis in the city is the end of the line, 
   and tuning constants sit at the top of a file with their units. Match the comment density of the file.
 - 2-space indent, single quotes, long lines are fine. Use module-level scratch vectors (`_v`, `_w`) rather than
   allocating every frame.
+- Toasts teach, once: say how something's done the first time it's needed (`hud.toastOnce`, or a tip), and don't
+  narrate what the player can see happen. A failed action gets `audio.nope()`, and words only when the reason
+  isn't on screen. The HUD shows only what the player acts on (the tallies are on the pause screen).
 - Commit messages: a plain-English line about what the player gets ("Let you build as many mounds as you
   like"), then a body in the same voice.

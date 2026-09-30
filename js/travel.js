@@ -74,8 +74,8 @@ export class Travel {
   tryDive() {
     const g = this.game, m = this.nearest();
     if (this.active || g.player.life !== 'ok') return;
-    if (!m) g.hud.toast('Walk up to one of your mounds, then press F to dive in', 2.5);
-    else if (this.known().length < 2) g.hud.toast("It's the only mound you've got! Build another (M) somewhere else, then dive in here to get there", 4);
+    if (!m) g.hud.toast('Get up close to one of your mounds to dive in', 2.5);
+    else if (this.known().length < 2) g.hud.toast("It's your only mound. Build another somewhere else, and you can dive in here to get there", 4);
     else { this.dive(m); return; }
     g.audio.nope();
   }
@@ -94,6 +94,7 @@ export class Travel {
     this.crew = g.turkeys.list.filter((t) => t.state === S.FOLLOW).sort((a, b) => near(a) - near(b));
     this.crew.forEach((t, i) => t.diveAfter(m, first + Math.min(i * each, last) + rand(0, 0.15)));
     g.hud.clearToast();
+    this.told = true; // (you know how it's done, then)
   }
 
   /** is this one of the squad still on its way in after you? */
@@ -211,7 +212,7 @@ export class Travel {
     const m = this.nearest();
     if (!m || !this.canDiveAt(m)) return;
     this.told = true;
-    this.game.hud.toast('Press F to dive into the mound, and your squad will follow you in: you can come out of any mound you like', 6);
+    this.game.hud.toast('Press F to dive into the mound, squad and all, and come out of any of your other mounds', 6);
   }
 
   /** the window's changed size: the map, drawn again to fit (if it's up) */

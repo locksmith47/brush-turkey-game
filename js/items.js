@@ -182,7 +182,6 @@ export class BeachFlag extends Foe {
 
   onDeath() {
     this.game.audio.thunk();
-    this.game.hud.toastOnce('flag', 'Dug it out! Now carry the flag to the beach mound', 2.5, 60);
   }
 
   /** it's down: from now on it's handled from the middle of the pole, lying along its heading */
@@ -245,7 +244,7 @@ export class BeachItem extends Foe {
     const T = TYPES[type];
     super(game, {
       name: T.name, hp: 1, scale: 1, radius: T.carryR * 0.8, value: T.value, weight: T.weight, slots: T.slots,
-      carryR: T.carryR, carcassLabelY: 0.9, mound: 'beach', noLabel: T.weight <= 1, quiet: T.value <= 2, faceMove: !!T.seat, loot: true,
+      carryR: T.carryR, carcassLabelY: 0.9, mound: 'beach', noLabel: T.weight <= 1, faceMove: !!T.seat, loot: true,
     }, x, z);
     this.type = type;
     const root = new THREE.Group();

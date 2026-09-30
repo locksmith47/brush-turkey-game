@@ -262,7 +262,7 @@ export class Keeper extends Foe {
     g.fx.dust(this.along(1.3, 0, _v), 16);
     g.shake(0.35);
     g.audio.stomp(3);
-    g.hud.toast(this.key && !this.key.gone ? 'Big Kev is out cold! His key rake opens the gate, and his leaf bag is for a mound' : 'Big Kev is out cold, and he dropped his leaf bag! Haul it to a mound!', 3.5);
+    g.hud.toast(this.key && !this.key.gone ? "Big Kev's out cold! Get his rake to the gate, and his leaf bag to a mound" : "Big Kev's out cold, and he's dropped his leaf bag: get it to a mound", 3.5);
     // there he lies, in everyone's way (loads get carried round him, not over him)...
     for (const [d, r] of LYING) {
       this.along(d, 0, _v);
@@ -368,7 +368,7 @@ export class Keeper extends Foe {
           p.hurt(d.spinHurt, this.pos, { knock: 14, stun: 1.1 });
         }
         if (Math.random() < dt * 20) g.fx.leafBits(this.rakeHead(_v), 2);
-        if (this.t >= 1.1) { this.state = 'dizzy'; this.t = 0; this.spinCool = 7; g.hud.toast("Kev's dizzy! Pile on!", 1.8); }
+        if (this.t >= 1.1) { this.state = 'dizzy'; this.t = 0; this.spinCool = 7; g.hud.toastOnce('kev-dizzy', "Kev's dizzy! Pile on!", 1.8); }
         break;
       }
       case 'dizzy':
@@ -535,7 +535,7 @@ class Belly {
     if (Math.random() < 0.25) g.audio.oi();
     t.squash = 1;
     if (Math.random() < 0.4) g.fx.sparkle(t.pos, 3, [0xffe066, 0xffffff]);
-    g.hud.toastOnce('kev-belly', 'Boing! Big Kev makes a good trampoline', 2.5, 600);
+    g.hud.toastOnce('kev-belly', 'Boing! Big Kev makes a good trampoline', 2.5);
     if (t.bounces > 0) {
       const a = rand(0, TAU), r = rand(0, 0.55);
       t.hopTo(this.x + Math.cos(a) * r, this.z + Math.sin(a) * r, rand(0.8, 1.05), rand(2.6, 4.0), this.matY);

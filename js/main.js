@@ -187,12 +187,11 @@ player.pos.set(START.x, world.groundHeight(START.x, START.z), START.z);
 // saving your progress (see Saves): all of the above is what a new game starts out with, and a save says
 // what's changed since. (Plus how far along you are: the areas you've been to, the tips you've been given)
 const saves = new Saves(game, {
-  get: () => ({ visited: [...visited], tip: tipIdx, told: bosses.map((h) => !!h.told), far: farPrompted, hurt: !!player.toldHurt, dugOut: game.wasted.told, travel: game.travel.told }),
+  get: () => ({ visited: [...visited], once: [...hud.told], told: bosses.map((h) => !!h.told), hurt: !!player.toldHurt, dugOut: game.wasted.told, travel: game.travel.told }),
   set: (d) => {
     for (const z of d.visited ?? []) visited.add(z);
-    tipIdx = Math.max(tipIdx, d.tip ?? 0);
+    for (const k of d.once ?? oldTips(d)) hud.told.add(k);
     bosses.forEach((h, i) => { h.told ||= !!d.told?.[i]; });
-    farPrompted ||= !!d.far;
     player.toldHurt ||= !!d.hurt;
     game.wasted.told ||= !!d.dugOut;
     game.travel.told ||= !!d.travel;
@@ -330,12 +329,10 @@ function letGo() {
 function doThrow(manual) {
   const t = turkeys.throwAt(target, manual ? null : throwKind);
   if (t) {
-    if (manual) throwKind = t.kind;
+    if (manual) throwKind = turkeys.kindOf(t);
     player.playThrow();
     game.stats.thrown++;
-  } else if (manual && turkeys.counts.squad === 0) {
-    hud.toast(turkeys.counts.sprouts ? 'No turkeys with you. Pluck some with E!' : 'No turkeys with you. Whistle to call them!', 1.6);
-  }
+  } else if (manual) audio.nope(); // (nobody with you to throw)
 }
 
 function tryPluck() {
@@ -356,7 +353,7 @@ function buildMound() {
   const near = (t) => Math.hypot(t.pos.x - player.pos.x, t.pos.z - player.pos.z);
   const crew = turkeys.list.filter((t) => t.state === 'follow' && near(t) < 12).sort((a, b) => near(a) - near(b));
   if (crew.length < BUILD_CREW) {
-    hud.toast(`It takes ${BUILD_CREW} turkeys to scratch up a mound (you've got ${crew.length} with you)`, 2.5);
+    hud.toast(`You need ${BUILD_CREW} turkeys with you to scratch up a mound`, 2.5);
     audio.nope();
     return;
   }
@@ -364,7 +361,7 @@ function buildMound() {
   crew.slice(0, BUILD_CREW).forEach((t) => t.joinBuild(m));
   fx.ring(m.pos, 0xffd21f, 2.6, 0.6);
   audio.build();
-  hud.toast(`${BUILD_CREW} turkeys are scratching up a new ${m.beach ? 'beach ' : ''}mound...`, 2.5);
+  hud.told.add('mound'); // (no need to tell you how, now)
 }
 
 function handleInput(dt) {
@@ -416,16 +413,10 @@ function handleInput(dt) {
     if (pluckHold > 0.32) { pluckHold = 0; tryPluck(); }
   }
 
-  if (input.pressed('KeyX')) {
-    const n = turkeys.dismiss();
-    if (n) { audio.peep(2); hud.toast(`Dismissed ${n}`, 1); }
-  }
+  if (input.pressed('KeyX') && turkeys.dismiss()) audio.peep(2);
   if (input.pressed('Tab')) {
     if (turkeys.cyclePreferred()) audio.peep(turkeys.candidate?.stage ?? 0);
-    else {
-      if (game.beachOpen()) hud.toast(turkeys.preferred === 'beach' ? 'No normal turkeys with you' : 'No beach turkeys with you', 1.4);
-      audio.nope();
-    }
+    else audio.nope(); // (none of the other kind with you)
   }
   if (input.pressed('KeyM')) buildMound();
   if (input.pressed('KeyF')) game.travel.tryDive();
@@ -440,27 +431,49 @@ const nearClearing = (name, pad = 6) => {
   const [x, z, r] = TRACK.clearings[name];
   return Math.hypot(player.pos.x - x, player.pos.z - z) < r + pad;
 };
+/** is there a beach turkey following you? */
+const beachSquad = () => turkeys.list.some((t) => t.kind === 'beach' && t.state === 'follow');
+/** or one padded up in its cricket kit? */
+const paddedSquad = () => turkeys.list.some((t) => t.state === 'follow' && turkeys.kindOf(t) === 'padded');
+// how things are done, each said the once (see HUD.toastOnce), when it's first needed: whichever's due first goes
+// up, then there's a breather before the next. One you've no need of (you've worked it out, or it's been and gone)
+// is never said at all
 const tips = [
-  { when: () => true, text: 'Walk up to a turkey poking out of the ground and press E to pluck it' },
-  { when: () => game.stats.plucked >= 2, text: 'Aim at leaf litter and left-click to throw a turkey' },
-  { when: () => game.stats.thrown >= 2, text: 'Turkeys rake the leaves back to the mound with their feet. Hold right-click to whistle them back' },
-  { when: () => game.stats.leaves >= 4, text: 'Fill the mound to hatch more chicks!' },
-  { when: () => game.stats.hatched >= 1, text: 'Grubs make turkeys grow. Bins are worth knocking over, too' },
-  { when: () => nearClearing('ibis'), text: 'A barricade blocks the way on! Throw turkeys at it to knock it down, and some ON the ibis guarding it' },
-  { when: () => nearClearing('gate'), text: 'The gate is padlocked. Find the giant golden key (look for the light beam)!' },
-  { when: () => !barricade.guards.up, text: "The key's buried! Throw turkeys at it to dig it up, then enough of them can carry it to the gate" },
-  { when: () => world.gates[0].open && zoneNow() === 1, text: 'Each key is bigger than the last: you will need a bigger flock!' },
-  { when: () => zoneNow() === BEACH, text: 'Manly! Steal beach gear for the beach mound: it hatches BEACH turkeys' },
-  { when: () => turkeys.list.some((t) => t.kind === 'beach' && t.state === 'follow'), text: 'Beach turkeys can swim! Others drown in deep water unless you whistle them out' },
-  { when: () => turkeys.list.some((t) => t.kind === 'beach' && t.state === 'follow'), text: 'Tab swaps between normal and beach turkeys. The biggest always get thrown first' },
-  { when: () => zoneNow() === BEACH && turkeys.list.some((t) => t.kind === 'beach'), text: 'Out of beach gear? Throw normal turkeys into a beach mound to turn them into beach turkeys' },
+  { key: 'pluck', when: () => !game.stats.plucked, text: 'Walk up to a turkey poking out of the ground and press E to pluck it' },
+  { key: 'throw', when: () => game.stats.plucked >= 2 && !game.stats.thrown, text: 'Aim at leaf litter and left-click to throw a turkey' },
+  { key: 'whistle', when: () => game.stats.thrown >= 2, text: 'Turkeys rake the leaves back to the mound with their feet. Hold right-click to whistle them back' },
+  { key: 'fill', when: () => game.stats.leaves >= 4 && !game.stats.hatched, text: 'Fill the mound to hatch more chicks!' },
+  { key: 'grubs', when: () => game.stats.hatched >= 1, text: 'Grubs make turkeys grow. Bins are worth knocking over, too' },
+  { key: 'barricade', when: () => nearClearing('ibis') && barricade.ibis.up, text: "A barricade's blocking the way on. Throw turkeys at it to knock it down, and a few on the ibis guarding it" },
+  { key: 'gate', when: () => nearClearing('gate') && !world.gates[0].unlocked, text: "The gate's padlocked. Find its giant golden key: look for the beam of light" },
+  { key: 'dig', when: () => !barricade.guards.up && game.barriers.keys[0].alive, text: "The key's buried. Throw turkeys at it to dig it up, then enough of them can carry it to the gate" },
+  // (building one yourself tells you all you need to know: see buildMound)
+  { key: 'mound', when: () => nearClearing('snake', 0) || zoneNow() === 1, text: `Your mound's a long way back now. Press M and ${BUILD_CREW} of your turkeys will scratch up a new one` },
+  { key: 'bigger', when: () => world.gates[0].open && zoneNow() === 1, text: "Each key's bigger than the last, so you'll need a bigger flock" },
+  { key: 'tab-padded', when: paddedSquad, text: 'Press Tab to throw your padded turkeys, and again to go back to the others' },
+  { key: 'manly', when: () => zoneNow() === BEACH, text: 'Manly! Pinch the beach gear for the beach mound: it hatches beach turkeys' },
+  { key: 'swim', when: beachSquad, text: 'Beach turkeys can swim. The others drown in deep water, unless you whistle them out' },
+  { key: 'tab', when: beachSquad, text: 'Press Tab to throw your beach turkeys, and again to go back to the others' },
+  // (or the beach mound tells you, if you find out for yourself: see Mound.convert)
+  { key: 'convert', when: () => zoneNow() === BEACH && turkeys.list.some((t) => t.kind === 'beach'), text: 'Out of beach gear? Throw normal turkeys into a beach mound to turn them into beach turkeys' },
+  // (and a word as you first get to each of the places that need one)
+  { key: 'oval', when: () => zoneNow() === OVAL, text: "The oval's mound has cricket gear in it already. Throw turkeys at the gear lying about and they'll carry it in" },
+  { key: 'ferry', when: () => zoneNow() === FERRY, text: 'Sit back and enjoy the view! Z and C swing the camera round' },
+  { key: 'quay', when: () => zoneNow() === CITY, text: 'Circular Quay! The King Ibis holds court at the Town Hall, at the end of the bin alley' },
 ];
-let tipIdx = 0, tipT = 1.5;
+/** what you'd been told, going by a save from before the tips had names (it only kept how far down the list you'd got, and a flag or two) */
+function oldTips(d) {
+  const told = ['pluck', 'throw', 'whistle', 'fill', 'grubs', 'barricade', 'gate', 'dig', 'bigger', 'manly', 'swim', 'tab', 'convert'].slice(0, d.tip ?? 0);
+  if (d.far) told.push('mound');
+  // (and the word as you first got to each place, you'd had if you'd been there)
+  for (const [z, key] of [[OVAL, 'oval'], [FERRY, 'ferry'], [CITY, 'quay']]) if (d.visited?.includes(z)) told.push(key);
+  return told;
+}
+let tipT = 4.5; // (the first waits for the name of the place to have been and gone)
 function updateTips(dt) {
-  tipT -= dt;
-  if (tipT > 0 || tipIdx >= tips.length) return;
-  if (tips[tipIdx].when()) { hud.toast(tips[tipIdx].text, 5); tipIdx++; tipT = 6; }
-  else tipT = 0.5;
+  if ((tipT -= dt) > 0) return;
+  const tip = tips.find((t) => !hud.told.has(t.key) && t.when());
+  tipT = tip && hud.toastOnce(tip.key, tip.text, 5) ? 6 : 0.5;
 }
 
 /* ------------------------------------------------------------------ dev menu (~) */
@@ -485,7 +498,8 @@ new DevMenu(game, {
   spawn(v) {
     const [kind, stage] = v.split(':');
     for (let i = 0; i < 10; i++) {
-      const t = turkeys.spawnSprout(player.pos.x + rand(-2, 2), player.pos.z + rand(1, 3), +stage, kind);
+      const t = turkeys.spawnSprout(player.pos.x + rand(-2, 2), player.pos.z + rand(1, 3), +stage, kind === 'beach' ? 'beach' : 'normal');
+      if (kind === 'padded') { t.gear = { helmet: true, pads: true }; t.buildRig(); } // (in their cricket kit)
       t.pluck();
     }
   },
@@ -526,37 +540,22 @@ new DevMenu(game, {
 /* ------------------------------------------------------------------ zones & boss */
 const visited = new Set([0]);
 game.visited = visited; // (the HUD only counts the mounds in places you've been)
-let zonePrompt = null; // { t, text }: a hint shown a moment after arriving somewhere new
-let farPrompted = false;
 // the bosses (and what they've got on them): said the first time you're close to one
 const bosses = [
   { boss: enemies.king, text: "The King Ibis, with the key to the city round his neck! Fell him and the city's yours" },
   { boss: enemies.keeper, text: "Big Kev's rake is a key rake: it opens the gate out of the oval! Beat him and he'll drop it" },
   { boss: enemies.captain, text: "Captain Gull's got the ferry keys in his beak! Bring him down and they're yours" },
 ];
-function updateZones(dt) {
-  // the bush's track is a long walk: by the second clearing, it's time for a mound closer to hand
-  if (!farPrompted && nearClearing('snake', 0)) {
-    farPrompted = true;
-    zonePrompt = { t: 2, text: `It's a long way back to the mound! Press M and ${BUILD_CREW} of your turkeys will scratch up a new one` };
-  }
+function updateZones() {
   const z = zoneNow();
   if (!visited.has(z)) {
     visited.add(z);
     hud.zoneTitle(ZONES[z].name);
-    // a new area is a long walk from the old mounds: time to build one here
-    if (z === 1) zonePrompt = { t: 3.5, text: `Press M and ${BUILD_CREW} of your turkeys will scratch up a new mound here` };
-    // (the oval's got one already, with a bit of the team's kit in it)
-    if (z === OVAL) zonePrompt = { t: 3.5, text: "The oval's mound has cricket gear in it already! Throw turkeys at the gear lying about and they'll carry it in" };
-    // (out on the harbour, there's nothing to do but take in the sights)
-    if (z === FERRY) zonePrompt = { t: 4, text: 'Sit back and enjoy the view! Z and C swing the camera round' };
-    // (and over the other side, the King's waiting)
-    if (z === CITY) zonePrompt = { t: 3.5, text: 'Circular Quay! The King Ibis holds court at the Town Hall, at the end of the bin alley' };
+    tipT = Math.max(tipT, 3.5); // (any tip waits for the name of the place to have been and gone)
   }
-  if (zonePrompt && (zonePrompt.t -= dt) <= 0) { hud.toast(zonePrompt.text, 6); zonePrompt = null; }
   for (const h of bosses) {
     if (h.told || !h.boss?.alive || Math.hypot(h.boss.pos.x - player.pos.x, h.boss.pos.z - player.pos.z) > 24) continue;
-    h.told = true;
+    h.told = true; tipT = Math.max(tipT, 6); // (and any tip waits till he's been introduced)
     hud.toast(h.text, 5);
   }
   hud.boss(game.cuttle.bar() ?? enemies.engagedBoss());

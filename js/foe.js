@@ -339,7 +339,6 @@ export class Foe {
     g.fx.dirt(top, 20, 1.3);
     g.fx.ring(m.pos, 0xffd21f, m.r * 2.5, 0.7);
     g.audio.absorb();
-    if (!this.def.quiet) g.hud.toast(`${this.def.name} mounded!`, 2.5);
     this.dispose();
   }
 

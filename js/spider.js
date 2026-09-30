@@ -228,7 +228,7 @@ export class Spider extends Foe {
   onDamage() {
     if (this.hp < this.def.hp * 0.35 && !this.enraged) {
       this.enraged = true;
-      this.game.hud.toast('The funnel-web is enraged!', 2);
+      this.game.hud.toast("Now you've made it cranky", 2);
       this.game.audio.chitter(true);
     }
   }
