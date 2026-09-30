@@ -212,7 +212,6 @@ export class Crab extends Foe {
     if (stagger && this.alive) {
       this.state = 'stagger';
       this.t = 0;
-      this.game.hud.toast('It let go!', 1.5);
     }
   }
 
@@ -289,7 +288,7 @@ export class Crab extends Foe {
           this.state = 'retreat';
           this.t = 0;
           this.retreatCool = 24;
-          g.hud.toast('The King Crab retreats to its pool! Only beach turkeys can swim after it!', 3);
+          g.hud.toastOnce('crab-pool', 'Back to its rock pool it goes. Only beach turkeys can swim after it', 3.5);
           break;
         }
         const front = this.forward(_w).multiplyScalar(1.1 * this.s).add(this.pos);
@@ -350,7 +349,6 @@ export class Crab extends Foe {
             this.t = 0;
             this.soakT = 0;
             this.gripDmg = 0;
-            if (king) g.hud.toast(`The King Crab has ${this.held.length} turkeys! Attack it before it drowns them!`, 3);
           }
         }
         if (this.state === 'snip' && this.t >= 0.9) { this.state = 'chase'; this.cool = d.cooldown; this.t = 0; }

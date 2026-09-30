@@ -145,7 +145,6 @@ export class Bin extends Foe {
 
   onDeath() {
     this.game.audio.clatter();
-    this.game.hud.toastOnce('bin', 'Over it goes! Carry whatever spilled out to a mound', 2.5, 60);
   }
 
   /** hit the ground: out spills the lot, and from now on it's just a bin lying on its side */

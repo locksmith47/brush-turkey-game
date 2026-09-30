@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { vcMesh, part, merge, tint, G, limb, clamp, rand, pick, pinLabel } from './util.js';
 import { palingGeo, picketGeo, railGeo, wireGeo, wireMat, placeAlong } from './props/fences.js';
-import { ZONES } from './world.js';
 import { Key } from './key.js';
 import { Foe } from './foe.js';
 import { TRACK } from './props/bush.js';
@@ -144,7 +143,6 @@ class Gate {
     g.audio.unlock();
     g.fx.sparkle(this.lockWorld(new THREE.Vector3()), 24);
     g.hud.banner('GATE UNLOCKED', 3);
-    g.hud.toast(this.gate.ferry ? 'The ferry keys fit! All aboard for Circular Quay' : `${ZONES[this.index + 1].name} awaits...`, 3);
   }
 
   /** open for everyone to go through, or shut (not locked: the ferry's gangways, as it comes and goes) */
@@ -286,7 +284,6 @@ class Barricade extends Foe {
     this.group = group;
     this.state = 'up';
     this.wob = 0;
-    this.label.innerHTML = web ? '💪 Throw turkeys at the web to tear it down' : '💪 Throw turkeys at it to knock it down';
   }
 
   get up() { return this.alive; }
@@ -346,7 +343,6 @@ class Barricade extends Foe {
       g.fx.leafBits(this.center, 12);
     }
     g.shake(0.25);
-    g.hud.toast(this.kind === 'web' ? 'The web is torn down! The way to the key is clear' : 'Knocked it down! The way on is clear', 2.5);
   }
 
   /** debug helper: knock it down straight away */
@@ -399,14 +395,6 @@ class Barricade extends Foe {
       h.children[0].material.opacity = 1 - fade;
       h.scale.y = 1 - fade * 0.6;
     }
-  }
-
-  /** untouched, it says what it'll take (when you're close by); once turkeys are at it, the dial shows how far along they are */
-  updateLabel(camera, v) {
-    if (!this.alive || this.hp < this.def.hp) { super.updateLabel(camera, v); return; }
-    const p = this.game.player.pos;
-    if (Math.hypot(p.x - this.center.x, p.z - this.center.z) > 14) { if (this.label.style.display !== 'none') this.label.style.display = 'none'; return; }
-    pinLabel(this.label, v.set(this.center.x, this.center.y + 2.3, this.center.z), camera);
   }
 }
 
@@ -465,7 +453,6 @@ class SideGate {
     if (silent) return;
     g.audio.unlock();
     g.fx.sparkle(this.center.clone().setY(1.2), 14);
-    g.hud.toast('You unlatched the side gate: a shortcut back!', 3);
   }
 
   update(dt, camera, v) {
@@ -482,7 +469,7 @@ class SideGate {
     }
     // (what it'll take to get through, from whichever side the player's on)
     if (!this.shut || d > 10) { if (this.label.style.display !== 'none') this.label.style.display = 'none'; return; }
-    const text = onLatchSide ? '🔓 Unlatch it: a shortcut back' : '🔒 Latched on the other side';
+    const text = onLatchSide ? '🔓 A shortcut back' : '🔒 Latched on the other side';
     if (this.label.innerHTML !== text) this.label.innerHTML = text;
     pinLabel(this.label, v.set(this.center.x, 2.4, this.center.z), camera);
   }

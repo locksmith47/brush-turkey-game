@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { S } from './turkey.js';
 import { BUILD_CREW } from './mound.js';
-import { clamp, lerp, smoothstep, rand, pick, TAU } from './util.js';
+import { clamp, lerp, smoothstep, rand, TAU } from './util.js';
 
 /*
  * Going down, GTA style. When your health runs out, over backwards you go (like Big Kev), time slows right
@@ -27,7 +27,6 @@ const RESCUERS = 10; // with nobody left above ground: grown turkeys that turn u
 // carried off in a beak or already swallowed, say)
 const CAN_DIG = new Set([S.FOLLOW, S.POP, S.IDLE, S.GOTO, S.SEEK, S.RAKE, S.EAT, S.ATTACK, S.HAUL, S.TOY, S.SWING, S.BUILD, S.DROWN, S.THROWN]);
 const SAND = [0xecd9a4, 0xe2cc92, 0xd8c286];
-const AGAIN = ['Dug out by your turkeys!', 'Back on your feet!', 'Your turkeys dug you out. Try not to make a habit of it', 'Up you come! Your turkeys had you out in no time'];
 const _v = new THREE.Vector3();
 
 export class Wasted {
@@ -184,8 +183,7 @@ export class Wasted {
     this.stage = 'pop';
     this.popFrom(this.mound, this.crew);
     if (this.fresh) g.hud.toast(`With no turkeys left, ${RESCUERS} big ones turned up to dig you out. They're with you now!`, 4.5);
-    else if (!this.told) g.hud.toast('Your turkeys dug you out! You come back at the nearest mound: build them as you go (M)', 5.5);
-    else g.hud.toast(pick(AGAIN), 2.5);
+    else if (!this.told) g.hud.toast("Your turkeys dug you out! You'll always come back at the nearest mound, so build them as you go", 5.5);
     this.told = true;
   }
 

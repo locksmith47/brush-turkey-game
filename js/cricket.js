@@ -78,7 +78,7 @@ export class Stumps extends Foe {
     // the bails go flying
     const a = this.heading + Math.PI;
     g.fx.fling(this.bails, _v.set(Math.sin(a) * 1.5, 3.2, Math.cos(a) * 1.5), _w.set(rand(-12, 12), rand(-12, 12), rand(-12, 12)), 1.4);
-    g.hud.toastOnce('stumps', 'Howzat! The stumps are out: carry them off to a mound', 3, 60);
+    g.hud.toastOnce('stumps', 'Howzat!', 2);
   }
 
   finishAbsorb() {
@@ -216,7 +216,7 @@ export class CricketGear extends Foe {
     const T = KIT[type], r = T.carryR * SIZE;
     super(game, {
       name: T.name, hp: 1, scale: SIZE, radius: r * 0.8, value: T.value, weight: T.weight, slots: T.slots,
-      carryR: r, carcassLabelY: 0.7, noLabel: T.weight <= 1, quiet: T.value <= 2, loot: true, palette: 'cricket',
+      carryR: r, carcassLabelY: 0.7, noLabel: T.weight <= 1, loot: true, palette: 'cricket',
     }, x, z);
     this.type = type;
     const root = new THREE.Group();

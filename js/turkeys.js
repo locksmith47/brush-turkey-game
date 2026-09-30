@@ -18,7 +18,7 @@ export class Turkeys {
     this.nbrs = [];
     this.preferred = 'normal'; // which kind Tab has picked to throw (the biggest of that kind always goes first)
     this.candidate = null;
-    this.counts = { squad: 0, field: 0, sprouts: 0, stages: [0, 0, 0], beach: 0, normal: 0, kit: 0 };
+    this.counts = { squad: 0, field: 0, sprouts: 0, stages: [0, 0, 0], beach: 0, normal: 0 }; // (stages: the normal ones only)
   }
 
   spawnSprout(x, z, stage = 0, kind = 'normal') {
@@ -64,7 +64,7 @@ export class Turkeys {
     const t = this.nearestSprout(pos, maxD);
     if (!t) return null;
     if (this.plucked >= MAX_TURKEYS) {
-      this.game.hud.toast(`Your flock is full (${MAX_TURKEYS})!`);
+      this.game.hud.toast(`That's ${MAX_TURKEYS} turkeys: your flock's full`);
       this.game.audio.nope();
       return null;
     }
@@ -144,14 +144,13 @@ export class Turkeys {
     const g = this.game, p = g.player;
     const c = this.counts;
     c.squad = c.field = c.sprouts = 0;
-    c.stages[0] = c.stages[1] = c.stages[2] = c.beach = c.normal = c.kit = 0;
+    c.stages[0] = c.stages[1] = c.stages[2] = c.beach = c.normal = 0;
     for (const t of this.list) {
       if (t.dead) continue;
       if (t.state === S.FOLLOW || t.state === S.DIVE || t.state === S.TUNNEL || t.state === S.DIGOUT) { // (with you down the tunnels, too, and digging you out)
         c.squad++;
-        c.stages[t.stage]++;
-        if (t.kind === 'beach') c.beach++; else c.normal++;
-        if (t.gear?.helmet || t.gear?.pads) c.kit++;
+        if (t.kind === 'beach') c.beach++;
+        else { c.normal++; c.stages[t.stage]++; }
       }
       if (t.state === S.SPROUT || t.state === S.BURROW || t.state === S.LAUNCHED) c.sprouts++;
       else c.field++;

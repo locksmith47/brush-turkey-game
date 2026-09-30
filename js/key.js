@@ -176,7 +176,6 @@ export class Key extends Foe {
     g.audio.thunk();
     g.audio.clang();
     g.fx.dirt(this.base, 14, 1.2);
-    g.hud.toastOnce('dug-key', 'Dug up the key! Now carry it to the gate', 3, 600);
   }
 
   /** where the key has to be carried: right up to the padlock, on this side of the gate */

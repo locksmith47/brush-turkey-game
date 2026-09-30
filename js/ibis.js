@@ -210,7 +210,6 @@ export class Ibis extends Foe {
     if (stagger && this.alive) {
       this.state = 'stagger';
       this.t = 0;
-      this.game.hud.toast('It let them go!', 2);
       this.game.audio.squawk(this.s, true);
     }
   }
@@ -373,7 +372,6 @@ export class Ibis extends Foe {
             this.gripDmg = 0;
             this.grabCool = d.grabEvery;
             g.audio.squawk(this.s);
-            g.hud.toast(`The King snatched ${this.held.length} turkeys! Attack to break its grip!`, 3);
           }
         }
         if (this.state === 'grab' && this.t >= GRAB_T + 0.4) this.backToChase(d.cooldown);
