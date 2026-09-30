@@ -318,7 +318,7 @@ function letGo() {
 function doThrow(manual) {
   const t = turkeys.throwAt(target, manual ? null : throwKind);
   if (t) {
-    if (manual) throwKind = t.kind;
+    if (manual) throwKind = turkeys.kindOf(t);
     player.playThrow();
     game.stats.thrown++;
   } else if (manual) audio.nope(); // (nobody with you to throw)
@@ -422,6 +422,8 @@ const nearClearing = (name, pad = 6) => {
 };
 /** is there a beach turkey following you? */
 const beachSquad = () => turkeys.list.some((t) => t.kind === 'beach' && t.state === 'follow');
+/** or one padded up in its cricket kit? */
+const paddedSquad = () => turkeys.list.some((t) => t.state === 'follow' && turkeys.kindOf(t) === 'padded');
 // how things are done, each said the once (see HUD.toastOnce), when it's first needed: whichever's due first goes
 // up, then there's a breather before the next. One you've no need of (you've worked it out, or it's been and gone)
 // is never said at all
@@ -437,9 +439,10 @@ const tips = [
   // (building one yourself tells you all you need to know: see buildMound)
   { key: 'mound', when: () => nearClearing('snake', 0) || zoneNow() === 1, text: `Your mound's a long way back now. Press M and ${BUILD_CREW} of your turkeys will scratch up a new one` },
   { key: 'bigger', when: () => world.gates[0].open && zoneNow() === 1, text: "Each key's bigger than the last, so you'll need a bigger flock" },
+  { key: 'tab-padded', when: paddedSquad, text: 'Press Tab to throw your padded turkeys, and again to go back to the others' },
   { key: 'manly', when: () => zoneNow() === BEACH, text: 'Manly! Pinch the beach gear for the beach mound: it hatches beach turkeys' },
   { key: 'swim', when: beachSquad, text: 'Beach turkeys can swim. The others drown in deep water, unless you whistle them out' },
-  { key: 'tab', when: beachSquad, text: 'Tab swaps between throwing normal and beach turkeys' },
+  { key: 'tab', when: beachSquad, text: 'Press Tab to throw your beach turkeys, and again to go back to the others' },
   // (or the beach mound tells you, if you find out for yourself: see Mound.convert)
   { key: 'convert', when: () => zoneNow() === BEACH && turkeys.list.some((t) => t.kind === 'beach'), text: 'Out of beach gear? Throw normal turkeys into a beach mound to turn them into beach turkeys' },
   // (and a word as you first get to each of the places that need one)
@@ -484,7 +487,8 @@ new DevMenu(game, {
   spawn(v) {
     const [kind, stage] = v.split(':');
     for (let i = 0; i < 10; i++) {
-      const t = turkeys.spawnSprout(player.pos.x + rand(-2, 2), player.pos.z + rand(1, 3), +stage, kind);
+      const t = turkeys.spawnSprout(player.pos.x + rand(-2, 2), player.pos.z + rand(1, 3), +stage, kind === 'beach' ? 'beach' : 'normal');
+      if (kind === 'padded') { t.gear = { helmet: true, pads: true }; t.buildRig(); } // (in their cricket kit)
       t.pluck();
     }
   },

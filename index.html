@@ -32,6 +32,7 @@
         <div class="stage s0 hidden" id="c-s0-box"><i></i><span id="c-s0">0</span></div>
         <div class="stage s1 hidden" id="c-s1-box"><i></i><span id="c-s1">0</span></div>
         <div class="stage s2 hidden" id="c-s2-box"><i></i><span id="c-s2">0</span></div>
+        <div class="stage s4 hidden" id="c-padded-box"><i></i><span id="c-padded">0</span></div>
         <div class="stage s3 hidden" id="c-beach-box"><i></i><span id="c-beach">0</span></div>
       </div>
       <div class="more hidden" id="c-about"></div>
@@ -41,7 +42,7 @@
     <div id="throw-type" class="hidden">
       <div class="lbl">Next throw</div>
       <div id="throw-name">—</div>
-      <div id="throw-kind" class="hidden"><span id="tk-normal" class="on">Normal</span><span id="tk-beach">Beach</span><kbd>Tab</kbd></div>
+      <div id="throw-kind" class="hidden"><span id="tk-normal" class="on">Normal</span><span id="tk-padded" class="hidden">Padded</span><span id="tk-beach" class="hidden">Beach</span><kbd>Tab</kbd></div>
     </div>
 
     <div id="corner">
@@ -59,7 +60,7 @@
       <tr><td>Right click<br>or <kbd>Space</kbd></td><td>Whistle turkeys back (hold)</td></tr>
       <tr><td><kbd>E</kbd></td><td>Pluck a turkey (hold for more)</td></tr>
       <tr><td><kbd>X</kbd></td><td>Dismiss your squad</td></tr>
-      <tr id="help-tab" class="hidden"><td><kbd>Tab</kbd></td><td>Swap normal and beach turkeys</td></tr>
+      <tr id="help-tab" class="hidden"><td><kbd>Tab</kbd></td><td>Pick which kind of turkey to throw</td></tr>
       <tr><td><kbd>M</kbd></td><td>Scratch up a mound (10 turkeys)</td></tr>
       <tr><td><kbd>F</kbd></td><td>Dive into a mound to travel</td></tr>
       <tr><td><kbd>Z</kbd><kbd>C</kbd><br>or middle-drag</td><td>Turn the camera</td></tr>
@@ -102,7 +103,6 @@
     <div class="word">Paused</div>
     <p>Press <kbd>Esc</kbd> to carry on</p>
     <div class="tally">
-      <div><b id="t-leaves">0</b><span>leaves mounded</span></div>
       <div><b id="t-hatched">0</b><span>chicks hatched</span></div>
       <div><b id="t-mounds">0</b><span>mounds</span></div>
       <div><b id="t-lost">0</b><span>turkeys lost</span></div>

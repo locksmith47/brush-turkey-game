@@ -16,6 +16,7 @@ export class DevMenu {
       <div class="dev-row">
         <button data-a="spawn" data-v="normal:0">+10 chicks</button>
         <button data-a="spawn" data-v="normal:2">+10 adults</button>
+        <button data-a="spawn" data-v="padded:2">+10 padded turkeys</button>
         <button data-a="spawn" data-v="beach:2">+10 beach turkeys</button>
       </div>
       <div class="dev-lbl">Cheats</div>

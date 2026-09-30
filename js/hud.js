@@ -4,7 +4,7 @@ export class HUD {
   constructor(game) {
     this.game = game;
     this.el = {};
-    for (const id of ['health', 'hp-fill', 'hp-lag', 'hurt', 'hud', 'help', 'toast', 'c-squad', 'c-stages', 'c-s0', 'c-s1', 'c-s2', 'c-beach', 'c-s0-box', 'c-s1-box', 'c-s2-box', 'c-beach-box', 'c-about', 'c-sprouts', 'throw-name', 't-leaves', 't-hatched', 't-mounds', 't-lost', 'boss', 'boss-name', 'boss-hp', 'boss-lag', 'banner', 'banner-text', 'zone-title', 'zone-name', 'boss-grip', 'boss-grip-fill', 'boss-grip-time', 'tk-normal', 'tk-beach', 'throw-type', 'throw-kind', 'help-tab', 'saved', 'paused', 'muted']) {
+    for (const id of ['health', 'hp-fill', 'hp-lag', 'hurt', 'hud', 'help', 'toast', 'c-squad', 'c-stages', 'c-s0', 'c-s1', 'c-s2', 'c-padded', 'c-beach', 'c-s0-box', 'c-s1-box', 'c-s2-box', 'c-padded-box', 'c-beach-box', 'c-about', 'c-sprouts', 'throw-name', 't-hatched', 't-mounds', 't-lost', 'boss', 'boss-name', 'boss-hp', 'boss-lag', 'banner', 'banner-text', 'zone-title', 'zone-name', 'boss-grip', 'boss-grip-fill', 'boss-grip-time', 'tk-normal', 'tk-padded', 'tk-beach', 'throw-type', 'throw-kind', 'help-tab', 'saved', 'paused', 'muted']) {
       this.el[id] = document.getElementById(id);
     }
     this.told = new Set(); // (the things you've been told the once: see toastOnce)
@@ -32,7 +32,6 @@ export class HUD {
   /** how you're going, on the pause screen */
   tally() {
     const g = this.game;
-    this.el['t-leaves'].textContent = Math.floor(g.stats.leaves);
     this.el['t-hatched'].textContent = g.stats.hatched;
     // (your mounds: not the ones still waiting for you further on, at the oval and the beach)
     this.el['t-mounds'].textContent = g.mounds.list.filter((m) => g.visited.has(g.world.zoneOf(m.pos.x, m.pos.z))).length;
@@ -173,10 +172,11 @@ export class HUD {
       this.el['hp-lag'].style.width = pct;
     }
     this.setClass('health', hp > 0.5 ? '' : hp > 0.25 ? 'mid' : 'low');
-    // your squad, and what's in it (chicks, juveniles and adults, and beach turkeys: bar any you've none of)
+    // your squad, and what's in it (chicks, juveniles and adults, then the padded-up turkeys and the beach turkeys:
+    // bar any you've none of)
     this.set('c-squad', c.squad);
     this.hide('c-stages', !c.squad);
-    for (const [id, n] of [['c-s0', c.stages[0]], ['c-s1', c.stages[1]], ['c-s2', c.stages[2]], ['c-beach', c.beach]]) {
+    for (const [id, n] of [['c-s0', c.stages[0]], ['c-s1', c.stages[1]], ['c-s2', c.stages[2]], ['c-padded', c.padded], ['c-beach', c.beach]]) {
       this.set(id, n);
       this.hide(`${id}-box`, !n);
     }
@@ -186,16 +186,18 @@ export class HUD {
     this.hide('c-about', !about);
     this.set('c-sprouts', `${c.sprouts} to pluck`);
     this.hide('c-sprouts', !c.sprouts);
-    // the rest of the beach turkey bits of the HUD stay hidden until the beach is open
-    const beach = g.beachOpen();
-    if (beach !== this.beachShown) {
-      this.beachShown = beach;
-      for (const id of ['throw-type', 'throw-kind', 'help-tab']) this.el[id].classList.toggle('hidden', !beach);
+    // Next throw (and Tab) turn up once there's a choice of who to throw: padded turkeys, while there are any about,
+    // and beach turkeys, once the beach is open
+    const tu = g.turkeys, beach = g.beachOpen(), padded = tu.list.some((t) => !t.dead && tu.kindOf(t) === 'padded');
+    if ((beach || padded) !== this.choiceShown) {
+      this.choiceShown = beach || padded;
+      for (const id of ['throw-type', 'throw-kind', 'help-tab']) this.el[id].classList.toggle('hidden', !this.choiceShown);
     }
     // next throw: the kind Tab picked (or whichever you've got), biggest first
-    const cand = g.turkeys.candidate, kind = cand ? cand.kind : g.turkeys.preferred;
-    this.set('throw-name', cand ? g.turkeys.stageName(cand.stage) : '—');
+    const cand = tu.candidate, kind = cand ? tu.kindOf(cand) : tu.preferred;
+    this.set('throw-name', cand ? tu.stageName(cand.stage) : '—');
     this.setClass('tk-normal', (kind === 'normal' ? 'on' : '') + (c.normal ? '' : ' none'));
-    this.setClass('tk-beach', (kind === 'beach' ? 'on' : '') + (c.beach ? '' : ' none'));
+    this.setClass('tk-padded', (kind === 'padded' ? 'on' : '') + (c.padded ? '' : ' none') + (padded ? '' : ' hidden'));
+    this.setClass('tk-beach', (kind === 'beach' ? 'on' : '') + (c.beach ? '' : ' none') + (beach ? '' : ' hidden'));
   }
 }
