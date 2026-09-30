@@ -15,16 +15,18 @@ import { FERRY, CITY } from './world.js';
  * ink, the storm clears, and she's on her way again, with a deck full of fish it's churned up (see Fish) to be
  * carried off to a mound at the Quay. After that, the crossing's a quiet one.
  *
- * Go down in the middle of it, and it's called off: it lets go of her and slinks off, the weather clears, and she
- * turns back for you. It'll be there waiting the next time you cross.
+ * Go down in the middle of it, or run out of turkeys to fight it with, and it's had her: it wraps itself round her
+ * and drags her under. You come round at the nearest mound, and she's been fished out and patched up and she's back at
+ * the wharf (see Ferry.refloat), with it waiting for her the next time you cross.
  */
 const NAME = 'Giant Australian Cuttlefish';
 const ARMS = 6; // tentacles it sends up over her sides, all told...
-const AT_ONCE = [2, 3]; // ...this many at a time (and once it's lost a couple, this many)
+const AT_ONCE = [2, 3]; // ...this many at a time (and once it's lost half of them, this many)
 const FIRST = [0.6, 2.6]; // s the first two stay under after it's come up, before they come up after her...
 const NEXT = [1.5, 3.5]; // ...and the ones after
 const WHERE = 0.5, WINDOW = 0.06; // how far over she is when it comes up for her (0 the wharf, 1 the Quay), give or take
-const TIME = { brew: 5.5, rise: 2.4, beaten: 0.9, dive: 3.6, sink: 2.6 }; // s: circling under her while the storm brews, coming up, reeling from losing its last tentacle, going back down (and slinking off, called off)
+const TIME = { brew: 5.5, rise: 2.4, beaten: 0.9, dive: 3.6, sink: 2.6, lunge: 0.8 }; // s: circling under her while the storm brews, coming up, reeling from losing its last tentacle, going back down (and slinking off, called off), and lunging in at her to drag her under
+const ALONE = 2; // s with not one of your turkeys left aboard her before it has her
 const FISH_AT = 0.5, SAIL_AT = 2.4; // s into it going back down that the fish come flying up, and that she's let go
 const SPOT = { ahead: 20, aside: 18, circle: [26, 13] }; // m: where it comes up, out in front of you (the way you're looking) and off her left side; and how far out from her middle it circles, before (along her, across her)
 const UP = { y: 1, pitch: 0.5 }; // up: its middle m above the water, and its head up this much (radians)
@@ -283,15 +285,17 @@ class Patch {
 export class Cuttle {
   constructor(game) {
     this.game = game;
-    this.state = 'lurk'; // 'lurk' (waiting for her) | 'brew' | 'rise' | 'fight' | 'beaten' | 'dive' (off, beaten) | 'sink' (off, called off) | 'gone' (for good)
+    this.state = 'lurk'; // 'lurk' (waiting for her) | 'brew' | 'rise' | 'fight' | 'beaten' | 'dive' (off, beaten) | 'wreck' (dragging her under) | 'sink' (off, called off) | 'gone' (for good)
     this.t = 0;
     this.beaten = false;
     this.arms = []; // (its tentacles: up, or on their way)
     this.fish = []; // (the fish it churned up, for the save)
     this.sent = this.down = 0; // (tentacles it's sent up after her, and ones that have been beaten)
+    this.alone = 0; // (s you've had no turkeys aboard to fight it with)
     this.recoil = 0;
     this.hp = 0;
     this.ox = this.oz = this.face = this.a1 = 0;
+    this.was = { ox: 0, oz: 0, y: SEA + DEEP, pitch: 0 }; // (where it was last, and how: see pose)
     this.body = new Body(game.scene);
     this.shade = new Patch(game.scene, 0x0b0a1c);
     this.inks = Array.from({ length: 4 }, () => ({ p: new Patch(game.scene, INK), x: 0, z: 0, r: 0, yaw: 0, t: 0, life: 1, left: 0 }));
@@ -301,9 +305,13 @@ export class Cuttle {
   /** every frame, before the foes (it sends its tentacles up among them) */
   update(dt) {
     const g = this.game, f = g.ferry, p = g.player;
-    const aboard = g.world.zoneOf(p.pos.x, p.pos.z) === FERRY;
-    // (you've gone down, and come round somewhere else: it's off)
-    if ((this.state === 'brew' || this.state === 'rise' || this.state === 'fight') && !aboard) this.callOff();
+    const aboard = g.world.zoneOf(p.pos.x, p.pos.z) === FERRY, at = this.state === 'brew' || this.state === 'rise' || this.state === 'fight';
+    // (you've gone down, or there's nobody left aboard to fight it: it has her. And once you've come round somewhere
+    // else, she's back at the wharf, and it's back to waiting for her)
+    this.alone = this.state === 'fight' && !this.fighters() ? this.alone + dt : 0;
+    if (at && aboard && (p.life === 'down' || this.alone > ALONE)) this.wreck();
+    else if (at && !aboard) this.callOff(); // (you're off her some other way)
+    if (this.state === 'wreck' && !aboard) this.reset();
     const t = (this.t += dt);
     switch (this.state) {
       case 'lurk':
@@ -328,8 +336,11 @@ export class Cuttle {
         if (t >= TIME.dive) {
           this.state = 'gone';
           f.release();
-          g.hud.toast("It's left you a deck full of fish: get them to the mound on the Quay", 4.5);
+          g.hud.toastOnce('fish', "It's left you a deck full of fish: get them to the mound on the Quay", 4.5);
         }
+        break;
+      case 'wreck':
+        if (p.life === 'ok' && f.sunk > 0.3) p.goDown(null); // (her deck's gone out from under you: that's you in the drink)
         break;
       case 'sink':
         if (t >= TIME.sink) this.state = 'lurk';
@@ -376,12 +387,12 @@ export class Cuttle {
     g.audio.moan(2.2);
     g.shake(0.7);
     g.hud.banner('GIANT CUTTLEFISH', 3);
-    g.hud.toast('Throw turkeys on its tentacles when they come down on the deck', 4);
+    g.hud.toastOnce('tentacles', 'Throw turkeys on its tentacles when they come down on the deck', 4);
   }
 
   /** its tentacles, up over her sides: as many at once as it's got the fight in it for, till it's got none left */
   sendArms() {
-    const g = this.game, most = this.down >= 2 ? AT_ONCE[1] : AT_ONCE[0];
+    const g = this.game, most = this.down >= ARMS / 2 ? AT_ONCE[1] : AT_ONCE[0];
     while (this.sent < ARMS && this.arms.filter((a) => a.alive).length < most) {
       const a = new Tentacle(g, this, this.sent < FIRST.length ? FIRST[this.sent] : rand(...NEXT));
       g.enemies.list.push(a);
@@ -435,7 +446,46 @@ export class Cuttle {
     g.audio.fanfare();
   }
 
-  /** called off (you went down, and you're somewhere else now): it lets go of her and slinks off, and she turns back for you */
+  /** your turkeys still aboard her to fight it with (up and about, clinging on, in the air, or sat on her rails) */
+  fighters() {
+    const g = this.game, f = g.ferry;
+    return f.perches.seats.some((s) => s.rider) || g.turkeys.list.some((t) => !t.dead && !t.removed && f.onDeck(t.pos.x, t.pos.z, 1));
+  }
+
+  /**
+   * It's had her (you've gone down, or you've no turkeys left aboard): it lunges in at her, wraps every tentacle it's
+   * got up round her, and drags her under (see Ferry.wreck), and you with her if you're still on your feet
+   */
+  wreck() {
+    const g = this.game, f = g.ferry, d = Math.hypot(this.ox, this.oz) || 1;
+    this.state = 'wreck';
+    this.t = 0;
+    this.from = { ...this.was };
+    for (const a of this.arms) a.wreck();
+    f.wreck(this.oz < 0 ? -1 : 1);
+    g.storm.strike(f.x + (this.ox / d) * 50 + rand(-10, 10), LANE + (this.oz / d) * 50 + rand(-10, 10));
+    g.audio.moan(2.6);
+    g.shake(0.8);
+  }
+
+  /** she's gone under, and you've come round at a mound: back to waiting for her under the harbour, and her back at the wharf */
+  reset() {
+    const g = this.game;
+    for (const a of this.arms) {
+      a.leave();
+      if (!a.gone) a.dispose();
+    }
+    this.arms.length = 0;
+    this.state = 'lurk';
+    this.t = 0;
+    this.body.hide();
+    this.shade.hide();
+    for (const o of this.inks) { o.left = 0; o.p.hide(); }
+    g.storm.reset();
+    g.ferry.refloat();
+  }
+
+  /** called off (you're off her some other way, with it at her): it lets go of her and slinks off, and she turns back for you */
   callOff() {
     const g = this.game, f = g.ferry, p = g.player.pos;
     for (const a of this.arms) a.leave();
@@ -471,7 +521,7 @@ export class Cuttle {
   }
 
   /** whether it's at her, from the storm brewing till it's gone back down (the camera sits up to take it in) */
-  get fighting() { return this.state === 'brew' || this.state === 'rise' || this.state === 'fight' || this.state === 'beaten' || this.state === 'dive'; }
+  get fighting() { return this.state === 'brew' || this.state === 'rise' || this.state === 'fight' || this.state === 'beaten' || this.state === 'dive' || this.state === 'wreck'; }
 
   /** the harbour's shut past it, till it's been seen off (see World.route): nobody's getting over to the Quay */
   bars(gate) { return !this.beaten && gate === this.game.world.gates[FERRY]; }
@@ -523,6 +573,15 @@ export class Cuttle {
       yaw = this.face + 0.12 * Math.sin(time * 0.33) + worked * 0.06 * Math.sin(time * 17);
       roll = 0.06 * Math.sin(time * 0.47);
       if (st === 'beaten') b.pale = Math.max(b.pale, 0.5 + 0.5 * Math.sin(t * 30)); // (flashing, all of a fright)
+    } else if (st === 'wreck') {
+      // lunging in at her, up out of the water, arms wide and dark clouds racing down it... then under, with her
+      const k = smoothstep(0, TIME.lunge, t), w = this.from, s = f.sunk;
+      ox = lerp(w.ox, this.ox * 0.62, k);
+      oz = lerp(w.oz, this.oz * 0.62, k);
+      y = lerp(w.y, SEA + UP.y + 0.9, k) - s * 7 + 0.2 * Math.sin(time * 3);
+      pitch = lerp(w.pitch, UP.pitch + 0.2, k) - s * 0.9;
+      roll = 0.1 * Math.sin(time * 1.7);
+      b.clouds = 15;
     } else {
       // 'dive' or 'sink': off it goes, backwards (the way they do), tail first down into the depths, arms trailing
       const k = clamp(t / (st === 'dive' ? TIME.dive : TIME.sink), 0, 1), back = 14 * smoothstep(0, 1, k);
@@ -533,6 +592,7 @@ export class Cuttle {
       spread = lerp(1, 0.1, smoothstep(0, 0.4, k));
     }
     b.place(f.x + ox, y, LANE + oz, yaw, pitch, roll, spread, time);
+    Object.assign(this.was, { ox, oz, y, pitch });
     if (shade > 0.005) this.shade.set(f.x + ox, LANE + oz, 10, 5.5, yaw, shade, time, g.storm.k);
     else this.shade.hide();
   }

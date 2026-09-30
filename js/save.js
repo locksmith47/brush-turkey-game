@@ -2,8 +2,9 @@ import { Bin } from './bin.js';
 import { LeafBag } from './keeper.js';
 import { PALETTES } from './leaves.js';
 import { S } from './turkey.js';
-import { LEGS } from './world.js';
+import { LEGS, WHARF } from './world.js';
 import { QUAY_MOUND } from './props/city.js';
+import { WHARF_MOUND } from './props/wharf.js';
 
 /*
  * Saving your progress, in the browser (localStorage): a snapshot of whatever's changed since the game
@@ -229,10 +230,14 @@ export class Saves {
     // (a save from before there was a mound on the Quay: it's there now, bar where you've built one of your own)
     const [qx, qz] = QUAY_MOUND;
     if (!g.mounds.list.some((m) => Math.hypot(m.pos.x - qx, m.pos.z - qz) < 12)) g.mounds.add(qx, qz).startWith(3, 'fish');
+    // (or before the pines on Manly Wharf's forecourt, and the mound among them: they're there now, needles and all)
+    const [wx, wz] = WHARF_MOUND, pines = !g.mounds.list.some((m) => Math.hypot(m.pos.x - wx, m.pos.z - wz) < 12);
+    if (pines) g.mounds.add(wx, wz).startWith(3, 'pine');
     // the litter lying about, and the grubs in it
     g.leaves.clear();
     const L = d.litter;
     for (let i = 0; i + 3 < L.length; i += 4) g.leaves.spawn(L[i], L[i + 1], PAL[L[i + 2]] ?? 'gum', SHAPES[L[i + 3]] ?? 'leaf');
+    if (pines) for (const s of g.world.treeSpots) if (s.palette === 'pine' && g.world.zoneOf(s.x, s.z) === WHARF) g.leaves.spawnCluster(s.x, s.z, 14, 4.2, 'pine');
     g.grubs.clear();
     for (const [x, z] of d.grubs) g.grubs.spawn(x, z);
   }

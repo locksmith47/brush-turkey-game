@@ -437,6 +437,15 @@ export class Audio {
     }
   }
 
+  /** a big iron lever thrown over: the ratchet clacking round, and a heavy clunk as it hits the stop */
+  lever() {
+    if (!this.ok('lever', 300)) return;
+    for (let i = 0; i < 4; i++) this.noise({ dur: 0.03, vol: 0.12, type: 'bandpass', f1: 2600 - i * 200, q: 6, delay: i * 0.045 });
+    this.tone({ freq: 160, freq2: 90, dur: 0.14, vol: 0.28, type: 'triangle', delay: 0.2 });
+    this.noise({ dur: 0.09, vol: 0.16, type: 'bandpass', f1: 1200, q: 3, delay: 0.2 });
+    this.tone({ freq: 880, dur: 0.18, vol: 0.03, type: 'square', delay: 0.21 }); // (a bit of ring to it)
+  }
+
   /* ---------------------------------------------------------------- out on the harbour, in a storm */
   /** thunder: a crack, if it's close (`near`, 0..1), and a long roll after it; `delay`: s till it gets to you */
   thunder(near = 0.5, delay = 0) {
@@ -454,6 +463,15 @@ export class Audio {
     this.tone({ freq: f * 1.3, freq2: f * 0.8, dur: 1.8 * size, vol: 0.22, type: 'sawtooth', vib: 6, vibHz: 5, attack: 0.25 });
     this.tone({ freq: f * 2.02, freq2: f * 1.5, dur: 1.5 * size, vol: 0.08, type: 'triangle', vib: 9, vibHz: 7, attack: 0.3 });
     this.noise({ dur: 1.6 * size, vol: 0.1, type: 'lowpass', f1: 300, f2: 90, attack: 0.3 });
+  }
+
+  /** her hull giving way as she's dragged under: iron groaning and creaking, and the water rushing in */
+  groan() {
+    if (!this.ok('groan', 1500)) return;
+    this.tone({ freq: 58, freq2: 38, dur: 2.6, vol: 0.24, type: 'sawtooth', vib: 3, vibHz: 3, attack: 0.2 });
+    this.tone({ freq: 240, freq2: 150, dur: 1.4, vol: 0.05, type: 'sawtooth', vib: 22, vibHz: 11, attack: 0.1, delay: 0.3 });
+    this.tone({ freq: 310, freq2: 190, dur: 1.1, vol: 0.04, type: 'sawtooth', vib: 26, vibHz: 13, attack: 0.1, delay: 1.2 });
+    this.noise({ dur: 3, vol: 0.2, type: 'lowpass', f1: 700, f2: 150, attack: 0.5, delay: 0.4 });
   }
 
   /** something big coming up out of the water, or going under */

@@ -13,16 +13,16 @@ import { LANE } from './props/harbour.js';
  * and slams down again on anyone in its way. Left alone a while, it goes back under and comes up somewhere else.
  * Knock the fight out of it and it slithers back over the side, for good.
  */
-export const ARM_HP = 110; // (each of them: see Cuttle.bar)
-const DEF = { name: 'Tentacle', hp: ARM_HP, radius: 2.4, bodyY: 0.3, labelY: 1.1, maxLatch: 10, shakeAt: 7, shakeEvery: 5.5, gripHP: 18 };
+export const ARM_HP = 85; // (each of them: see Cuttle.bar)
+const DEF = { name: 'Tentacle', hp: ARM_HP, radius: 2.4, bodyY: 0.3, labelY: 1.1, maxLatch: 10, shakeAt: 8, shakeEvery: 7, gripHP: 12 };
 const N = 30, SIDES = 10; // rings along it, and sides round it
 const THICK = [0.62, 0.07], CLUB = 0.13; // m: how thick it is at the root and at the tip, and the club it has near the end of it
-const TIME = { emerge: 0.55, rise: 1.9, slam: 0.2, curl: 0.6, drag: 3.8, shake: 0.8, lift: 0.45, poise: 1.15, dive: 0.95, sink: 1.1 }; // s
+const TIME = { emerge: 0.55, rise: 2.2, slam: 0.2, curl: 0.6, drag: 4.4, shake: 0.8, lift: 0.45, poise: 1.35, dive: 0.95, sink: 1.1 }; // s
 const HOLD = 0.7; // (how far into hauling them off it still has hold of them where you can get at it: after that, it's too late)
-const PILE_ON = 0.75; // s it gives turkeys to pile on before it's thrashing off a little crew (see wantsShake)
-const GRAB = { r: 1.9, max: 3, first: [2.5, 4], every: [4.5, 8] }; // m round its tip it grabs, the most turkeys at once, and s before it does (the first time, and after)
-const SLAM = { w: 1.15, hurt: 22, again: [6, 10] }; // m either side of it the slam gets, your health it takes, and s between slams on the deck
-const LONELY = 7; // s with nobody near it before it goes looking somewhere else
+const PILE_ON = 1.2; // s it gives turkeys to pile on before it's thrashing off a little crew (see wantsShake)
+const GRAB = { r: 1.9, max: 2, first: [3.5, 5.5], every: [6, 10] }; // m round its tip it grabs, the most turkeys at once, and s before it does (the first time, and after)
+const SLAM = { w: 1.15, hurt: 18, again: [8, 13], squash: 3 }; // m either side of it the slam gets, your health it takes, s between slams on the deck, and one in how many turkeys caught under it gets flattened (the rest are sent flying)
+const LONELY = 9; // s with nobody near it before it goes looking somewhere else
 const SUCKERS = 15; // (pairs of them, along the underside of it from over the rail to its tip)
 const RED = { color: 0xff3b2f, transparent: true, depthWrite: false, side: THREE.DoubleSide };
 // its colours (vivid, like the rest of it: see Cuttle): purples with bands of sea-green shimmering down it, white
@@ -278,8 +278,8 @@ export class Tentacle extends Foe {
   /** the ferry's frame to the world: (x along her, z across her) at height y, into out */
   at(x, z, y, out) { return out.set(this.game.ferry.x + x, y, LANE + z); }
 
-  /** the deck at (x, z) in the ferry's frame */
-  deck(x, z) { const f = this.game.ferry; return f.groundAt(f.x + x, LANE + z); }
+  /** the deck at (x, z) in the ferry's frame (wherever it's got to: under the water, if it's dragging her down) */
+  deck(x, z) { const f = this.game.ferry; return f.deckAt(f.x + x, LANE + z); }
 
   /**
    * Its 8 control points (root first) for a pose, into out: 'under' (coiled under the water by where it comes up),
@@ -631,6 +631,10 @@ export class Tentacle extends Foe {
         if (this.toPose === 'raised' && this.t >= 0.4) this.go('under', TIME.dive - 0.4);
         if (this.t >= TIME.dive) this.goUnder(rand(0.8, 1.6));
         break;
+      case 'wreck':
+        // wrapped round her, going down with her (see wreck), all of it gone red
+        this.rage = 1;
+        break;
     }
   }
 
@@ -667,11 +671,10 @@ export class Tentacle extends Foe {
     this.grabT = rand(...GRAB.first);
     this.slamT = rand(...SLAM.again);
     this.lonely = 0;
-    let squash = Math.random() < 0.5;
+    let n = Math.floor(rand(0, SLAM.squash));
     for (const t of this.inLane()) {
-      if (squash) t.die('squash');
+      if (n++ % SLAM.squash === 0) t.die('squash');
       else t.blastAway(this.nearPoint(t.pos, _v), rand(3, 4.5), 2.2);
-      squash = !squash;
     }
     this.hurtAlong(SLAM.w, SLAM.hurt, 7, 0.45);
     // (wet and heavy: a slap you feel through the whole boat)
@@ -698,6 +701,23 @@ export class Tentacle extends Foe {
     this.rig.root.visible = false;
     this.lane.hide();
     this.warn.hide();
+  }
+
+  /**
+   * It's having her (see Cuttle.wreck): it lets go of everything and wraps itself down round her deck, and under
+   * she goes with it (see deck). One still under the water stays there
+   */
+  wreck() {
+    if (!this.alive) return;
+    this.letGo();
+    this.shakeOff();
+    this.lane.hide();
+    this.warn.hide();
+    this.hideLabels();
+    this.state = 'wreck';
+    this.t = 0;
+    this.rage = 1;
+    if (this.berth) this.go('lie', 0.3);
   }
 
   /** called off (see Cuttle.callOff): lets go of everything and slides back into the water */

@@ -82,6 +82,12 @@ kbd {
 .mound-label .bar i { display: block; height: 100%; background: #ffd21f; border-radius: 3px; }
 .mound-label.hot { border-color: #ff6b3d; animation: shake .15s infinite; }
 @keyframes shake { 50% { margin-left: 2px; } }
+/* what F does, over a lever you're close enough to pull (like the note under a mound's dial, only bigger) */
+.prompt {
+  position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); white-space: nowrap; will-change: transform;
+  font-size: 16px; font-weight: bold; text-shadow: 0 1px 2px #000, 0 0 8px rgba(0, 0, 0, .45);
+}
+.prompt kbd { margin-right: 5px; font-size: 13px; text-shadow: none; }
 
 #splash {
   position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 10;

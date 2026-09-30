@@ -30,7 +30,7 @@ import { SUBURB_BINS, SIDE_GATE } from './props/suburb.js';
 import { HOME, START, TRACK, ARENAS, BUSH_BINS, BUSH_LITTER } from './props/bush.js';
 import { CITY_BINS, CITY_BAGS, ALLEY_IBISES, CITY_IBISES, QUAY_GULLS, QUAY_MOUND, LANE_GATE, onKingsWay } from './props/city.js';
 import { OVAL_BINS, FIELD_GATE, STUMPS, PLOVER_NESTS, CRICKET_KIT, OVAL_MOUND, OVAL_SNAKES, OVAL_SPIDER, MOWER } from './props/oval.js';
-import { GULL_PATCHES, CAPTAIN_POST, WHARF_BINS } from './props/wharf.js';
+import { GULL_PATCHES, CAPTAIN_POST, WHARF_BINS, WHARF_MOUND } from './props/wharf.js';
 import { LANE } from './props/harbour.js';
 import { DevMenu } from './devmenu.js';
 import { Saves } from './save.js';
@@ -175,6 +175,8 @@ for (const [x, z, n] of [...GULL_PATCHES, ...QUAY_GULLS]) {
   const crew = Array.from({ length: n }, (_, i) => enemies.spawn('gull', x + Math.sin((i / n) * TAU) * 1.4, z + Math.cos((i / n) * TAU) * 1.4, [x, z]));
   for (const e of crew) e.crew = crew;
 }
+// a mound among the pines on the wharf's forecourt, to grow your flock again (if the cuttlefish has had the lot)
+mounds.add(...WHARF_MOUND).startWith(3, 'pine');
 // and over the harbour, a mound on the Quay (with a fish or two in it already), for the fish the giant cuttlefish
 // churns up out on the harbour
 mounds.add(...QUAY_MOUND).startWith(3, 'fish');
@@ -419,7 +421,7 @@ function handleInput(dt) {
     else audio.nope(); // (none of the other kind with you)
   }
   if (input.pressed('KeyM')) buildMound();
-  if (input.pressed('KeyF')) game.travel.tryDive();
+  if (input.pressed('KeyF') && !game.ferry.tryLever()) game.travel.tryDive(); // (a lever, if you're by one: see Ferry)
   if (input.pressed('KeyH')) hud.toggleHelp();
 }
 
@@ -458,7 +460,8 @@ const tips = [
   { key: 'convert', when: () => zoneNow() === BEACH && turkeys.list.some((t) => t.kind === 'beach'), text: 'Out of beach gear? Throw normal turkeys into a beach mound to turn them into beach turkeys' },
   // (and a word as you first get to each of the places that need one)
   { key: 'oval', when: () => zoneNow() === OVAL, text: "The oval's mound has cricket gear in it already. Throw turkeys at the gear lying about and they'll carry it in" },
-  { key: 'ferry', when: () => zoneNow() === FERRY, text: 'Sit back and enjoy the view! Z and C swing the camera round' },
+  { key: 'lever', when: () => zoneNow() === FERRY && game.ferry.state === 'docked' && !game.ferry.call, text: "Pull the lever on her deck with F and she'll set sail" },
+  { key: 'ferry', when: () => zoneNow() === FERRY && game.ferry.state === 'sailing', text: 'Sit back and enjoy the view! Z and C swing the camera round' },
   { key: 'quay', when: () => zoneNow() === CITY, text: 'Circular Quay! The King Ibis holds court at the Town Hall, at the end of the bin alley' },
 ];
 /** what you'd been told, going by a save from before the tips had names (it only kept how far down the list you'd got, and a flag or two) */

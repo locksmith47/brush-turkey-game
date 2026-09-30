@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { part, merge, vcMesh, G, rand, pick, TAU, canvasTexture, toonMat } from '../util.js';
+import { norfolkPine } from './beach.js';
 
 /*
  * Manly Wharf: along the promenade from the beach, you come out onto the forecourt (a fish and chip kiosk,
@@ -12,6 +13,11 @@ export const DECK = 0.35; // m: the wharf's all up at the level of the promenade
 const FORECOURT = { x1: 94, z0: -214 }; // (paved, up to here; the rest is decking)
 const HOUSE = { x0: 96, x1: 132, z0: -200 }; // the wharf building, back against the edge on your right (+z)
 const KIOSK = [84, -212]; // the fish and chip kiosk, on the forecourt
+// Norfolk pines along the top of the forecourt, carried on from the promenade ([x, z, how tall]), and a mound among
+// them to rake their needles into, out of reach of the gulls at the kiosk (it's where you come round, too, if you go
+// down out on the harbour: see Mounds.refuge)
+const PINES = [[76, -192.5, 10.5], [91.5, -187.5, 9.5], [92, -195, 9]];
+export const WHARF_MOUND = [84, -189.5];
 // the gulls: a few round each spilt packet of chips ([x, z, how many]), and Captain Gull by the gangway
 export const GULL_PATCHES = [[82, -204, 2], [104, -224, 2], [120, -238, 2]];
 export const CAPTAIN_POST = [131, -225];
@@ -29,6 +35,15 @@ function put(world, geo, x, z, rotY = 0, colliders = [], y = DECK) {
   world.scene.add(m);
   for (const [cx, cz, r] of colliders) world.colliders.push({ x: x + cx, z: z + cz, r });
   return m;
+}
+
+/** the iron grate round the foot of a tree set in the paving */
+function grateGeo() {
+  return merge([
+    part(G.cyl(1.15, 1.15, 0.04, 18), 0x9a958a, [0, 0.02, 0]),
+    part(G.cyl(0.95, 0.95, 0.05, 18), 0x3b3a36, [0, 0.025, 0]),
+    ...[0, 1, 2, 3].map((i) => part(G.box(1.85, 0.055, 0.06), 0x2a2926, [0, 0.03, 0], [0, (i * Math.PI) / 4, 0])),
+  ]);
 }
 
 /** a harbourside lamp: a green cast-iron post with a lantern on top */
@@ -120,6 +135,14 @@ export function buildWharf(world) {
   menu.position.set(kx - 1.55, DECK + 3.2, kz);
   menu.rotation.y = -Math.PI / 2;
   s.add(menu);
+
+  // --- the pines on the forecourt, dropping their needles all about (see Leaves)
+  const grate = grateGeo();
+  for (const [x, z, h] of PINES) {
+    put(world, grate, x, z, rand(0, TAU), [], DECK + 0.005);
+    world.addSway(put(world, norfolkPine(h), x, z, rand(0, TAU), [[0, 0, 0.5]]));
+    world.treeSpots.push({ x, z, h: h * 0.6, palette: 'pine' });
+  }
 
   // --- down the wharf: lamps, benches looking out over the harbour (turkeys perch along the backs of them),
   // bollards at the berth, and the chips the gulls are fighting over
