@@ -126,13 +126,14 @@ export class Track {
   /**
    * The bush's layout: clearings ({ name: [x, z, radius, ground] }) joined by paths ([from, ...bends
    * ([x, z]), to]), `width` being half the width of a path. Each clearing is a room with a waypoint in the
-   * middle, each bend a round room of its own, each stretch of path a room joining the two
+   * middle, each bend a round room of its own, each stretch of path a room joining the two. Where a path
+   * leaves a clearing there's a waypoint in the doorway too (named `clearing/the clearing it leads to`)
    */
   static fromPaths({ clearings, paths, width }) {
-    const nodes = {}, rooms = [];
+    const nodes = {}, rooms = [], round = {};
     for (const [name, [x, z, r, ground]] of Object.entries(clearings)) {
       nodes[name] = [x, z];
-      rooms.push({ circle: [x, z, r], nodes: [name], ground });
+      rooms.push((round[name] = { circle: [x, z, r], nodes: [name], ground }));
     }
     let bends = 0;
     const named = paths.map((p) => p.map((q) => {
@@ -142,14 +143,28 @@ export class Track {
       rooms.push({ circle: [q[0], q[1], width], nodes: [name], ground: 'dirt' });
       return name;
     }));
+    // (the clearings themselves are where new mounds belong; it's the bends in the paths to keep clear)
+    const keepClear = Object.keys(nodes).filter((n) => !clearings[n]);
     for (const p of named) {
+      const stretches = [];
       for (let i = 1; i < p.length; i++) {
         const [ax, az] = nodes[p[i - 1]], [bx, bz] = nodes[p[i]];
-        rooms.push({ capsule: [ax, az, bx, bz, width], nodes: [p[i - 1], p[i]], ground: 'dirt' });
+        stretches.push({ capsule: [ax, az, bx, bz, width], nodes: [p[i - 1], p[i]], ground: 'dirt' });
+      }
+      rooms.push(...stretches);
+      // the doorways at either end, just where the path's sides meet the edge of the clearing: from anywhere in
+      // a clearing, the way out along a path is straight to its doorway (the middle of a big clearing, like the
+      // mound's, can be a long way back from the way out, round the corner from wherever you are)
+      for (const [s, c, next, far] of [[stretches[0], p[0], p[1], p[p.length - 1]], [stretches[stretches.length - 1], p[p.length - 1], p[p.length - 2], p[0]]]) {
+        const [cx, cz, r] = clearings[c], [nx, nz] = nodes[next];
+        const len = Math.hypot(nx - cx, nz - cz), d = Math.min(Math.sqrt(Math.max(0, r * r - width * width)), len);
+        const door = `${c}/${far}`;
+        nodes[door] = [cx + ((nx - cx) / len) * d, cz + ((nz - cz) / len) * d];
+        s.nodes.push(door);
+        round[c].nodes.push(door);
       }
     }
-    // (the clearings themselves are where new mounds belong; it's the bends in the paths to keep clear)
-    return { nodes, rooms, width, clearings, keepClear: Object.keys(nodes).filter((n) => !clearings[n]), paths: named.map((p) => ({ from: p[0], to: p[p.length - 1], nodes: p })) };
+    return { nodes, rooms, width, clearings, keepClear, paths: named.map((p) => ({ from: p[0], to: p[p.length - 1], nodes: p })) };
   }
 
   node(name) { return this.nodes[this.byName[name]]; }
