@@ -157,7 +157,8 @@ export class Mound {
     this.skirtPurple = new THREE.Color(0x6e5a78);
     this.skirt = this.skirtMesh();
     this.laidK = 0;
-    this.group.add(this.dome);
+    this.kit = new THREE.Group(); // (what's planted in it: it heaves and shakes along with the heap)
+    this.group.add(this.dome, this.kit);
     game.scene.add(this.group, this.skirt);
 
     BIT ??= new THREE.BoxGeometry(0.3, 0.12, 0.22);
@@ -174,7 +175,7 @@ export class Mound {
       ]);
       this.brolly = vcMesh(BROLLY);
       this.brolly.rotation.z = 0.15;
-      this.group.add(this.brolly);
+      this.kit.add(this.brolly);
     }
     for (let i = 0; i < (home ? 30 : 8); i++) this.decals.add(pick(this.beach ? LOOT : LEAF_COLS));
 
@@ -406,7 +407,7 @@ export class Mound {
   addTrophy(kind = 'flag') {
     const f = kind === 'stumps' ? stumpsMesh() : kind === 'flag' ? flagMesh() : kitTrophy(kind);
     f.group.scale.setScalar(0.8);
-    this.group.add(f.group);
+    this.kit.add(f.group);
     // spread them round the rim of the caldera, leaning outwards
     const a = this.trophies.length * 2.4 + rand(-0.3, 0.3);
     this.trophies.push({ ...f, kind, a, k: rand(0.3, 0.5), lean: rand(0.18, 0.3), spin: f.spin ?? rand(0, TAU), ph: rand(0, TAU) });
@@ -569,11 +570,10 @@ export class Mound {
     const fx = this.game.fx;
     this.stateT += dt;
     this.bump = Math.max(0, this.bump - dt * 4);
-    let sy = 1 + Math.sin(this.bump * Math.PI) * 0.08, sx = 1 - Math.sin(this.bump * Math.PI) * 0.03;
-    this.dome.position.set(0, 0, 0);
+    let sy = 1 + Math.sin(this.bump * Math.PI) * 0.08, sx = 1 - Math.sin(this.bump * Math.PI) * 0.03, ox = 0, oz = 0;
     if (this.building) {
       this.updateBuild(dt);
-      this.dome.scale.set(this.r * sx, this.h * sy, this.r * sx);
+      this.heave(sx, sy, ox, oz);
       return;
     }
 
@@ -613,7 +613,8 @@ export class Mound {
 
     if (this.state === 'rumble') {
       const k = this.stateT / 1.3;
-      this.dome.position.set(rand(-1, 1) * 0.06 * k, 0, rand(-1, 1) * 0.06 * k);
+      ox = rand(-1, 1) * 0.06 * k;
+      oz = rand(-1, 1) * 0.06 * k;
       sy *= 1 + k * 0.25;
       sx *= 1 - k * 0.05;
       if (Math.random() < dt * 20) fx.dirt(this.randomSurfacePoint(new THREE.Vector3()), 2, 0.5);
@@ -645,7 +646,24 @@ export class Mound {
         this.refreshLabel();
       }
     }
+    this.heave(sx, sy, ox, oz);
+  }
+
+  /**
+   * swell the heap up (or squash it down) and shake it about its middle on the ground, and everything on it with it:
+   * the leaves and sticks and rubbish lying on it (laid out as it stands still, see layoutDecals), and what's planted in it
+   */
+  heave(sx, sy, ox, oz) {
+    this.dome.position.set(ox, 0, oz);
     this.dome.scale.set(this.r * sx, this.h * sy, this.r * sx);
+    this.kit.position.set(ox, 0, oz);
+    this.kit.scale.set(sx, sy, sx);
+    const p = this.pos; // (they lie out in the world, not in the group, so they're swelled about its middle by hand)
+    for (const d of [this.decals, this.duff, this.twigs, this.junk?.box, this.junk?.can]) {
+      if (!d) continue;
+      d.mesh.scale.set(sx, sy, sx);
+      d.mesh.position.set(p.x * (1 - sx) + ox, p.y * (1 - sy), p.z * (1 - sx) + oz);
+    }
   }
 
   /** out pops a chick (or a turkey that dived in, coming back out: `back` is { stage, hen, gear }) */
