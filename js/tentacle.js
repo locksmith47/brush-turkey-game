@@ -475,7 +475,6 @@ export class Tentacle extends Foe {
       this.flinch = 1;
       this.pale = 1;
       this.go('lie', 0.5);
-      this.game.hud.toast('It let go!', 1.5);
       this.game.audio.squelch();
     }
   }
@@ -594,8 +593,6 @@ export class Tentacle extends Foe {
           this.gripDmg = 0;
           this.go('haul', TIME.drag * 0.72);
           g.audio.squelch();
-          const n = this.held.length;
-          g.hud.toast(n === 1 ? "A tentacle's got a turkey! Hit it before it drags the poor thing under!" : `A tentacle's got ${n} turkeys! Hit it before it drags them under!`, 2.5);
         } else {
           this.state = 'lie';
           this.t = 0;

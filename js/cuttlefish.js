@@ -328,7 +328,7 @@ export class Cuttle {
         if (t >= TIME.dive) {
           this.state = 'gone';
           f.release();
-          g.hud.toast("It's gone! And it's left you a deck full of fish: get them to a mound at Circular Quay", 5);
+          g.hud.toast("It's left you a deck full of fish: get them to the mound on the Quay", 4.5);
         }
         break;
       case 'sink':
@@ -343,11 +343,6 @@ export class Cuttle {
     this.hp = hp;
     this.pose(dt);
     this.updateInk(dt);
-    // (over at the Quay, with fish still aboard: a word about where they go)
-    if (this.beaten && !this.toldFish && f.docked === 'quay' && aboard && this.fish.some((o) => !o.gone && g.world.zoneOf(o.pos.x, o.pos.z) === FERRY)) {
-      this.toldFish = true;
-      g.hud.toast("Throw turkeys at the fish and they'll carry them off the ferry, to the mound on the Quay", 5);
-    }
   }
 
   /** here it comes: the storm closing in, her pulled up short, and it circling under her */
@@ -366,7 +361,6 @@ export class Cuttle {
     this.oz = -s * SPOT.aside;
     this.face = Math.atan2(this.oz, -this.ox);
     this.a1 = Math.atan2(this.oz / SPOT.circle[1], this.ox / SPOT.circle[0]);
-    g.hud.toast("The sky's gone black... and something big is circling the ferry!", 4.5);
     g.audio.moan(1.5);
   }
 
@@ -382,7 +376,7 @@ export class Cuttle {
     g.audio.moan(2.2);
     g.shake(0.7);
     g.hud.banner('GIANT CUTTLEFISH', 3);
-    g.hud.toast('Throw turkeys on its tentacles as they come aboard, and keep out of the red!', 5);
+    g.hud.toast('Throw turkeys on its tentacles when they come down on the deck', 4);
   }
 
   /** its tentacles, up over her sides: as many at once as it's got the fight in it for, till it's got none left */
@@ -421,10 +415,7 @@ export class Cuttle {
     const d = Math.hypot(this.ox, this.oz);
     this.squirt(f.x + this.ox * (1 - 9 / d), LANE + this.oz * (1 - 9 / d), 6);
     g.audio.moan(1.4);
-    if (this.down < ARMS) {
-      g.hud.toast(this.down === 1 ? "That's one tentacle off! It's got plenty more" : `Another one off! ${ARMS - this.down} to go`, 2.5);
-      return;
-    }
+    if (this.down < ARMS) return;
     // that's the lot: it's had enough
     this.state = 'beaten';
     this.t = 0;
@@ -475,7 +466,6 @@ export class Cuttle {
   summon() {
     if (this.state !== 'lurk' && this.state !== 'gone') return;
     this.beaten = false;
-    this.toldFish = false;
     this.state = 'lurk';
     this.game.ferry.skipTo(WHERE - WINDOW * 0.9);
   }
