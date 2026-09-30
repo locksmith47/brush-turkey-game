@@ -21,7 +21,7 @@ import { WHARF_MOUND } from './props/wharf.js';
  * Each copy of the game keeps its own save (the branch previews live alongside the real thing, on the same
  * site). Bump VERSION whenever the map changes, so an old save isn't read into a world it doesn't fit.
  */
-const KEY = `turkmin-save:${location.pathname.replace(/index\.html$/, '')}`;
+const KEY = `turkmin-save:${location.pathname.replace(/index\.html$/, '')}`; // (the game's old name, so saves from before the rename still load)
 const VERSION = 3;
 const EVERY = 20; // seconds between saves while you play
 const PAL = Object.keys(PALETTES), SHAPES = ['leaf', 'box', 'can'];

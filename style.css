@@ -98,7 +98,7 @@ kbd {
   background: rgba(30, 40, 24, .9); border: 4px solid #ffd21f; box-shadow: 0 10px 40px rgba(0,0,0,.5);
 }
 #splash h1 {
-  margin: 0; font-size: 64px; letter-spacing: 4px; color: #ffd21f;
+  margin: 0; font-size: 56px; letter-spacing: 3px; color: #ffd21f; /* (small enough for the name on one line, in any font) */
   text-shadow: 0 4px 0 #c2261f, 0 8px 12px rgba(0,0,0,.5);
 }
 #splash .sub { margin: 4px 0 18px; font-size: 18px; opacity: .9; }
