@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Brush Hour: a browser game about brush turkeys, built on three.js. Plain ES modules: no build step, no
+Rake It Back: a browser game about brush turkeys, built on three.js. Plain ES modules: no build step, no
 package.json, no test suite. `index.html` pulls three@0.170.0 from jsdelivr through an importmap and
 `js/main.js` does the rest. The map runs north to south through Sydney, in an L: down the first leg (-z)
 through The Bush, The Backyards and The Oval, then right at the beach and down the second leg (+x) along Manly
