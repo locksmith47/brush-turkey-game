@@ -102,7 +102,12 @@ const RESCUE_TIME = 6; // seconds a whistled turkey gets to paddle back out
 // following you into a mound (see Travel): how far out from the edge of it it takes off from, and how long it
 // takes getting that close before it has a go from wherever it's got to (if that's not too far off)
 const LEAP_FROM = 0.7, LEAP_LATE = 3.5, LEAP_MAX = 8;
+// following you, with a mound in the way: metres it keeps off the mound going round it, how far ahead it aims along
+// the way round, how much shorter (radians round the mound) the other way round to you has to be before it turns back,
+// and how many seconds ahead of you it looks for where you're off to
+const ROUND_PAD = 0.25, ROUND_AHEAD = 2, ROUND_GIVE = 0.6, ROUND_LEAD = 1;
 const _v = new THREE.Vector3(), _r = new THREE.Vector3(), _d = new THREE.Vector3(), _w = new THREE.Vector3();
+const _o = new THREE.Vector3(); // (the way round a mound)
 const _k = new THREE.Vector3(), _s = new THREE.Vector3(); // (which way a pile's being raked, and where to stand to do it)
 const _at = new THREE.Vector3(), _af = new THREE.Vector3(); // (where to stand to go at a foe, and what to face)
 const _pile = [];
@@ -159,6 +164,7 @@ export class Turkey {
     this.look = 0; this.lookTarget = 0; this.lookTimer = rand(0.5, 2); this.tilt = 0;
     this.squash = 0;
     this.turnV = 0; this.turnAt = -1; // (how fast it's turning, for turns with some weight to them)
+    this.roundSide = 0; // (following you round a mound: which way round it's going, see roundMound)
     // the scratching pose, eased: the stoop, the head, the kicking and bracing legs, the weight going side to side
     this.stoop = 0; this.stoopNeck = 0; this.kickLean = 0; this.legLs = 0; this.legRs = 0; this.scrLean = 0;
     this.wasScratching = false;
@@ -208,6 +214,7 @@ export class Turkey {
     this.state = s;
     this.t = 0;
     this.sunT = 0; // (up it gets, whatever it's off to do)
+    this.roundSide = 0;
     this.applyVisibility();
   }
 
@@ -896,10 +903,12 @@ export class Turkey {
 
   /*
    * steer towards a point, routing through open gates; returns remaining straight-line distance.
-   * `ease` gets going gently and slows down smoothly to stop right on the spot
+   * `ease` gets going gently and slows down smoothly to stop right on the spot; `round` goes round any mound
+   * in the way (see roundMound)
    */
-  steer(tx, tz, speed, dt, stopDist = 0.05, ease = false) {
-    const wp = this.game.world.route(this.pos.x, this.pos.z, tx, tz, _r) ?? _r.set(tx, 0, tz);
+  steer(tx, tz, speed, dt, stopDist = 0.05, ease = false, round = false) {
+    let wp = this.game.world.route(this.pos.x, this.pos.z, tx, tz, _r) ?? _r.set(tx, 0, tz);
+    if (round && this.roundMound(wp.x, wp.z, _o)) wp = _o;
     const direct = wp.x === tx && wp.z === tz;
     const dx = wp.x - this.pos.x, dz = wp.z - this.pos.z;
     const d = Math.hypot(dx, dz);
@@ -922,6 +931,38 @@ export class Turkey {
       this.vel.z = damp(this.vel.z, vz, 10, dt);
     }
     return direct ? d : Math.hypot(tx - this.pos.x, tz - this.pos.z);
+  }
+
+  /**
+   * Following you, with a mound between it and (wx, wz): round it, the shorter way round to where you are (and
+   * sticking to that way till it's past), rather than walking into it and sliding off round whichever side it
+   * happens to. Where to head for along the way round goes in `out`; false if there's no mound in the way
+   */
+  roundMound(wx, wz, out) {
+    const pl = this.game.player, x = this.pos.x, z = this.pos.z;
+    const vx = wx - x, vz = wz - z, l2 = vx * vx + vz * vz;
+    let m = null, first = Infinity;
+    for (const c of this.game.mounds.colliders) {
+      const R = c.r + this.radius + ROUND_PAD;
+      // (only one it'd walk into on the way: not one that's behind it, or past where it's going, or where it's going)
+      if (!l2 || Math.hypot(wx - c.x, wz - c.z) < R) continue;
+      const t = ((c.x - x) * vx + (c.z - z) * vz) / l2;
+      if (t <= 0 || t >= 1 || t >= first || Math.hypot(x + vx * t - c.x, z + vz * t - c.z) >= R) continue;
+      first = t;
+      m = c;
+    }
+    if (!m) { this.roundSide = 0; return false; }
+    const R = m.r + this.radius + ROUND_PAD, dx = m.x - x, dz = m.z - z, d = Math.hypot(dx, dz);
+    // which way round (+1: the way its bearing from the middle of the mound goes up): the shorter way round to you
+    // (or to where you're off to, if you're on the move: round the way you went)
+    const px = pl.pos.x + pl.vel.x * ROUND_LEAD, pz = pl.pos.z + pl.vel.z * ROUND_LEAD;
+    const arc = angleDiff(Math.atan2(-dx, -dz), Math.atan2(px - m.x, pz - m.z));
+    if (!this.roundSide || (Math.sign(arc) !== this.roundSide && Math.abs(arc) < Math.PI - ROUND_GIVE / 2)) this.roundSide = Math.sign(arc) || 1;
+    // (along the line that just grazes it that side, or right round it if it's up against it already)
+    const a = Math.atan2(dx, dz) - this.roundSide * (d > R ? Math.asin(R / d) : Math.PI / 2 + 0.2);
+    const ahead = Math.min(ROUND_AHEAD, Math.sqrt(l2));
+    out.set(x + Math.sin(a) * ahead, 0, z + Math.cos(a) * ahead);
+    return true;
   }
 
   /**
@@ -1218,7 +1259,7 @@ export class Turkey {
     }
     if (d > tk.blobR) {
       const boost = d > 5 ? 1.45 : 1.1;
-      this.steer(tk.rally.x, tk.rally.z, sp * boost, dt, tk.blobR * 0.7);
+      this.steer(tk.rally.x, tk.rally.z, sp * boost, dt, tk.blobR * 0.7, false, true);
     } else {
       this.brake(dt);
       if (this.vel.lengthSq() < 0.05) {

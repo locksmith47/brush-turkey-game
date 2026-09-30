@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { ZONES, FERRY } from './world.js';
-import { lerp, smoothstep } from './util.js';
+import { lerp, smoothstep, hash, noise } from './util.js';
 
 /*
  * The map you get down in the tunnels (see Travel): a bird's-eye view, straight down on the world, with the way
@@ -305,20 +305,6 @@ function puff(rgb) {
   ctx.fillStyle = gr;
   ctx.fillRect(0, 0, n, n);
   return c;
-}
-
-/** 0..1, always the same for the same whole numbers i, j (and n, for another of them) */
-function hash(i, j, n = 0) {
-  let h = Math.imul(i, 0x27d4eb2d) ^ Math.imul(j, 0x165667b1) ^ Math.imul(n + 1, 0x9e3779b1);
-  h = Math.imul(h ^ (h >>> 15), 0x85ebca6b);
-  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
-  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
-}
-
-/** smooth noise, -1..1, that changes over about a unit */
-function noise(x, z) {
-  const i = Math.floor(x), j = Math.floor(z), u = smoothstep(0, 1, x - i), v = smoothstep(0, 1, z - j);
-  return lerp(lerp(hash(i, j), hash(i + 1, j), u), lerp(hash(i, j + 1), hash(i + 1, j + 1), u), v) * 2 - 1;
 }
 
 /** how far the cloud's edge has wandered at (x, y) on the screen: -1..1, big slow swings with smaller ones on top */

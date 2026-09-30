@@ -21,6 +21,20 @@ export function angleDiff(a, b) {
 }
 export const dampAngle = (a, b, lambda, dt) => a + angleDiff(a, b) * (1 - Math.exp(-lambda * dt));
 
+/** 0..1, always the same for the same whole numbers i, j (and n, for another of them) */
+export function hash(i, j, n = 0) {
+  let h = Math.imul(i, 0x27d4eb2d) ^ Math.imul(j, 0x165667b1) ^ Math.imul(n + 1, 0x9e3779b1);
+  h = Math.imul(h ^ (h >>> 15), 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+/** smooth noise, -1..1, that changes over about a unit */
+export function noise(x, z) {
+  const i = Math.floor(x), j = Math.floor(z), u = smoothstep(0, 1, x - i), v = smoothstep(0, 1, z - j);
+  return lerp(lerp(hash(i, j), hash(i + 1, j), u), lerp(hash(i, j + 1), hash(i + 1, j + 1), u), v) * 2 - 1;
+}
+
 /* ------------------------------------------------------------------ toon materials */
 let _gradient = null;
 export function gradientMap() {
