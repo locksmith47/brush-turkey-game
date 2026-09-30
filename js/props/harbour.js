@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { part, merge, vcMesh, vcMat, G, limb, rand, pick, TAU, toonMat, canvasTexture, smoothstep } from '../util.js';
+import { part, merge, vcMesh, vcMat, G, limb, rand, pick, hash, TAU, toonMat, canvasTexture, smoothstep } from '../util.js';
 import { SEA, seaWave, seaMat } from './beach.js';
 import { building } from './city.js';
 import { BEACH } from '../world.js';
@@ -14,6 +14,15 @@ import { BEACH } from '../world.js';
 const HX0 = 72, HX1 = 392, HZ0 = -500, HZ1 = -120; // the water (on the ocean's 4 m grid, carrying on from its south edge)
 export const LANE = -224; // z: the ferry's way across
 export const OTHER_LANE = -198; // (and the other ferry's)
+
+/**
+ * The harbour's surface at (x, z), t seconds in: riding the same swell as the sea, and with a storm on (`storm`,
+ * 0..1: see Storm), great grey rollers heaving through under the lot
+ */
+export function swell(x, z, t, storm = 0) {
+  const y = SEA + seaWave(x, z, t);
+  return storm ? y + storm * (0.34 * Math.sin(x * 0.085 + t * 0.95) + 0.22 * Math.sin(z * 0.12 - t * 1.25) + 0.1 * Math.sin((x - z) * 0.27 + t * 2.3)) : y;
+}
 
 /* ------------------------------------------------------------------ the lie of the land */
 // each headland, point or hill a lump: [x, z, rx, rz, how high, how gently it goes down into the water (0: sheer
@@ -161,6 +170,60 @@ export function ferryParts() {
     for (const k of [-1, 1]) cabins.push(part(G.torus(0.33, 0.07, 5, 12), 0xf26b1d, [s * 5, 1.2, k * 2.14])); // (life rings)
   }
   return { hull, rails: merge(rails), cabins: merge(cabins) };
+}
+
+/**
+ * What she's been patched up with, the `n`th time she's been sunk and fished out again (1 and up): a bad repair job,
+ * odd bits of old timber nailed on at all angles over the holes, and worse each time (a tarp over the wheelhouse,
+ * a bucket for bailing). In her frame, like ferryParts; the same boards in the same places every time
+ */
+export function ferryPatches(n) {
+  const WOOD = [0x8a6a48, 0xa3845c, 0x6e5a44, 0x9a9488, 0xb89968, 0x7d6b55], NAIL = 0x33302c, HOLE = 0x1c1511;
+  let i = 0;
+  const r = (a, b) => a + hash(n, i++, 7) * (b - a);
+  const wood = () => WOOD[Math.floor(r(0, WOOD.length))];
+  const p = [];
+  // boards on the deck, over a hole, round (x, z)
+  const deck = (x, z, boards) => {
+    p.push(part(G.box(r(1.1, 1.5), 0.012, r(0.8, 1.1)), HOLE, [x, 0.012, z], [0, r(0, TAU), 0]));
+    for (let k = 0; k < boards; k++) {
+      const a = r(-0.5, 0.5) + (k % 2) * 1.2, len = r(1.3, 1.9), bx = x + r(-0.3, 0.3), bz = z + r(-0.3, 0.3), c = Math.cos(a), s = Math.sin(a);
+      p.push(part(G.box(len, 0.05, r(0.2, 0.28)), wood(), [bx, 0.035 + k * 0.012, bz], [0, a, 0]));
+      for (const e of [-1, 1]) p.push(part(G.box(0.05, 0.03, 0.05), NAIL, [bx + e * c * (len / 2 - 0.12), 0.07 + k * 0.012, bz - e * s * (len / 2 - 0.12)]));
+    }
+  };
+  // boards nailed up the outside of her, on side s (±1), over a hole round (x, y): her bulwarks, or her hull under them
+  const side = (s, x, y, boards) => {
+    p.push(part(G.box(r(0.8, 1.2), r(0.4, 0.6), 0.02), HOLE, [x, y, s * 6.47]));
+    for (let k = 0; k < boards; k++) {
+      const a = r(-0.6, 0.6), len = r(1.1, 1.6), c = Math.cos(a), sn = Math.sin(a), bx = x + r(-0.25, 0.25), by = y + r(-0.12, 0.12);
+      p.push(part(G.box(len, r(0.18, 0.24), 0.05), wood(), [bx, by, s * (6.5 + k * 0.012)], [0, 0, a]));
+      for (const e of [-1, 1]) p.push(part(G.box(0.05, 0.05, 0.03), NAIL, [bx + e * c * (len / 2 - 0.1), by + e * sn * (len / 2 - 0.1), s * (6.54 + k * 0.012)]));
+    }
+  };
+  if (n === 1) {
+    deck(2.6, -4.3, 3);
+    deck(-12.5, -3.2, 2);
+    side(-1, 3.5, 0.5, 3);
+    side(-1, -6, -1, 2);
+  } else if (n === 2) {
+    deck(-14.5, 1.6, 3);
+    deck(6.5, 4.4, 2);
+    side(1, 8, 0.45, 2);
+    side(1, -2, -1.1, 3);
+    // (and a blue tarp tied down over the wheelhouse at the one end)
+    p.push(part(G.box(3.3, 0.05, 4), 0x2f6fd0, [-4, 6.12, 0], [0.04, 0.09, -0.03]), part(G.box(3.34, 0.02, 0.5), 0x2458a8, [-4.05, 6.15, 0.6], [0.04, 0.09, -0.03]));
+    for (const [x, z] of [[-5.6, -1.9], [-2.4, -2.05], [-5.55, 1.95], [-2.45, 2.1]]) p.push(limb([x, 6.1, z], [x * 1.08 + 0.3, 4.56, z * 1.12], 0.015, 0.015, 0xd9cfa8, 4));
+  } else {
+    deck(13.5, -1.2, 3);
+    deck(-4.5, 4.6, 2);
+    side(-1, 12, -0.9, 2);
+    // (a board over a cabin window)
+    p.push(part(G.box(1.8, 0.24, 0.05), wood(), [-3, 1.65, -2.2], [0, 0, 0.3]));
+    // (and a bucket, for bailing)
+    p.push(part(G.cyl(0.24, 0.19, 0.36, 12), 0x9aa3a8, [11.2, 0.18, -3.9]), part(G.cyl(0.2, 0.2, 0.02, 12), 0x3d6f8a, [11.2, 0.3, -3.9]), part(G.torus(0.22, 0.012, 4, 12, Math.PI), 0x6e7478, [11.2, 0.36, -3.9]));
+  }
+  return merge(p);
 }
 
 /* ------------------------------------------------------------------ the sights */
@@ -311,6 +374,7 @@ export function buildHarbour(world) {
   const water = new THREE.PlaneGeometry(HX1 - HX0, HZ1 - HZ0, (HX1 - HX0) / 4, (HZ1 - HZ0) / 4).rotateX(-Math.PI / 2).translate((HX0 + HX1) / 2, SEA, (HZ0 + HZ1) / 2);
   const wpos = water.attributes.position;
   s.add(new THREE.Mesh(water, seaMat()));
+  let rough = false; // (whether it's catching the light like a rough sea: see update)
 
   // --- the shores either side, and what's on them
   shore(world, [HX0, -476, HX1, -256], LEFT);
@@ -383,8 +447,17 @@ export function buildHarbour(world) {
       sail(dt, t); // (they keep going with nobody about, too: you can see them from up high, on the map)
       const p = world.game.player.pos;
       if (world.zoneOf(p.x, p.z) < BEACH) return; // (nobody to see the swell, or the wheel going round, from back there)
-      for (let i = 0; i < wpos.count; i++) wpos.setY(i, SEA + seaWave(wpos.getX(i), wpos.getZ(i), t));
+      const storm = world.game.storm?.k ?? 0;
+      for (let i = 0; i < wpos.count; i++) wpos.setY(i, swell(wpos.getX(i), wpos.getZ(i), t, storm));
       wpos.needsUpdate = true;
+      // (in a storm the rollers catch the light, so it looks as rough as it is; after, it's flat calm again)
+      if (storm > 0.01) { water.computeVertexNormals(); rough = true; }
+      else if (rough) {
+        rough = false;
+        const n = water.attributes.normal;
+        for (let i = 0; i < n.count; i++) n.setXYZ(i, 0, 1, 0);
+        n.needsUpdate = true;
+      }
       wheel.rotation.z += dt * 0.12;
       for (const c of cars) c.rotation.z = -wheel.rotation.z;
     },

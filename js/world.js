@@ -151,7 +151,8 @@ export class World {
   }
 
   buildLights() {
-    this.scene.add(new THREE.HemisphereLight(0xdff0ff, 0x6e5a3a, 1.6));
+    this.hemi = new THREE.HemisphereLight(0xdff0ff, 0x6e5a3a, 1.6); // (it goes dark in a storm: see Storm)
+    this.scene.add(this.hemi);
     const sun = new THREE.DirectionalLight(0xfff0d0, 2.4);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -397,14 +398,15 @@ export class World {
   /**
    * Next point to walk to on the way from (fx,fz) to (tx,tz), going through gates between zones, and in
    * the bush, along the track. Returns null if the way is still fenced off (or barricaded). `ferry`: count
-   * the harbour as crossed, if the ferry's running at all (it comes to whichever side you're on)
+   * the harbour as crossed, if the ferry's running at all (it comes to whichever side you're on), bar past the
+   * giant cuttlefish, till it's been seen off (see Cuttle.bars)
    */
   route(fx, fz, tx, tz, out, ferry = false) {
     const zf = this.zoneOf(fx, fz), zt = this.zoneOf(tx, tz);
     if (zf !== zt) {
       const s = zt > zf ? 1 : -1; // (+1: on the way you're headed, -1: back the way you came)
       const gate = this.gates[s > 0 ? zf : zf - 1];
-      if (!gate.open && !(ferry && gate.ferry && this.gates[WHARF].unlocked)) return null;
+      if (!gate.open && !(ferry && gate.ferry && this.gates[WHARF].unlocked && !this.game.cuttle?.bars(gate))) return null;
       const [dx, dz] = gate.d, rx = fx - gate.x, rz = fz - gate.z;
       const nearGap = Math.abs(rz * dx - rx * dz) < gate.hw - 0.3 && Math.abs(rx * dx + rz * dz) < 1.6;
       if (nearGap) return out.set(gate.x + dx * s * 2.5, 0, gate.z + dz * s * 2.5);

@@ -173,6 +173,8 @@ export const CITY_IBISES = [
   ['ibis', -30, -84], ['ibis', 27, -82], ['ibis', -22, -108], ['ibis', 16, -110], ['ibis', 12, -133], ['ibis', 38, -133],
   ['ibis', 22, -153], ['giant', -32, -133],
 ].map(([kind, x, z]) => [kind, ...toWorld(x, z)]);
+// a mound on the Quay (for the fish the giant cuttlefish churns up, out on the harbour: see Cuttle)
+export const QUAY_MOUND = toWorld(16, -84.5);
 // and a couple of gulls on the Quay, after the tourists' chips: [x, z, how many]
 export const QUAY_GULLS = [[-15, -80, 2]].map(([x, z, n]) => [...toWorld(x, z), n]);
 

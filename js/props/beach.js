@@ -107,7 +107,8 @@ function put(world, geo, x, z, rotY = 0, colliders = [], y = null) {
   return m;
 }
 
-function norfolkPine(h) {
+/** a Norfolk pine, h m tall (along the promenade here, and on the forecourt at Manly Wharf) */
+export function norfolkPine(h) {
   const p = [limb([0, 0, 0], [0, h, 0], 0.28, 0.1, 0x6a5040, 8)];
   for (let i = 0; i < 7; i++) {
     const y = h * 0.3 + (i / 7) * h * 0.72, r = (1 - i / 7) * 2.2 + 0.4;

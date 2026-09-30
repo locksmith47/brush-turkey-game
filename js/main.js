@@ -18,6 +18,8 @@ import { Cursor } from './cursor.js';
 import { HUD } from './hud.js';
 import { Toys } from './toys.js';
 import { Ferry } from './ferry.js';
+import { Storm } from './storm.js';
+import { Cuttle } from './cuttlefish.js';
 import { BeachItem, BeachFlag } from './items.js';
 import { Stumps, CricketGear } from './cricket.js';
 import { Bin } from './bin.js';
@@ -26,9 +28,9 @@ import { BUILD_CREW } from './mound.js';
 import { UMBRELLAS, FLAGS } from './props/beach.js';
 import { SUBURB_BINS, SIDE_GATE } from './props/suburb.js';
 import { HOME, START, TRACK, ARENAS, BUSH_BINS, BUSH_LITTER } from './props/bush.js';
-import { CITY_BINS, CITY_BAGS, ALLEY_IBISES, CITY_IBISES, QUAY_GULLS, LANE_GATE, onKingsWay } from './props/city.js';
+import { CITY_BINS, CITY_BAGS, ALLEY_IBISES, CITY_IBISES, QUAY_GULLS, QUAY_MOUND, LANE_GATE, onKingsWay } from './props/city.js';
 import { OVAL_BINS, FIELD_GATE, STUMPS, PLOVER_NESTS, CRICKET_KIT, OVAL_MOUND, OVAL_SNAKES, OVAL_SPIDER, MOWER } from './props/oval.js';
-import { GULL_PATCHES, CAPTAIN_POST, WHARF_BINS } from './props/wharf.js';
+import { GULL_PATCHES, CAPTAIN_POST, WHARF_BINS, WHARF_MOUND } from './props/wharf.js';
 import { LANE } from './props/harbour.js';
 import { DevMenu } from './devmenu.js';
 import { Saves } from './save.js';
@@ -65,6 +67,7 @@ game.footprints = new Footprints(game); // (in the sand at Manly)
 game.world = new World(game);
 game.barriers = new Barriers(game);
 game.fx = new FX(game);
+game.storm = new Storm(game); // (out on the harbour, when the giant cuttlefish comes up)
 game.ghosts = new Ghosts(game);
 game.hud = new HUD(game);
 game.wasted = new Wasted(game); // (going down, GTA style, and being dug out of a mound after)
@@ -77,6 +80,7 @@ game.turkeys = new Turkeys(game);
 game.enemies = new Enemies(game);
 game.toys = new Toys(game);
 game.ferry = new Ferry(game); // (tied up at Manly Wharf, going nowhere till the keys are got back off Captain Gull)
+game.cuttle = new Cuttle(game); // (and halfway over, the first time you cross, the giant cuttlefish)
 game.cursor = new Cursor(game);
 window.game = game; // handy for poking around in devtools
 
@@ -171,6 +175,11 @@ for (const [x, z, n] of [...GULL_PATCHES, ...QUAY_GULLS]) {
   const crew = Array.from({ length: n }, (_, i) => enemies.spawn('gull', x + Math.sin((i / n) * TAU) * 1.4, z + Math.cos((i / n) * TAU) * 1.4, [x, z]));
   for (const e of crew) e.crew = crew;
 }
+// a mound among the pines on the wharf's forecourt, to grow your flock again (if the cuttlefish has had the lot)
+mounds.add(...WHARF_MOUND).startWith(3, 'pine');
+// and over the harbour, a mound on the Quay (with a fish or two in it already), for the fish the giant cuttlefish
+// churns up out on the harbour
+mounds.add(...QUAY_MOUND).startWith(3, 'fish');
 // you start out behind the mound, with a few turkeys poking up out of the ground in front of you
 [[-1.6, -4.6, 0], [1.4, -4.2, 0], [0, -5.6, 0], [-2.9, -3.1, 0], [2.8, -2.9, 1], [-0.3, -3.1, 2]]
   .forEach(([x, z, s]) => { const t = turkeys.spawnSprout(START.x + x, START.z + z, s); t.growT = 0; });
@@ -195,13 +204,15 @@ game.saves = saves;
 
 /* ------------------------------------------------------------------ camera */
 // (`leg`: the leg of the map it's looking down, see LEGS; `swing`: how much further round it's still to swing to
-// get there; `sail`: 0..1, how far it's sat back to take in the harbour, out on the ferry)
-const cam = { yaw: 0, dist: 12, zoom: 12, pitch: 0.74, tilt: 0, ahead: 0, leg: 0, swing: 0, sail: 0, target: new THREE.Vector3(START.x, 1, START.z) };
+// get there; `sail`: 0..1, how far it's sat back to take in the harbour, out on the ferry; `fight`: 0..1, how far
+// it's sat up again to see the giant cuttlefish over her cabins)
+const cam = { yaw: 0, dist: 12, zoom: 12, pitch: 0.74, tilt: 0, ahead: 0, leg: 0, swing: 0, sail: 0, fight: 0, target: new THREE.Vector3(START.x, 1, START.z) };
 game.cam = cam;
 const MIN_DIST = 3.2, MAX_DIST = 30;
 const TURN_IN = 2.5; // metres into a place on the next leg before the camera swings round (so it doesn't flip back and forth at the gate)
 const SWING = 2.4; // how quickly it swings round (1/s: see damp)
 const SAIL = { dist: 6, pitch: 0.5, up: 2.5 }; // out on the ferry: metres further back, radians flatter and metres higher it looks (at your usual zoom)
+const FIGHT = { dist: 4, pitch: 0.15 }; // and with the cuttlefish at her: metres further back again, and radians less flat
 const FOG = [scene.fog.near, scene.fog.far], SAIL_FOG = [95, 320]; // metres: where the haze starts, and where there's nothing but (and out on the harbour)
 const focus = new THREE.Vector3();
 
@@ -231,12 +242,14 @@ function updateCamera(dt) {
   const out = cam.sail * smoothstep(MIN_DIST, 12, cam.zoom);
   scene.fog.near = lerp(FOG[0], SAIL_FOG[0], cam.sail);
   scene.fog.far = lerp(FOG[1], SAIL_FOG[1], cam.sail);
+  // (and when the giant cuttlefish comes up, it sits up to look down over her cabins, at it and its tentacles)
+  cam.fight = damp(cam.fight, game.cuttle.fighting ? 1 : 0, 1, dt);
   // zooming in swings the camera down towards eye level so you can see his face
-  cam.dist = damp(cam.dist, cam.zoom + SAIL.dist * out, 10, dt);
+  cam.dist = damp(cam.dist, cam.zoom + (SAIL.dist + FIGHT.dist * cam.fight) * out, 10, dt);
   const close = 1 - smoothstep(MIN_DIST, 11, cam.dist);
   // (down the bin alley and in the King's court, it looks further ahead: there he is, on his throne at the end)
   cam.ahead = damp(cam.ahead, enemies.king?.alive && onKingsWay(player.pos.x, player.pos.z) ? -0.22 : 0, 1.5, dt);
-  cam.pitch = clamp((cam.dist > 11 ? 0.74 + (cam.dist - 11) * 0.012 : lerp(0.74, 0.1, close)) + cam.tilt + cam.ahead - SAIL.pitch * out, 0.04, 1.45);
+  cam.pitch = clamp((cam.dist > 11 ? 0.74 + (cam.dist - 11) * 0.012 : lerp(0.74, 0.1, close)) + cam.tilt + cam.ahead - (SAIL.pitch - FIGHT.pitch * cam.fight) * out, 0.04, 1.45);
   const f = player.focus(focus); // (him, or the middle of him when he's lying there, out cold)
   if (game.wasted.stage === 'down') {
     // (up the screen a bit, so he's lying there above the WASTED, not hidden behind it)
@@ -408,7 +421,7 @@ function handleInput(dt) {
     else audio.nope(); // (none of the other kind with you)
   }
   if (input.pressed('KeyM')) buildMound();
-  if (input.pressed('KeyF')) game.travel.tryDive();
+  if (input.pressed('KeyF') && !game.ferry.tryLever()) game.travel.tryDive(); // (a lever, if you're by one: see Ferry)
   if (input.pressed('KeyH')) hud.toggleHelp();
 }
 
@@ -447,7 +460,8 @@ const tips = [
   { key: 'convert', when: () => zoneNow() === BEACH && turkeys.list.some((t) => t.kind === 'beach'), text: 'Out of beach gear? Throw normal turkeys into a beach mound to turn them into beach turkeys' },
   // (and a word as you first get to each of the places that need one)
   { key: 'oval', when: () => zoneNow() === OVAL, text: "The oval's mound has cricket gear in it already. Throw turkeys at the gear lying about and they'll carry it in" },
-  { key: 'ferry', when: () => zoneNow() === FERRY, text: 'Sit back and enjoy the view! Z and C swing the camera round' },
+  { key: 'lever', when: () => zoneNow() === FERRY && game.ferry.state === 'docked' && !game.ferry.call, text: "Pull the lever on her deck with F and she'll set sail" },
+  { key: 'ferry', when: () => zoneNow() === FERRY && game.ferry.state === 'sailing', text: 'Sit back and enjoy the view! Z and C swing the camera round' },
   { key: 'quay', when: () => zoneNow() === CITY, text: 'Circular Quay! The King Ibis holds court at the Town Hall, at the end of the bin alley' },
 ];
 /** what you'd been told, going by a save from before the tips had names (it only kept how far down the list you'd got, and a flag or two) */
@@ -507,6 +521,10 @@ new DevMenu(game, {
   },
   invincible() { game.dev.invincible = !game.dev.invincible; return game.dev.invincible; }, // (you and your turkeys)
   flyover() { if (!game.flyovers.send()) hud.toast('No clear way over from here (or some are going over already)', 3); },
+  cuttlefish() { // (aboard the ferry, nearly halfway over: up it comes, whether it's been seen off already or not)
+    this.goto(FERRY);
+    game.cuttle.summon();
+  },
   hurtMe() { player.hurt(25, null); },
   healMe() { player.hp = MAX_HP; },
   wasteMe() {
@@ -543,7 +561,7 @@ function updateZones() {
     h.told = true; tipT = Math.max(tipT, 6); // (and any tip waits till he's been introduced)
     hud.toast(h.text, 5);
   }
-  hud.boss(enemies.engagedBoss());
+  hud.boss(game.cuttle.bar() ?? enemies.engagedBoss());
 }
 
 /* ------------------------------------------------------------------ loop */
@@ -576,8 +594,10 @@ function step(real) {
   else { letGo(); updateAim(); }
 
   game.ferry.update(dt); // (she carries everyone aboard before they get moving themselves)
+  game.cuttle.update(dt); // (its tentacles come up among the foes)
   player.update(dt, move, target);
   updateCamera(dt);
+  game.storm.update(dt); // (after the camera: it closes in the haze the camera's just set)
   mounds.update(dt, camera);
   enemies.update(dt, camera);
   game.barriers.update(dt, camera);

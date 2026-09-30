@@ -107,6 +107,7 @@ export class Ambience {
       else { this.slap(); this.waveT = rand(0.6, 1.9); }
     }
     if ((this.callT -= dt) > 0) return;
+    if (zone === FERRY && (g.storm?.k ?? 0) > 0.3) { this.callT = rand(2, 4); return; } // (nothing out there calling in a storm)
     const set = CALLS[zone];
     this.callT = rand(...set.every);
     let r = Math.random() * Object.values(set.calls).reduce((s, w) => s + w, 0);

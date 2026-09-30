@@ -51,6 +51,7 @@ only open while she's in, and the King Ibis in the city is the end of the line, 
   loading an edited save, set `game.saves.on = false` first.
 - `window.game` exposes everything. The dev menu (the backquote key) can:
   - skip to a zone, spawn turkeys, or open every gate;
+  - summon the giant cuttlefish (it puts you aboard the ferry, nearly halfway over);
   - toggle invincibility, or hurt, heal or waste you;
   - save, or wipe the save.
 
@@ -69,7 +70,16 @@ only open while she's in, and the King Ibis in the city is the end of the line, 
   off. `canSee()` and `throwClear()` stop seeing and throwing through scrub, fences and buildings. The camera
   swings round to look down whichever leg you're on (`cam.leg` in main.js), and the sun comes round with it.
 - **The ferry** (`ferry.js`) is a zone that moves: its bounds are its deck (`world.boundsOf(FERRY)`), and
-  `shift()` carries everything on it along. It saves where it's got to.
+  `shift()` carries everything on it along. It saves where it's got to. She goes nowhere till a lever's pulled
+  (`lever.js`): one at either end of her deck sets her off, and one on each wharf calls her over. F pulls the one
+  you're by (`ferry.tryLever()`), and dives into a mound otherwise.
+- **The giant cuttlefish** (`cuttlefish.js`, `game.cuttle`) holds the ferry up halfway over (`hold()`/`release()`)
+  till it's beaten, and brings a storm with it (`storm.js`, `game.storm`). It isn't a foe itself: its tentacles are
+  (`tentacle.js`), one on each berth along her sides, and it keeps the boss bar for all of them (`bar()`). Going down
+  mid-fight, or having no turkeys left aboard, loses it: it drags her under (`Cuttle.wreck()`, `Ferry.wreck()`).
+  Till it's beaten it bars the Quay gangway to `route()`, so you come round on the Manly side (the mound among the
+  pines on the wharf), with her back at the wharf and another lot of boards nailed on (`refloat()`, saved). Beaten,
+  it leaves fish on her deck (`fish.js`, loot like any other) for the Quay mound.
 - **Turkeys** (`turkey.js`) are one big state machine (`S`). The `WALKING` set decides who's on the ground; the
   `BUSY` set decides who can be whistled back. A new state needs all of:
   - its entry in `S`, and in those sets;
