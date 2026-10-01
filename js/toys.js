@@ -450,7 +450,7 @@ class TreeRoost {
  * A turkey picks one whose spot it can see from where it is; with `spread`, not always the very nearest (so
  * they fill up the rows, not just the front one)
  */
-class Perches {
+export class Perches {
   constructor(game, obj, perches, { pose = 'roost', time = [14, 32], spread = 0 } = {}) {
     this.game = game;
     this.obj = obj;

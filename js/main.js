@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { World, ZONES, LEGS, OVAL, BEACH, FERRY, CITY } from './world.js';
+import { World, ZONES, LEGS, OVAL, BEACH, FERRY, CITY, OPERA } from './world.js';
 import { Barriers } from './barriers.js';
 import { Enemies } from './enemies.js';
 import { Ghosts } from './ghosts.js';
@@ -32,6 +32,8 @@ import { CITY_BINS, CITY_BAGS, ALLEY_IBISES, CITY_IBISES, QUAY_GULLS, QUAY_MOUND
 import { OVAL_BINS, FIELD_GATE, STUMPS, PLOVER_NESTS, CRICKET_KIT, OVAL_MOUND, OVAL_SNAKES, OVAL_SPIDER, MOWER } from './props/oval.js';
 import { GULL_PATCHES, CAPTAIN_POST, WHARF_BINS, WHARF_MOUND } from './props/wharf.js';
 import { LANE } from './props/harbour.js';
+import { OPERA_GULLS, OPERA_BAR, BENNY } from './props/opera.js';
+import { Seal } from './seal.js';
 import { DevMenu } from './devmenu.js';
 import { Saves } from './save.js';
 import { Wasted } from './wasted.js';
@@ -149,6 +151,9 @@ for (const st of [...world.city.seats, ...world.wharf.seats]) game.toys.addPerch
 // at the oval, the stands (turkeys come and watch) and Big Kev's ride-on mower
 for (const st of world.oval.stands) game.toys.addPerches(st.obj, st.perches, { spread: 3, time: [15, 40] });
 game.toys.addMower(...MOWER);
+// and round the back of the Opera House, Benny the seal, and his steps, to lie about in the sun on with him
+for (const st of world.opera.seats) game.toys.addPerches(st.obj, st.perches, { pose: 'sunbake', spread: 2, time: [15, 40] });
+game.benny = new Seal(game, ...BENNY);
 
 // Manly: a beach mound to feed with stolen gear, crabs, and the King Crab in his rock pool at the Shelly Beach end
 mounds.add(-18, -202, false, 'beach');
@@ -169,9 +174,11 @@ for (const [type, x, z] of loot) enemies.list.push(new BeachItem(game, type, x, 
 // the lifesaving flags have to be dug out first; the umbrellas are bouncy
 for (const [x, z] of FLAGS) enemies.list.push(new BeachFlag(game, x, z));
 for (const [x, z, a, b] of UMBRELLAS) game.toys.addUmbrella(x, z, a, b);
-// the wharf's seagulls, a few to each spilt packet of chips (and a couple more down at the Quay): they take it in
-// turns to swoop, no more than a couple at a time (see Plover.mateBusy)
-for (const [x, z, n] of [...GULL_PATCHES, ...QUAY_GULLS]) {
+// (and the bar's, out on the Opera House's broadwalk)
+for (const [x, z] of OPERA_BAR) game.toys.addUmbrella(x, z, 0xfaf7ef, 0xe0d9c8);
+// the wharf's seagulls, a few to each spilt packet of chips (and a couple more down at the Quay, and along the
+// broadwalk round the Opera House): they take it in turns to swoop, no more than a couple at a time (see Plover.mateBusy)
+for (const [x, z, n] of [...GULL_PATCHES, ...QUAY_GULLS, ...OPERA_GULLS]) {
   const crew = Array.from({ length: n }, (_, i) => enemies.spawn('gull', x + Math.sin((i / n) * TAU) * 1.4, z + Math.cos((i / n) * TAU) * 1.4, [x, z]));
   for (const e of crew) e.crew = crew;
 }
@@ -213,6 +220,7 @@ const TURN_IN = 2.5; // metres into a place on the next leg before the camera sw
 const SWING = 2.4; // how quickly it swings round (1/s: see damp)
 const SAIL = { dist: 6, pitch: 0.5, up: 2.5 }; // out on the ferry: metres further back, radians flatter and metres higher it looks (at your usual zoom)
 const FIGHT = { dist: 4, pitch: 0.15 }; // and with the cuttlefish at her: metres further back again, and radians less flat
+const SIGHTS = 0.7; // (and how much of that it sits back round the Opera House, to take in the sails)
 const FOG = [scene.fog.near, scene.fog.far], SAIL_FOG = [95, 320]; // metres: where the haze starts, and where there's nothing but (and out on the harbour)
 const focus = new THREE.Vector3();
 
@@ -237,8 +245,8 @@ function updateCamera(dt) {
   }
   world.setSunYaw(LEGS[cam.leg].yaw - cam.swing);
   // out on the ferry, it sits back and looks out, and you can see further: there's a harbour to take in (less
-  // so the closer you've zoomed in)
-  cam.sail = damp(cam.sail, zone === FERRY ? 1 : 0, 1.2, dt);
+  // so the closer you've zoomed in). And round at the Opera House, there are the sails to take in
+  cam.sail = damp(cam.sail, zone === FERRY ? 1 : zone === OPERA ? SIGHTS : 0, 1.2, dt);
   const out = cam.sail * smoothstep(MIN_DIST, 12, cam.zoom);
   scene.fog.near = lerp(FOG[0], SAIL_FOG[0], cam.sail);
   scene.fog.far = lerp(FOG[1], SAIL_FOG[1], cam.sail);
@@ -481,7 +489,7 @@ function updateTips(dt) {
 
 /* ------------------------------------------------------------------ dev menu (~) */
 // (just through the gate into each; and on the ferry, on her deck, wherever she's got to)
-const ZONE_SPAWN = [[START.x, START.z], [6, -44], [-8, -104], [-16, -184], [76, -188], null, [362, -224]];
+const ZONE_SPAWN = [[START.x, START.z], [6, -44], [-8, -104], [-16, -184], [76, -188], null, [362, -224], [352, -249.5]];
 new DevMenu(game, {
   goto(v) {
     const zi = +v;
@@ -601,6 +609,7 @@ function step(real) {
   mounds.update(dt, camera);
   enemies.update(dt, camera);
   game.barriers.update(dt, camera);
+  game.benny.update(dt);
   game.toys.update(dt); // rides move before their riders take their seats
   turkeys.update(dt);
   game.ghosts.update(dt);

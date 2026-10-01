@@ -62,7 +62,7 @@ function bollardGeo() {
 }
 
 /** a spilt packet of chips, for the gulls to fight over */
-function chipsGeo() {
+export function chipsGeo() {
   const p = [part(G.box(0.5, 0.012, 0.38), 0xf2efe6, [0, 0.006, 0], [0, 0.3, 0])];
   for (let i = 0; i < 14; i++) p.push(part(G.box(0.03, 0.03, rand(0.1, 0.18)), pick([0xf2c94c, 0xe8b93a, 0xd9a52e]), [rand(-0.45, 0.45), 0.02, rand(-0.35, 0.35)], [0, rand(0, TAU), 0]));
   return merge(p);

@@ -1,6 +1,6 @@
 import { rand, clamp } from './util.js';
 import { shoreZ } from './props/beach.js';
-import { BEACH, WHARF, FERRY } from './world.js';
+import { BEACH, WHARF, FERRY, OPERA } from './world.js';
 
 /*
  * The sound of each place, under everything else that's going on. There's a bed of sound that's always there:
@@ -33,6 +33,8 @@ const BEDS = [
   [{ type: 'lowpass', f: 110, vol: 0.34, wobble: [[0.35, 4.2], [0.15, 0.3]] }, { type: 'bandpass', f: 900, q: 0.5, vol: 0.05, wobble: [[0.4, 0.23]] }, { type: 'highpass', f: 2800, vol: 0.008, wobble: [[0.6, 0.11]] }],
   // the city: the rumble of traffic, and tyres on the road
   [{ type: 'lowpass', f: 220, vol: 0.3, wobble: [[0.3, 0.06], [0.2, 0.17]] }, { type: 'bandpass', f: 750, q: 0.7, vol: 0.05, wobble: [[0.4, 0.11]] }],
+  // the Opera House: the harbour slopping at the sea wall, a breeze off the water, and the bar, chattering away
+  [{ type: 'lowpass', f: 380, vol: 0.13, wobble: [[0.5, 0.7], [0.3, 1.1]] }, { type: 'bandpass', f: 2000, q: 0.5, vol: 0.012 }, { type: 'bandpass', f: 520, q: 1.6, vol: 0.03, wobble: [[0.3, 0.27], [0.2, 0.41]] }],
 ];
 
 // and the calls over the top: how often (seconds between, give or take), and what, how likely each one is
@@ -44,6 +46,7 @@ const CALLS = [
   { every: [5, 12], calls: { gulls: 2, creak: 2, bell: 1 } }, // the wharf (and the water slapping at the pilings)
   { every: [5, 11], calls: { gulls: 3, bell: 1 } }, // the ferry (and the water slapping at the hull)
   { every: [4, 10], calls: { car: 6, crossing: 1.5, beep: 1, brakes: 1, gulls: 1 } }, // the city
+  { every: [5, 12], calls: { gulls: 3, bell: 1 } }, // the Opera House (and the water slapping at the sea wall)
 ];
 
 export class Ambience {
@@ -101,8 +104,9 @@ export class Ambience {
     }
     if (a.quiet) return; // (nothing new while the sound's off)
 
-    // the waves rolling in at the beach, and the water slapping at the wharf's pilings (and the ferry's hull)
-    if ((zone === BEACH || zone === WHARF || zone === FERRY) && (this.waveT -= dt) <= 0) {
+    // the waves rolling in at the beach, and the water slapping at the wharf's pilings (and the ferry's hull, and
+    // the sea wall round the Opera House)
+    if ((zone === BEACH || zone === WHARF || zone === FERRY || zone === OPERA) && (this.waveT -= dt) <= 0) {
       if (zone === BEACH) { this.wave(surf); this.waveT = rand(4.5, 7.5); }
       else { this.slap(); this.waveT = rand(0.6, 1.9); }
     }
