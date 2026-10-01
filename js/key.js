@@ -12,6 +12,7 @@ import { BEACH } from './world.js';
  *  - the King Crab's lies sunk in his rock pool, at the Shelly Beach end of Manly
  *  - the ferry keys (on a cork float, so they'd float if they went overboard): Captain Gull nicked them, and
  *    he's got them in his beak till he's beaten
+ *  - the key to the city: the King Ibis wears it on a chain round his neck, and it flies off when he's felled
  */
 const GOLD = 0xf2c230, DARK = 0xc8961e, SOIL = [0x5e3e22, 0x7a5230, 0x8b6238];
 const FLY_T = 1.15; // seconds a key takes to fly out of its holder's grip and land
@@ -120,7 +121,7 @@ function keyMesh(model) {
 }
 
 export class Key extends Foe {
-  /** `spec`: { x, z, size, weight, slots, heading, buried (hp to dig it up), holder ('keeper' | 'captain'), model } */
+  /** `spec`: { x, z, size, weight, slots, heading, buried (hp to dig it up), holder ('keeper' | 'captain' | 'king'), model } */
   constructor(game, spec, gate, index) {
     const s = spec.size, holder = spec.holder ? game.enemies[spec.holder] : null;
     super(game, {

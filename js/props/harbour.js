@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { part, merge, vcMesh, vcMat, G, limb, rand, pick, hash, TAU, toonMat, canvasTexture, smoothstep } from '../util.js';
 import { SEA, seaWave, seaMat } from './beach.js';
 import { building } from './city.js';
-import { BEACH } from '../world.js';
+import { BEACH, HYDE } from '../world.js';
 
 /*
  * Sydney Harbour, from the ferry. Off to your left as you go: North Head's cliffs, the Heads, with the open sea
@@ -421,7 +421,8 @@ export function buildHarbour(world) {
     update(dt, t) {
       sail(dt, t); // (they keep going with nobody about, too: you can see them from up high, on the map)
       const p = world.game.player.pos;
-      if (world.zoneOf(p.x, p.z) < BEACH) return; // (nobody to see the swell, or the wheel going round, from back there)
+      const zone = world.zoneOf(p.x, p.z);
+      if (zone < BEACH || zone >= HYDE) return; // (nobody to see the swell, or the wheel going round, from back there, or Hyde Park, or over at Milsons Point)
       const storm = world.game.storm?.k ?? 0;
       for (let i = 0; i < wpos.count; i++) wpos.setY(i, swell(wpos.getX(i), wpos.getZ(i), t, storm));
       wpos.needsUpdate = true;

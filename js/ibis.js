@@ -224,14 +224,14 @@ export class Ibis extends Foe {
     if (this.kind === 'king') {
       g.hud.banner('KING IBIS FELLED');
       g.audio.fanfare();
-      // a key to a gate flies off his chain (growing back to full size on the way); the key to the city, he gets
-      // to keep: the city's yours now, and that's the end of the line
+      // the key to the city flies off his chain (growing back to full size on the way): it opens the gate out of the
+      // side of his court, through to Hyde Park
       if (this.key && !this.key.gone && this.pendant?.visible) {
         this.pendantKey.updateWorldMatrix(true, false);
         this.key.release(this.pendantKey.matrixWorld, this.heading, 6.5);
         g.hud.toast('The King\'s key flew off his neck! Carry it to the gate', 3.5);
         this.pendant.visible = false;
-      } else if (!g.loading) g.hud.toast("The King is felled, and the city's yours! That's the end of the line... for now", 6);
+      }
       // (and if he was up on his throne, he topples off it)
       if (this.throne) {
         if (this.perch || this.sit) {

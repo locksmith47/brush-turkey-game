@@ -1,6 +1,6 @@
 import { rand, clamp } from './util.js';
 import { shoreZ } from './props/beach.js';
-import { BEACH, WHARF, FERRY, OPERA } from './world.js';
+import { BEACH, WHARF, FERRY, OPERA, MILSONS, LUNA } from './world.js';
 
 /*
  * The sound of each place, under everything else that's going on. There's a bed of sound that's always there:
@@ -35,6 +35,12 @@ const BEDS = [
   [{ type: 'lowpass', f: 220, vol: 0.3, wobble: [[0.3, 0.06], [0.2, 0.17]] }, { type: 'bandpass', f: 750, q: 0.7, vol: 0.05, wobble: [[0.4, 0.11]] }],
   // the Opera House: the harbour slopping at the sea wall, a breeze off the water, and the bar, chattering away
   [{ type: 'lowpass', f: 380, vol: 0.13, wobble: [[0.5, 0.7], [0.3, 1.1]] }, { type: 'bandpass', f: 2000, q: 0.5, vol: 0.012 }, { type: 'bandpass', f: 520, q: 1.6, vol: 0.03, wobble: [[0.3, 0.27], [0.2, 0.41]] }],
+  // Hyde Park: the city's traffic, further off, the breeze in the figs, and the fountain going
+  [{ type: 'lowpass', f: 220, vol: 0.16, wobble: [[0.3, 0.06]] }, { type: 'bandpass', f: 1100, q: 0.5, vol: 0.04, wobble: [[0.5, 0.08], [0.3, 0.21]] }, { type: 'highpass', f: 3000, vol: 0.006, wobble: [[0.2, 0.5]] }],
+  // Milsons Point: the harbour slopping at the sea wall, a breeze off the water, and the Bridge's traffic, way up
+  [{ type: 'lowpass', f: 380, vol: 0.12, wobble: [[0.5, 0.7], [0.3, 1.1]] }, { type: 'bandpass', f: 2000, q: 0.5, vol: 0.012 }, { type: 'lowpass', f: 160, vol: 0.12, wobble: [[0.3, 0.05]] }],
+  // Luna Park: the water under the boardwalk, and a crowd inside, somewhere, having a good time
+  [{ type: 'lowpass', f: 380, vol: 0.12, wobble: [[0.5, 0.7], [0.3, 1.1]] }, { type: 'bandpass', f: 620, q: 1.4, vol: 0.06, wobble: [[0.3, 0.23], [0.2, 0.39]] }],
 ];
 
 // and the calls over the top: how often (seconds between, give or take), and what, how likely each one is
@@ -47,6 +53,9 @@ const CALLS = [
   { every: [5, 11], calls: { gulls: 3, bell: 1 } }, // the ferry (and the water slapping at the hull)
   { every: [4, 10], calls: { car: 6, crossing: 1.5, beep: 1, brakes: 1, gulls: 1 } }, // the city
   { every: [5, 12], calls: { gulls: 3, bell: 1 } }, // the Opera House (and the water slapping at the sea wall)
+  { every: [6, 14], calls: { magpie: 3, car: 2, crow: 1 } }, // Hyde Park
+  { every: [5, 12], calls: { gulls: 3, bell: 1, car: 1 } }, // Milsons Point (and the water slapping at the sea wall)
+  { every: [5, 11], calls: { gulls: 2, cheer: 2 } }, // Luna Park
 ];
 
 export class Ambience {
@@ -106,7 +115,7 @@ export class Ambience {
 
     // the waves rolling in at the beach, and the water slapping at the wharf's pilings (and the ferry's hull, and
     // the sea wall round the Opera House)
-    if ((zone === BEACH || zone === WHARF || zone === FERRY || zone === OPERA) && (this.waveT -= dt) <= 0) {
+    if ((zone === BEACH || zone === WHARF || zone === FERRY || zone === OPERA || zone === MILSONS || zone === LUNA) && (this.waveT -= dt) <= 0) {
       if (zone === BEACH) { this.wave(surf); this.waveT = rand(4.5, 7.5); }
       else { this.slap(); this.waveT = rand(0.6, 1.9); }
     }

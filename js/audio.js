@@ -553,4 +553,31 @@ export class Audio {
       this.noise({ dur: 0.9, vol: 0.16 * vol, type: 'lowpass', f1: 400, f2: 120, attack: 0.05 });
     }
   }
+
+  /* ---------------------------------------------------------------- Hyde Park, and the train */
+  /** a rat squeaking (`big`: its last) */
+  squeak(big = false) {
+    if (!this.ok('squeak', 160)) return;
+    const f = 2600 + Math.random() * 800;
+    this.tone({ freq: f, freq2: f * 1.25, dur: big ? 0.22 : 0.07, vol: 0.07, type: 'triangle', vib: 120, vibHz: 50, attack: 0.004 });
+    if (big) this.tone({ freq: f * 1.2, freq2: f * 0.7, dur: 0.18, vol: 0.06, type: 'triangle', delay: 0.2 });
+  }
+
+  /** the train's doors: the chime as they're closing, and a ding as they open (`open`) */
+  chime(open = false) {
+    if (!this.ok('chime', 400)) return;
+    const notes = open ? [[1046, 0]] : [[659, 0], [523, 0.32]];
+    for (const [f, delay] of notes) {
+      this.tone({ freq: f, dur: 0.5, vol: 0.12, type: 'sine', delay });
+      this.tone({ freq: f * 2, dur: 0.3, vol: 0.03, type: 'sine', delay });
+    }
+  }
+
+  /** her motors winding up as she pulls away, and the rumble of her on the rails (`vol`: further off) */
+  trainOff(vol = 1) {
+    if (!this.ok('trainOff', 1000)) return;
+    this.tone({ freq: 90, freq2: 330, dur: 4.5, vol: 0.06 * vol, type: 'sawtooth', attack: 0.4 });
+    this.tone({ freq: 180, freq2: 660, dur: 4.5, vol: 0.025 * vol, type: 'square', attack: 0.6 });
+    this.noise({ dur: 5, vol: 0.12 * vol, type: 'lowpass', f1: 180, f2: 420, attack: 0.8 });
+  }
 }

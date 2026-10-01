@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { World, ZONES, LEGS, OVAL, BEACH, FERRY, CITY, OPERA } from './world.js';
+import { World, ZONES, LEGS, OVAL, BEACH, FERRY, CITY, OPERA, MILSONS, LUNA } from './world.js';
 import { Barriers } from './barriers.js';
 import { Enemies } from './enemies.js';
 import { Ghosts } from './ghosts.js';
@@ -33,12 +33,16 @@ import { OVAL_BINS, FIELD_GATE, STUMPS, PLOVER_NESTS, CRICKET_KIT, OVAL_MOUND, O
 import { GULL_PATCHES, CAPTAIN_POST, WHARF_BINS, WHARF_MOUND } from './props/wharf.js';
 import { LANE } from './props/harbour.js';
 import { OPERA_GULLS, OPERA_BAR, BENNY } from './props/opera.js';
+import { HYDE_MOUND, HYDE_BINS, HYDE_IBISES, HYDE_RATS } from './props/hyde.js';
+import { OX, MILSONS_MOUND, MILSONS_BINS, MILSONS_IBISES, MILSONS_RATS, LUNA_GULLS } from './props/milsons.js';
 import { Seal } from './seal.js';
 import { DevMenu } from './devmenu.js';
 import { Saves } from './save.js';
 import { Wasted } from './wasted.js';
 import { Travel } from './travel.js';
-import { clamp, damp, rand, smoothstep, lerp, TAU } from './util.js';
+import { Ride } from './train.js';
+import { Ending } from './ending.js';
+import { clamp, damp, rand, smoothstep, lerp, angleDiff, TAU } from './util.js';
 
 const THROW_RANGE = 11;
 const WHISTLE_RANGE = 15;
@@ -74,6 +78,7 @@ game.ghosts = new Ghosts(game);
 game.hud = new HUD(game);
 game.wasted = new Wasted(game); // (going down, GTA style, and being dug out of a mound after)
 game.travel = new Travel(game); // (diving into a mound, with your squad, to come out of another)
+game.ending = new Ending(game); // (in through Luna Park's mouth: that's as far as it goes, for now)
 game.leaves = new Leaves(game);
 game.grubs = new Grubs(game);
 game.mounds = new Mounds(game);
@@ -83,6 +88,7 @@ game.enemies = new Enemies(game);
 game.toys = new Toys(game);
 game.ferry = new Ferry(game); // (tied up at Manly Wharf, going nowhere till the keys are got back off Captain Gull)
 game.cuttle = new Cuttle(game); // (and halfway over, the first time you cross, the giant cuttlefish)
+game.ride = new Ride(game); // (the train at Museum, waiting to take you over the Bridge to Milsons Point)
 game.cursor = new Cursor(game);
 window.game = game; // handy for poking around in devtools
 
@@ -91,7 +97,7 @@ const { world, player, turkeys, mounds, leaves, audio, hud, fx, enemies } = game
 
 /* ------------------------------------------------------------------ starting layout */
 mounds.add(HOME.x, HOME.z, true);
-for (const s of world.treeSpots) leaves.spawnCluster(s.x, s.z, s.palette === 'gum' ? 18 : 14, 4.2, s.palette);
+for (const s of world.treeSpots) leaves.spawnCluster(s.x, s.z, s.n ?? (s.palette === 'gum' ? 18 : 14), 4.2, s.palette);
 for (const [x, z, n, r] of BUSH_LITTER) leaves.spawnCluster(x, z, n, r);
 
 // the bush's clearings, each with a barricade across the way on for turkeys to knock down, and something
@@ -136,7 +142,7 @@ game.barriers.spawnKeys();
 for (const s of [SIDE_GATE, LANE_GATE, FIELD_GATE]) game.barriers.addSideGate(s.a, s.b, s.latch, s.kind);
 // wheelie bins to knock over: green ones spill garden clippings, red ones rubbish, yellow ones recycling
 // (and down the city's bin alley, bin bags to tear open)
-for (const [kind, x, z, face] of [...BUSH_BINS, ...SUBURB_BINS, ...OVAL_BINS, ...WHARF_BINS]) enemies.list.push(new Bin(game, kind, x, z, face));
+for (const [kind, x, z, face] of [...BUSH_BINS, ...SUBURB_BINS, ...OVAL_BINS, ...WHARF_BINS, ...HYDE_BINS, ...MILSONS_BINS]) enemies.list.push(new Bin(game, kind, x, z, face));
 for (const [kind, x, z, face] of CITY_BINS) enemies.list.push(new Bin(game, kind, x, z, face, kind === 'red')); // (the city's red bins are always overflowing)
 for (const [x, z] of CITY_BAGS) enemies.list.push(new BinBag(game, x, z));
 // the backyard playground (and the washing line, which is basically a merry-go-round)
@@ -147,13 +153,23 @@ game.toys.addHoist(-26, -46);
 for (const r of world.roosts) game.toys.addRoost(r);
 // in the city, the backs of the park benches, the bus stop's seat and the fountain's rim (and the benches along
 // the Quay, and down the wharf at Manly)
-for (const st of [...world.city.seats, ...world.wharf.seats]) game.toys.addPerches(st.obj, st.perches, { spread: 1, time: [10, 30] });
+for (const st of [...world.city.seats, ...world.wharf.seats, ...world.hyde.seats, ...world.milsons.seats]) game.toys.addPerches(st.obj, st.perches, { spread: 1, time: [10, 30] });
 // at the oval, the stands (turkeys come and watch) and Big Kev's ride-on mower
 for (const st of world.oval.stands) game.toys.addPerches(st.obj, st.perches, { spread: 3, time: [15, 40] });
 game.toys.addMower(...MOWER);
 // and round the back of the Opera House, Benny the seal, and his steps, to lie about in the sun on with him
 for (const st of world.opera.seats) game.toys.addPerches(st.obj, st.perches, { pose: 'sunbake', spread: 2, time: [15, 40] });
 game.benny = new Seal(game, ...BENNY);
+
+// Hyde Park, through the gate out of the side of the King's court: the fountain to wash in, the statues' heads to
+// sit on, a mound among the figs, bins, and ibises (a giant by the station), with the rats about the bins
+mounds.add(...HYDE_MOUND).startWith(3, 'fig');
+game.toys.addBath(world.hyde.bath.obj, world.hyde.bath.perches, { spread: 2 });
+for (const st of world.hyde.statues) game.toys.addPerches(st.obj, st.perches, { spread: 1, time: [15, 40] });
+for (const [kind, x, z] of [...HYDE_IBISES, ...MILSONS_IBISES]) enemies.spawn(kind, x, z, 5);
+for (const [x, z] of [...HYDE_RATS, ...MILSONS_RATS]) enemies.spawn('rat', x, z);
+// and over the Bridge, at Milsons Point: a mound in Bradfield Park, and seagulls round the chips on Luna Park's boardwalk
+mounds.add(...MILSONS_MOUND).startWith(3, 'fig');
 
 // Manly: a beach mound to feed with stolen gear, crabs, and the King Crab in his rock pool at the Shelly Beach end
 mounds.add(-18, -202, false, 'beach');
@@ -178,7 +194,7 @@ for (const [x, z, a, b] of UMBRELLAS) game.toys.addUmbrella(x, z, a, b);
 for (const [x, z] of OPERA_BAR) game.toys.addUmbrella(x, z, 0xfaf7ef, 0xe0d9c8);
 // the wharf's seagulls, a few to each spilt packet of chips (and a couple more down at the Quay, and along the
 // broadwalk round the Opera House): they take it in turns to swoop, no more than a couple at a time (see Plover.mateBusy)
-for (const [x, z, n] of [...GULL_PATCHES, ...QUAY_GULLS, ...OPERA_GULLS]) {
+for (const [x, z, n] of [...GULL_PATCHES, ...QUAY_GULLS, ...OPERA_GULLS, ...LUNA_GULLS]) {
   const crew = Array.from({ length: n }, (_, i) => enemies.spawn('gull', x + Math.sin((i / n) * TAU) * 1.4, z + Math.cos((i / n) * TAU) * 1.4, [x, z]));
   for (const e of crew) e.crew = crew;
 }
@@ -196,7 +212,7 @@ player.pos.set(START.x, world.groundHeight(START.x, START.z), START.z);
 // saving your progress (see Saves): all of the above is what a new game starts out with, and a save says
 // what's changed since. (Plus how far along you are: the areas you've been to, the tips you've been given)
 const saves = new Saves(game, {
-  get: () => ({ visited: [...visited], once: [...hud.told], told: bosses.map((h) => !!h.told), hurt: !!player.toldHurt, dugOut: game.wasted.told, travel: game.travel.told }),
+  get: () => ({ visited: [...visited], once: [...hud.told], told: bosses.map((h) => !!h.told), hurt: !!player.toldHurt, dugOut: game.wasted.told, travel: game.travel.told, ended: game.ending.seen }),
   set: (d) => {
     for (const z of d.visited ?? []) visited.add(z);
     for (const k of d.once ?? oldTips(d)) hud.told.add(k);
@@ -204,6 +220,7 @@ const saves = new Saves(game, {
     player.toldHurt ||= !!d.hurt;
     game.wasted.told ||= !!d.dugOut;
     game.travel.told ||= !!d.travel;
+    game.ending.seen ||= !!d.ended;
   },
 });
 saves.register();
@@ -212,16 +229,20 @@ game.saves = saves;
 /* ------------------------------------------------------------------ camera */
 // (`leg`: the leg of the map it's looking down, see LEGS; `swing`: how much further round it's still to swing to
 // get there; `sail`: 0..1, how far it's sat back to take in the harbour, out on the ferry; `fight`: 0..1, how far
-// it's sat up again to see the giant cuttlefish over her cabins)
-const cam = { yaw: 0, dist: 12, zoom: 12, pitch: 0.74, tilt: 0, ahead: 0, leg: 0, swing: 0, sail: 0, fight: 0, target: new THREE.Vector3(START.x, 1, START.z) };
+// it's sat up again to see the giant cuttlefish over her cabins; `vista`: 0..1, how far it can see, over at Milsons Point)
+const cam = { yaw: 0, dist: 12, zoom: 12, pitch: 0.74, tilt: 0, ahead: 0, leg: 0, swing: 0, sail: 0, fight: 0, vista: 0, watch: 0, target: new THREE.Vector3(START.x, 1, START.z) };
 game.cam = cam;
 const MIN_DIST = 3.2, MAX_DIST = 30;
 const TURN_IN = 2.5; // metres into a place on the next leg before the camera swings round (so it doesn't flip back and forth at the gate)
 const SWING = 2.4; // how quickly it swings round (1/s: see damp)
 const SAIL = { dist: 6, pitch: 0.5, up: 2.5 }; // out on the ferry: metres further back, radians flatter and metres higher it looks (at your usual zoom)
 const FIGHT = { dist: 4, pitch: 0.15 }; // and with the cuttlefish at her: metres further back again, and radians less flat
+const WATCH = { dist: 16, pitch: 0.3 }; // watching the train off into the tunnel: metres back, and radians flatter (where from, and at what, is the train's: see Ride.watchAt)
 const SIGHTS = 0.7; // (and how much of that it sits back round the Opera House, to take in the sails)
 const FOG = [scene.fog.near, scene.fog.far], SAIL_FOG = [95, 320]; // metres: where the haze starts, and where there's nothing but (and out on the harbour)
+const VISTA_FOG = [150, 520]; // (and at Milsons Point and Luna Park, looking out over it all to the city)
+/** is zone i over the harbour, at Milsons Point or Luna Park? */
+const onIsle = (i) => i === MILSONS || i === LUNA;
 const focus = new THREE.Vector3();
 
 /** swing round to look down leg `leg` (all at once, with `snap`) */
@@ -231,7 +252,12 @@ function turnTo(leg, snap = false) {
   if (snap) { cam.yaw += cam.swing; cam.swing = 0; }
 }
 /** straight round to look down the leg `at` is on (for turning up somewhere all at once: coming back to a mound, say) */
-cam.snapTo = (at) => turnTo(ZONES[world.zoneOf(at.x, at.z)].leg, true);
+cam.snapTo = (at) => {
+  const zone = world.zoneOf(at.x, at.z);
+  turnTo(ZONES[zone].leg, true);
+  cam.vista = onIsle(zone) ? 1 : 0; // (the haze, all at once, too)
+  cam.watch = 0;
+};
 
 function updateCamera(dt) {
   // round the corner onto the beach, the camera swings round with you to look down the way on (and so does
@@ -246,18 +272,22 @@ function updateCamera(dt) {
   world.setSunYaw(LEGS[cam.leg].yaw - cam.swing);
   // out on the ferry, it sits back and looks out, and you can see further: there's a harbour to take in (less
   // so the closer you've zoomed in). And round at the Opera House, there are the sails to take in
-  cam.sail = damp(cam.sail, zone === FERRY ? 1 : zone === OPERA ? SIGHTS : 0, 1.2, dt);
+  cam.sail = damp(cam.sail, zone === FERRY ? 1 : zone === OPERA || zone === MILSONS ? SIGHTS : 0, 1.2, dt);
   const out = cam.sail * smoothstep(MIN_DIST, 12, cam.zoom);
-  scene.fog.near = lerp(FOG[0], SAIL_FOG[0], cam.sail);
-  scene.fog.far = lerp(FOG[1], SAIL_FOG[1], cam.sail);
+  // (and over at Milsons Point, you can see for miles: the Bridge, and the city over the water)
+  cam.vista = damp(cam.vista, onIsle(zone) ? 1 : 0, 1.5, dt);
+  scene.fog.near = lerp(lerp(FOG[0], SAIL_FOG[0], cam.sail), VISTA_FOG[0], cam.vista);
+  scene.fog.far = lerp(lerp(FOG[1], SAIL_FOG[1], cam.sail), VISTA_FOG[1], cam.vista);
   // (and when the giant cuttlefish comes up, it sits up to look down over her cabins, at it and its tentacles)
   cam.fight = damp(cam.fight, game.cuttle.fighting ? 1 : 0, 1, dt);
+  // (and on the train at Museum, it settles down low on the platform to watch her go, off into the tunnel)
+  cam.watch = damp(cam.watch, game.ride.watching ? 1 : 0, 1.2, dt);
   // zooming in swings the camera down towards eye level so you can see his face
-  cam.dist = damp(cam.dist, cam.zoom + (SAIL.dist + FIGHT.dist * cam.fight) * out, 10, dt);
+  cam.dist = damp(cam.dist, lerp(cam.zoom + (SAIL.dist + FIGHT.dist * cam.fight) * out, WATCH.dist, cam.watch), 10, dt);
   const close = 1 - smoothstep(MIN_DIST, 11, cam.dist);
   // (down the bin alley and in the King's court, it looks further ahead: there he is, on his throne at the end)
   cam.ahead = damp(cam.ahead, enemies.king?.alive && onKingsWay(player.pos.x, player.pos.z) ? -0.22 : 0, 1.5, dt);
-  cam.pitch = clamp((cam.dist > 11 ? 0.74 + (cam.dist - 11) * 0.012 : lerp(0.74, 0.1, close)) + cam.tilt + cam.ahead - (SAIL.pitch - FIGHT.pitch * cam.fight) * out, 0.04, 1.45);
+  cam.pitch = clamp((cam.dist > 11 ? 0.74 + (cam.dist - 11) * 0.012 : lerp(0.74, 0.1, close)) + cam.tilt + cam.ahead - (SAIL.pitch - FIGHT.pitch * cam.fight) * out - WATCH.pitch * cam.watch, 0.04, 1.45);
   const f = player.focus(focus); // (him, or the middle of him when he's lying there, out cold)
   if (game.wasted.stage === 'down') {
     // (up the screen a bit, so he's lying there above the WASTED, not hidden behind it)
@@ -265,14 +295,16 @@ function updateCamera(dt) {
     f.x += Math.sin(cam.yaw) * up;
     f.z += Math.cos(cam.yaw) * up;
   }
+  if (cam.watch > 1e-3) f.lerp(game.ride.watchAt, cam.watch);
+  const yaw = cam.yaw + angleDiff(cam.yaw, game.ride.watchYaw) * cam.watch;
   cam.target.x = damp(cam.target.x, f.x, 8, dt);
   cam.target.y = damp(cam.target.y, f.y + lerp(0.8, 1.55, close) + SAIL.up * out, 8, dt);
   cam.target.z = damp(cam.target.z, f.z, 8, dt);
   const h = Math.cos(cam.pitch) * cam.dist;
   camera.position.set(
-    cam.target.x + Math.sin(cam.yaw) * h,
+    cam.target.x + Math.sin(yaw) * h,
     cam.target.y + Math.sin(cam.pitch) * cam.dist,
-    cam.target.z + Math.cos(cam.yaw) * h,
+    cam.target.z + Math.cos(yaw) * h,
   );
   camera.lookAt(cam.target);
   if (shakeAmt > 0) {
@@ -429,7 +461,7 @@ function handleInput(dt) {
     else audio.nope(); // (none of the other kind with you)
   }
   if (input.pressed('KeyM')) buildMound();
-  if (input.pressed('KeyF') && !game.ferry.tryLever()) game.travel.tryDive(); // (a lever, if you're by one: see Ferry)
+  if (input.pressed('KeyF') && !game.ferry.tryLever() && !game.ride.tryBoard()) game.travel.tryDive(); // (a lever, if you're by one: see Ferry; or the train's doors)
   if (input.pressed('KeyH')) hud.toggleHelp();
 }
 
@@ -489,7 +521,7 @@ function updateTips(dt) {
 
 /* ------------------------------------------------------------------ dev menu (~) */
 // (just through the gate into each; and on the ferry, on her deck, wherever she's got to)
-const ZONE_SPAWN = [[START.x, START.z], [6, -44], [-8, -104], [-16, -184], [76, -188], null, [362, -224], [352, -249.5]];
+const ZONE_SPAWN = [[START.x, START.z], [6, -44], [-8, -104], [-16, -184], [76, -188], null, [362, -224], [352, -249.5], [491, -276], [OX - 10, 1], [OX + 56, -36]];
 new DevMenu(game, {
   goto(v) {
     const zi = +v;
@@ -597,7 +629,7 @@ function step(real) {
   if (game.travel.frozen) { game.travel.update(real); input.endFrame(); return; }
   const dt = real * game.timeScale;
   game.time += dt;
-  const down = game.wasted.active || game.travel.active;
+  const down = game.wasted.active || game.travel.active || game.ride.active || game.ending.active;
   if (game.started && !down) { updateAim(); handleInput(dt); updateTips(dt); }
   else { letGo(); updateAim(); }
 
@@ -610,6 +642,7 @@ function step(real) {
   enemies.update(dt, camera);
   game.barriers.update(dt, camera);
   game.benny.update(dt);
+  game.ride.update(dt); // (the train, and anyone getting on or off it)
   game.toys.update(dt); // rides move before their riders take their seats
   turkeys.update(dt);
   game.ghosts.update(dt);
@@ -626,6 +659,7 @@ function step(real) {
   hud.update(dt);
   game.wasted.update(real); // (in real time: the slow-mo as you go down doesn't slow it down)
   game.travel.update(real); // (and so's getting about down the tunnels)
+  game.ending.update(real); // (and the end, for now)
   input.endFrame();
 }
 game.step = step; // lets devtools fast-forward: for (let i = 0; i < 600; i++) game.step(1 / 60)

@@ -2,9 +2,11 @@ import { Bin } from './bin.js';
 import { LeafBag } from './keeper.js';
 import { PALETTES } from './leaves.js';
 import { S } from './turkey.js';
-import { LEGS, WHARF } from './world.js';
+import { LEGS, WHARF, HYDE, MILSONS } from './world.js';
 import { QUAY_MOUND } from './props/city.js';
 import { WHARF_MOUND } from './props/wharf.js';
+import { HYDE_MOUND } from './props/hyde.js';
+import { MILSONS_MOUND } from './props/milsons.js';
 
 /*
  * Saving your progress, in the browser (localStorage): a snapshot of whatever's changed since the game
@@ -70,7 +72,8 @@ export class Saves {
 
   /** every EVERY seconds while you play (and whenever you leave the page: see main.js) */
   update(dt) {
-    if (!this.on || this.game.wasted.active || this.game.travel.active || (this.t -= dt) > 0) return; // (not while you're down, or down the tunnels: see snapshot)
+    const g = this.game;
+    if (!this.on || g.wasted.active || g.travel.active || g.ride.active || g.ending.active || (this.t -= dt) > 0) return; // (not while you're down, down the tunnels or on the train: see snapshot)
     this.t = EVERY;
     this.write();
   }
@@ -91,8 +94,9 @@ export class Saves {
   snapshot() {
     const g = this.game, w = g.world, b = g.barriers, p = g.player, keys = b.keys;
     // (gone down, or being dug out? then you're back at the mound you're coming back to, the camera as you had it.
-    // Likewise down the tunnels, off to another mound: you're by the one you went in by, or the one you're coming out of)
-    const away = g.wasted.active ? g.wasted : g.travel.active ? g.travel : null;
+    // Likewise down the tunnels, off to another mound: you're by the one you went in by, or the one you're coming out of;
+    // or on the train, on the platform you got on at, or off at; or in through Luna Park's mouth, out in front of it)
+    const away = [g.wasted, g.travel, g.ride, g.ending].find((a) => a.active) ?? null;
     const at = away ? away.comeBack() : p.pos, zoom = away ? away.zoom : g.cam.zoom;
     // (the camera: how far round you'd turned it yourself, from looking down the way on, wherever you are: see main.js)
     const yaw = g.cam.yaw + g.cam.swing - LEGS[g.cam.leg].yaw;
@@ -233,11 +237,15 @@ export class Saves {
     // (or before the pines on Manly Wharf's forecourt, and the mound among them: they're there now, needles and all)
     const [wx, wz] = WHARF_MOUND, pines = !g.mounds.list.some((m) => Math.hypot(m.pos.x - wx, m.pos.z - wz) < 12);
     if (pines) g.mounds.add(wx, wz).startWith(3, 'pine');
+    // (and before Hyde Park, and Milsons Point: their mounds are there now, and the figs' leaves)
+    const fresh = [[HYDE_MOUND, HYDE], [MILSONS_MOUND, MILSONS]].filter(([[x, z]]) => !g.mounds.list.some((m) => Math.hypot(m.pos.x - x, m.pos.z - z) < 12));
+    for (const [[x, z]] of fresh) g.mounds.add(x, z).startWith(3, 'fig');
     // the litter lying about, and the grubs in it
     g.leaves.clear();
     const L = d.litter;
     for (let i = 0; i + 3 < L.length; i += 4) g.leaves.spawn(L[i], L[i + 1], PAL[L[i + 2]] ?? 'gum', SHAPES[L[i + 3]] ?? 'leaf');
     if (pines) for (const s of g.world.treeSpots) if (s.palette === 'pine' && g.world.zoneOf(s.x, s.z) === WHARF) g.leaves.spawnCluster(s.x, s.z, 14, 4.2, 'pine');
+    for (const [, zone] of fresh) for (const s of g.world.treeSpots) if (g.world.zoneOf(s.x, s.z) === zone) g.leaves.spawnCluster(s.x, s.z, s.n ?? 14, 4.2, s.palette);
     g.grubs.clear();
     for (const [x, z] of d.grubs) g.grubs.spawn(x, z);
   }

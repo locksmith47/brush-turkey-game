@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { ZONES, FERRY } from './world.js';
+import { ZONES, FERRY, MILSONS, LUNA } from './world.js';
+import { OX } from './props/milsons.js';
 import { lerp, smoothstep, hash, noise } from './util.js';
 
 /*
@@ -9,6 +10,9 @@ import { lerp, smoothstep, hash, noise } from './util.js';
  * worth of it), so it's all just as you left it. Only the places you've been are there to see: everywhere else
  * is under cloud. Each place has its name on it, and each of your mounds a pin in it: pick one (click it, or the
  * arrow keys and Enter) to come out of it.
+ *
+ * Milsons Point and Luna Park are off on their own, a long way off in the world (see buildMilsons): on the map they
+ * go over the water from the city, where they'd be, taken from overhead on their own and set in there.
  */
 const PAD = 14; // metres round the places you've been, to the edges of the map (cloud, mostly)
 const EDGE = { top: 104, right: 36, bottom: 72, left: 36 }; // px round the map kept clear of them, for the heading and the hint
@@ -21,6 +25,20 @@ const HAZE = '#c3d1dc'; // (the cloud, deep down in between the puffs)
 // whether they throw a shadow (the smallest are only the odd wisp, lit up)
 const PUFFS = [{ gap: 90, r: [60, 100], a: 1, shade: true }, { gap: 44, r: [26, 42], a: 0.85, shade: true }, { gap: 20, r: [10, 16], a: 0.35 }];
 const NAMES = { [FERRY]: 'Sydney Harbour' }; // (what a place is called on the map, where it's not its own name)
+const ISLE = [MILSONS, LUNA], SHIFT = { x: 310 - OX, z: -100 }; // (over the Bridge: and how far it moves, from the world onto the map)
+/** where on the map the world's (x, z) is, into out */
+const toMap = (x, z, out = { x: 0, z: 0 }) => {
+  const isle = x < OX / 2;
+  out.x = isle ? x + SHIFT.x : x;
+  out.z = isle ? z + SHIFT.z : z;
+  return out;
+};
+/** place i's rect, on the map */
+const mapRect = (i) => {
+  const [x0, z0, x1, z1] = ZONES[i].rect;
+  return ISLE.includes(i) ? [x0 + SHIFT.x, z0 + SHIFT.z, x1 + SHIFT.x, z1 + SHIFT.z] : [x0, z0, x1, z1];
+};
+const _m = { x: 0, z: 0 };
 const _s = { x: 0, y: 0 };
 
 export class TravelMap {
@@ -81,7 +99,7 @@ export class TravelMap {
 
   /** where everything goes: the places you've been, fitted into the window (clear of the heading and the hint) */
   fit(W, H) {
-    this.rects = [...this.game.visited].map((i) => ZONES[i].rect);
+    this.rects = [...this.game.visited].map(mapRect);
     let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
     for (const [a, b, c, d] of this.rects) {
       x0 = Math.min(x0, a); z0 = Math.min(z0, b);
@@ -95,7 +113,7 @@ export class TravelMap {
     this.cz = (z0 + z1) / 2 + ((EDGE.bottom - EDGE.top) / 2) * k;
   }
 
-  /** where on the screen (px) the world's (x, z) is */
+  /** where on the screen (px) the map's (x, z) is (see toMap) */
   toScreen(x, z, out = _s) {
     out.x = this.W / 2 + (x - this.cx) / this.k;
     out.y = this.H / 2 + (z - this.cz) / this.k;
@@ -131,6 +149,19 @@ export class TravelMap {
     r.shadowMap.autoUpdate = false;
     w.unfade();
     r.render(s, cam);
+    // (and over the Bridge, if you've been: taken on its own, from over there, into its own bit of the picture)
+    const isle = ISLE.filter((i) => this.game.visited.has(i)).map(mapRect);
+    if (isle.length) {
+      const m = (CLEAR + FEATHER + WOBBLE) * k + PAD, a = this.toScreen(Math.min(...isle.map((q) => q[0])) - m, Math.min(...isle.map((q) => q[1])) - m, { x: 0, y: 0 });
+      const b = this.toScreen(Math.max(...isle.map((q) => q[2])) + m, Math.max(...isle.map((q) => q[3])) + m, { x: 0, y: 0 });
+      cam.position.set(this.cx - SHIFT.x, 400, this.cz - SHIFT.z);
+      cam.lookAt(this.cx - SHIFT.x, 0, this.cz - SHIFT.z);
+      cam.updateMatrixWorld();
+      r.setScissorTest(true);
+      r.setScissor(a.x, H - b.y, b.x - a.x, b.y - a.y);
+      r.render(s, cam);
+      r.setScissorTest(false);
+    }
     const c = this.canvas;
     c.width = r.domElement.width;
     c.height = r.domElement.height;
@@ -195,7 +226,7 @@ export class TravelMap {
   /** a pin in each of your mounds (the one you went in by marked as where you are) */
   pin() {
     this.pins = this.mounds.map((m) => {
-      const s = this.toScreen(m.pos.x, m.pos.z), el = document.createElement('div');
+      const at = toMap(m.pos.x, m.pos.z, _m), s = this.toScreen(at.x, at.z), el = document.createElement('div');
       el.className = `pin${m.beach ? ' beach' : ''}${m === this.from ? ' here' : ''}`;
       el.style.left = `${s.x}px`;
       el.style.top = `${s.y}px`;
@@ -220,7 +251,7 @@ export class TravelMap {
     });
     this.namesEl.replaceChildren(...names.map((n) => n.el));
     for (const { i, el } of names) {
-      const [x0, z0, x1, z1] = ZONES[i].rect, s = this.toScreen((x0 + x1) / 2, (z0 + z1) / 2);
+      const [x0, z0, x1, z1] = mapRect(i), s = this.toScreen((x0 + x1) / 2, (z0 + z1) / 2);
       const w = el.offsetWidth / 2 + 4, h = el.offsetHeight / 2;
       // (the nearest it can be to where it goes, up or down, without covering anything; or, if there's nowhere, where
       // it covers the least)

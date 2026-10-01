@@ -581,8 +581,11 @@ export class Turkey {
     this.pos.y += f.h * 4 * k * (1 - k);
     if (k < 1) return;
     if (this.tunnel === 'in') {
-      m.splash(6, 0.8);
-      this.game.audio.gloop();
+      if (m.enter) m.enter(this); // (a doorway onto the train: see Ride)
+      else {
+        m.splash(6, 0.8);
+        this.game.audio.gloop();
+      }
       this.goUnder();
       return;
     }
@@ -1740,6 +1743,15 @@ export class Turkey {
       r.legL.rotation.x = r.legR.rotation.x = -1.0;
       flap = 0.04;
       r.wingR.rotation.z = ride.carrying ? -(1.1 + Math.sin(time * 7 + this.id) * 0.45) : -0.04;
+    } else if (seatPose === 'bathe') {
+      // a wash in the fountain: down low in the water, and every so often a dunk and a good shake of the wings
+      const dunk = Math.pow(Math.max(0, Math.sin(time * 1.1 + this.id * 1.9)), 10);
+      r.legL.rotation.x = r.legR.rotation.x = 0;
+      r.legL.scale.y = r.legR.scale.y = 0.35;
+      r.bodyPivot.position.y = -0.2;
+      r.bodyPivot.rotation.z = Math.sin(time * 9 + this.id) * 0.15 * dunk;
+      flap = 0.15 + dunk * (0.8 + Math.sin(time * 34 + this.id) * 0.6);
+      r.neck.rotation.x += dunk * 0.9;
     } else if (this.state === S.SWING) {
       flap = 0.2 + Math.max(0, Math.sin(time * 5 + this.id)) * 0.6;
       r.legL.rotation.x = r.legR.rotation.x = -1.1;
