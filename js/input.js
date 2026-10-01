@@ -26,7 +26,7 @@ export class Input {
     });
     // mouse (not pointer) events fire for every button, even when several are held
     addEventListener('mousedown', (e) => {
-      if (e.target.closest?.('#dev, #travel')) return; // clicking the dev menu (or the map, down the tunnels) isn't a throw
+      if (e.target.closest?.('#dev, #travel, #paused')) return; // clicking the dev menu (or the map, down the tunnels, or the credits) isn't a throw
       if (e.button === 0) { this.lmb = true; this.lmbPressed = true; }
       if (e.button === 1) { this.mmb = true; e.preventDefault(); } // no autoscroll
       if (e.button === 2) this.rmb = true;
