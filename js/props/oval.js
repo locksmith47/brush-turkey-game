@@ -3,8 +3,8 @@ import { part, merge, vcMesh, G, limb, rand, pick, TAU, canvasTexture, toonMat }
 import { picketGeo, wireGeo, wireMat, placeAlong } from './fences.js';
 
 /*
- * The oval. You come in from the backyards at the near end, the oval's own mound off to your left, but the
- * left of the ground's shut off: the members' stand is across it, with the players' race (the caged-in lane
+ * The oval. You come in from the backyards in the near corner on the left, the padded mound straight ahead of
+ * you, but the left of the ground's shut off: the members' stand is across it, with the players' race (the caged-in lane
  * the players run out down) from it to the field. The way on is round to the right, past the plovers' nests
  * and a snake or two, and up behind the grandstand, which is hard up against the field on the far side: the
  * players' tunnel through the middle of it takes you out onto the field (Kev's ride-on mower is parked at the
@@ -37,13 +37,13 @@ export const FIELD_GATE = { a: [CX - 4, NEAR_Z], b: [CX + 4, NEAR_Z], latch: [0,
 // grandstand, and the tunnel. Waypoints at the gates and the tunnel's ends, and round the outside of the field
 export const FIELD = {
   nodes: {
-    in: [-8, -104], gs: [CX, NEAR_Z], se: [31, -116], se2: [41.5, -121], back: [41, -130], tunE: [41, CZ], tunW: [24, CZ],
+    in: [-34, -103], gs: [CX, NEAR_Z], se: [31, -116], se2: [41.5, -121], back: [41, -130], tunE: [41, CZ], tunW: [24, CZ],
     out: ell(OUT), nw: [-32, -157], n: [CX, -172], ne: [38, -166],
   },
   rooms: [
     { rect: [-46, STAND_S, 46, -98], nodes: ['in', 'gs', 'se', 'se2'] },
     { rect: [-46, -178, 46, STAND_N], nodes: ['out', 'nw', 'n', 'ne'] },
-    { rect: [CX - RX + 0.5, -178, RIGHT_FENCE, -98], nodes: ['in', 'gs', 'tunW', 'out', 'n'] },
+    { rect: [CX - RX + 0.5, -178, RIGHT_FENCE, -98], nodes: ['gs', 'tunW', 'out', 'n'] },
     { rect: [LEFT_X, CZ + RACE, RIGHT_FENCE, -98], nodes: ['in', 'gs'] },
     { rect: [LEFT_X, -178, RIGHT_FENCE, CZ - RACE], nodes: ['out', 'nw', 'n'] },
     { rect: [BACK, -178, 46, -98], nodes: ['se2', 'back', 'tunE', 'ne'] },
@@ -57,7 +57,7 @@ const ARCS = [
   [Math.PI / 2 + NEAR, OUT - OUT_HW, 0.7 * NEAR, 0.7 * OUT_HW],
   [OUT + OUT_HW, 2 * Math.PI - A_R, 0.7 * OUT_HW, 0],
 ];
-// the oval's own mound, by the way in (it's got a bit of the kit in it already)
+// the padded mound, straight ahead of you as you come in (it's got a bit of the kit in it already: see Mound.padUp)
 export const OVAL_MOUND = [-34, -110];
 // the stumps at either end of the pitch (turkeys can dig them up); a pair of plovers on each nest and snakes in
 // the grass on the way round to the right (and one up behind the grandstand); a funnel-web's burrow out past the
