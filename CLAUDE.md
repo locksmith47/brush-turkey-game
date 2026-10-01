@@ -53,7 +53,7 @@ the first leg again: Benny the seal (`seal.js`) lazes on the steps out the back.
   loading an edited save, set `game.saves.on = false` first.
 - `window.game` exposes everything. The dev menu (the backquote key) can:
   - skip to a zone, spawn turkeys, or open every gate;
-  - summon the giant cuttlefish (it puts you aboard the ferry, nearly halfway over), or get a cock showing off;
+  - summon the giant cuttlefish (it puts you aboard the ferry, nearly halfway over), or get a male showing off;
   - toggle invincibility, or hurt, heal or waste you;
   - save, or wipe the save.
 
@@ -108,7 +108,7 @@ the first leg again: Benny the seal (`seal.js`) lazes on the steps out the back.
   - What you've been told is saved by name (`hud.told`): the tips list in main.js, and every `hud.toastOnce`. A
     new one just needs a key of its own.
 - **Models** are merged primitives with vertex colours, sharing one toon material (`util.js`: `part`, `merge`,
-  `vcMesh`). So one thing can't be tinted through its material; a part that has to move or swell on its own (a cock's
+  `vcMesh`). So one thing can't be tinted through its material; a part that has to move or swell on its own (a male's
   wattle) is a mesh of its own in the rig.
 - **Sounds** are synthesized in `audio.js` (and the places' beds and calls in `ambience.js`), bar the birds: real
   recordings, one call per file in `sounds/`, all at the same loudness, with `LEVEL` in `audio.js` setting each lot

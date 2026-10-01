@@ -11,7 +11,7 @@ Australian brush-turkey (Alectura lathami): brushturkey-1.mp3 to brushturkey-9.m
   Changes: individual honks were excerpted, band-pass filtered, noise-reduced and rearranged into short calls
   (brushturkey-6 to -9 pitch-shifted lower), then cut into single honks and levelled.
 
-Australian brush-turkey, a cock booming: boom-1.mp3
+Australian brush-turkey, booming: boom-1.mp3
   Source: the video "Strange call of the Australian Brush-turkey" on YouTube,
   https://www.youtube.com/watch?v=vqgRREcKruM (the call about 8 seconds in).
   Licence: not confirmed yet (see the video's page for who posted it and on what terms).

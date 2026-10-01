@@ -107,7 +107,7 @@ const LEAP_FROM = 0.7, LEAP_LATE = 3.5, LEAP_MAX = 8;
 // the way round, how much shorter (radians round the mound) the other way round to you has to be before it turns back,
 // and how many seconds ahead of you it looks for where you're off to
 const ROUND_PAD = 0.25, ROUND_AHEAD = 2, ROUND_GIVE = 0.6, ROUND_LEAD = 1;
-// a cock showing off (see showOff): seconds puffing himself up before he booms, holding it once he's done, and going
+// a male showing off (see showOff): seconds puffing himself up before he booms, holding it once he's done, and going
 // back down after; how far his wattle swells (times: side to side, up and down, and out in front), and how much more it
 // pumps out with each note of his boom (see BOOM, in audio.js)
 const SHOW = { puff: 0.7, hold: 0.3, down: 0.6, size: [1.5, 1.4, 1.65], pump: 0.16 };
@@ -175,7 +175,7 @@ export class Turkey {
     this.stoop = 0; this.stoopNeck = 0; this.kickLean = 0; this.legLs = 0; this.legRs = 0; this.scrLean = 0;
     this.wasScratching = false;
     this.sunT = 0; this.sunIn = 0; this.sunSide = 1; // sunbaking: time left, time in, which way it's leaning
-    // showing off (a cock): time into it, whether he's boomed yet and how fast (and high) he goes, how puffed up he is
+    // showing off (a male): time into it, whether he's boomed yet and how fast (and high) he goes, how puffed up he is
     this.showT = 0; this.boomed = false; this.boomRate = 1; this.puff = 0;
     this.scanT = rand(0, 0.5);
     this.buildRig();
@@ -187,7 +187,7 @@ export class Turkey {
   get radius() { return this.def.radius; }
   get grounded() { return WALKING.has(this.state) && !this.latched && !this.dead; }
   get busy() { return BUSY.has(this.state) && !this.dead; }
-  /** a cock stood still on dry land, with nothing on (with you, or where you left him): he could show off */
+  /** a male stood still on dry land, with nothing on (with you, or where you left him): he could show off */
   get canShow() {
     return !!this.rig.wattle && !this.showT && this.sunT <= 0 && !this.peck && !this.swimming && !this.dead
       && (this.state === S.FOLLOW || this.state === S.IDLE) && this.vel.lengthSq() < 0.05;
@@ -863,7 +863,7 @@ export class Turkey {
   }
 
   /**
-   * A cock showing off, like the real ones do: he puffs his wattle right up, the air sac in his neck with it, and
+   * A male showing off, like the real ones do: he puffs his wattle right up, the air sac in his neck with it, and
    * booms, pumping his whole body with each note (see SHOW, and pose). He stops the moment he's wanted
    */
   showOff() {
@@ -1869,7 +1869,7 @@ export class Turkey {
       if (this.rescued > 0) r.neck.rotation.x = -0.4; // a whistled landlubber, paddling for dear life
     }
 
-    // a cock showing off (see showOff): chest out and head up, wings let down a touch, and his wattle puffed right out,
+    // a male showing off (see showOff): chest out and head up, wings let down a touch, and his wattle puffed right out,
     // then with each note of his boom a pump of the whole bird, head going forward and the wattle swelling out that bit
     // more, for as long as the note goes (and harder for the louder ones)
     if (r.wattle) {

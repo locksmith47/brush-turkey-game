@@ -8,7 +8,7 @@ export const MAX_TURKEYS = 100;
 // the kinds Tab picks between, in turn: plain normal turkeys, normal ones padded up in their cricket kit, and beach
 // turkeys
 const KINDS = ['normal', 'padded', 'beach'];
-// cocks showing off (see Turkey's showOff): once you've stood still this many seconds, one of the grown-up cocks
+// males showing off (see Turkey's showOff): once you've stood still this many seconds, one of the grown-up males
 // about you (this close, metres) has a go every so often (seconds, on average), and never two within so many
 // seconds of each other
 const SHOW_STILL = 2, SHOW_EVERY = 10, SHOW_GAP = 20, SHOW_NEAR = 14;
@@ -26,7 +26,7 @@ export class Turkeys {
     this.preferred = 'normal'; // which kind Tab has picked to throw (the biggest of that kind always goes first)
     this.candidate = null;
     this.counts = { squad: 0, field: 0, sprouts: 0, stages: [0, 0, 0], normal: 0, padded: 0, beach: 0 }; // (stages: the plain normal ones only)
-    this.stillT = 0; this.showCool = 0; this.lastShow = null; // (how long you've stood still, till a cock can show off again, and who did last)
+    this.stillT = 0; this.showCool = 0; this.lastShow = null; // (how long you've stood still, till a male can show off again, and who did last)
   }
 
   spawnSprout(x, z, stage = 0, kind = 'normal') {
@@ -202,7 +202,7 @@ export class Turkeys {
     this.showingOff(dt);
   }
 
-  /** now and then, while you stand about, one of the grown-up cocks about you shows off (see Turkey's showOff) */
+  /** now and then, while you stand about, one of the grown-up males about you shows off (see Turkey's showOff) */
   showingOff(dt) {
     const g = this.game, p = g.player;
     this.stillT = p.speed < 0.3 && p.life === 'ok' ? this.stillT + dt : 0;
@@ -213,7 +213,7 @@ export class Turkeys {
   }
 
   /**
-   * One of the grown-up cocks about you shows off: the one nearest the camera, where you'll see him (and not the same
+   * One of the grown-up males about you shows off: the one nearest the camera, where you'll see him (and not the same
    * one as last time, if there's another handy). False if none can
    */
   showOff() {

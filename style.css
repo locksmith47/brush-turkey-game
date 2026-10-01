@@ -317,7 +317,6 @@ body.wasted #zone-title, body.wasted #help, body.wasted #hurt { opacity: 0 !impo
 #credits h4 { margin: 0 0 6px; color: #ffe066; font-size: 15px; }
 #credits td { padding: 3px 14px 3px 0; vertical-align: top; }
 #credits td:first-child { white-space: nowrap; font-weight: bold; }
-#credits p { margin: 10px 0 0; font-size: 13px; opacity: .85; }
 #credits a { color: #ffe066; white-space: nowrap; }
 body.paused #help { z-index: 12; opacity: 1 !important; }
 

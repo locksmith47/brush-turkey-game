@@ -12,10 +12,13 @@ const OFF_KEY = `turkmin-sound-off:${location.pathname.replace(/index\.html$/, '
 // to sit where the synthesized sound it stands in for did
 const BIRDS = { brushturkey: 9, silvergull: 4, galah: 4, cockatoo: 5, cockatoos: 1, boom: 1 };
 const LEVEL = { brushturkey: 0.38, silvergull: 0.21, galah: 0.25, cockatoo: 0.39, cockatoos: 0.17, boom: 0.57 };
-// a cock's boom, as it goes in the recording (sounds/boom-1.mp3): when each of its three notes starts and how long it
+// a male's boom, as it goes in the recording (sounds/boom-1.mp3): when each of its three notes starts and how long it
 // goes (seconds in), and how loud it is (times the loudest). The synthesized one keeps to it, and so does his pumping
 // away with it (see Turkey.pose)
 export const BOOM = [[0.03, 0.085, 0.45], [0.31, 0.105, 0.9], [0.515, 0.33, 1]];
+// the bigger turkeys' honks (they'd a bit much to say): the share of the times they'd honk that they do, and the least
+// milliseconds between two honks of the one size
+const HONK = { share: 0.5, gap: 500 };
 
 export class Audio {
   constructor() {
@@ -162,9 +165,13 @@ export class Audio {
     this.noise({ dur: 0.12, vol: 0.18, type: 'lowpass', f1: 700, f2: 200 });
   }
 
-  /** a turkey piping up: a chick peeps, and the bigger ones honk (the real thing: a juvenile's a bit higher and quieter) */
-  peep(stage = 0) {
-    if (!this.ok('peep' + stage, stage ? 160 : 90)) return;
+  /**
+   * A turkey piping up: a chick peeps, and the bigger ones honk (the real thing: a juvenile's a bit higher and
+   * quieter), only so often (see HONK). `always`: it's answering you (Tab or X), so it always does
+   */
+  peep(stage = 0, always = false) {
+    if (stage && !always && Math.random() > HONK.share) return;
+    if (!this.ok('peep' + stage, stage && !always ? HONK.gap : 90)) return;
     const p = 1 + (Math.random() - 0.5) * 0.15;
     if (stage && this.bird('brushturkey', { rate: p * (stage === 1 ? 1.25 : 1), vol: stage === 1 ? 0.5 : 1 })) return;
     if (stage === 0) {
@@ -178,7 +185,7 @@ export class Audio {
   }
 
   /**
-   * A cock booming, his neck sac puffed right up: three deep, hollow ooms, the last one the longest (see BOOM). `vol`:
+   * A male booming, his neck sac puffed right up: three deep, hollow ooms, the last one the longest (see BOOM). `vol`:
    * how loud (he's a way off, say); `rate`: how fast, and high, he goes (his notes come at BOOM's times over `rate`)
    */
   boom(vol = 1, rate = 1) {

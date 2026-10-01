@@ -7,10 +7,10 @@ export const STAGES = [
   { name: 'Juvenile', scale: 0.88, speed: 4.7, capacity: 2, radius: 0.31, hud: '#d9785c' },
   { name: 'Adult', scale: 1.04, speed: 5.7, capacity: 3, radius: 0.37, hud: '#ffd21f' },
 ];
-// adult hens look just like the cocks bar the wattle (theirs is little more than a yellow neck), and are a
+// adult hens look just like the males bar the wattle (theirs is little more than a yellow neck), and are a
 // touch smaller (only to look at: they're every bit as strong)
 export const HEN_SCALE = 0.9;
-// where a cock's wattle puffs up from, when he's showing off (in the neck's space: up at his throat, so it swells out
+// where a male's wattle puffs up from, when he's showing off (in the neck's space: up at his throat, so it swells out
 // in front of him and down over his chest)
 const WATTLE_AT = new THREE.Vector3(0, 0, 0.03);
 
@@ -332,7 +332,7 @@ export function createRig(stage, kind = 'normal', variant = 0, hen = false, gear
   bodyPivot.add(neck);
   const head = vcMesh(g.head);
   neck.add(head);
-  // (a cock's wattle, which puffs right up when he's showing off: see Turkey's showOff)
+  // (a male's wattle, which puffs right up when he's showing off: see Turkey's showOff)
   let wattle = null;
   if (g.wattle) {
     wattle = vcMesh(g.wattle);
