@@ -20,6 +20,9 @@ export const POOLS = [
 ];
 export const PUDDLES = [{ x: -10, z: -212, r: 2.2 }, { x: 22, z: -228, r: 1.8 }, { x: 30, z: -206, r: 2.4 }];
 export const SANDBAR = { x: 16, z: -257, r: 4 };
+// boulders about the rocks at the Shelly Beach end ([x, z, size]): off to either side of the way the King Crab's
+// key goes, up out of his pool to the gate onto the wharf (it's a big key, and wedges between any two in its way)
+const BOULDERS = [[64, -226, 1.2], [66, -214, 1.0], [67, -205, 0.9], [60, -233, 1.1], [52, -230, 1.3], [47, -224, 1.0], [46, -208, 1.2], [49, -204, 0.9]];
 // water shallower than this is wading; deeper and turkeys have to swim
 const WADE = 0.02, DEEP = 0.25;
 const DRY = { depth: 0, level: 0 }, SEA_DEEP = { depth: 2, level: SEA, sea: true }, SEA_WADE = { depth: 1, level: SEA, sea: true };
@@ -292,10 +295,8 @@ export function buildBeach(world) {
     part(G.box(0.02, 0.18, 0.28), 0xd9453b, [0.45, 1.35, 0.2]),
   ]), 10, -210, 0, [[0, 0, 0.9]]);
   // (and boulders about the rocks at the Shelly Beach end)
-  for (let i = 0; i < 8; i++) {
-    const x = rand(46, 67), z = rand(-236, -196);
-    if (!world.isFree(x, z, 1.5) || waterAt(x, z).depth || Math.hypot(x - POOLS[0].x, z - POOLS[0].z) < POOLS[0].r + 2) continue;
-    put(world, part(G.dodec(rand(0.8, 1.3)), 0x86837c, [0, 0.2, 0], [rand(0, 3), rand(0, 3), 0], [1.3, 0.7, 1]), x, z, 0, [[0, 0, 1.1]]);
+  for (const [x, z, s] of BOULDERS) {
+    put(world, part(G.dodec(s), 0x86837c, [0, 0.2, 0], [rand(0, 3), rand(0, 3), 0], [1.3, 0.7, 1]), x, z, 0, [[0, 0, 1.1]]);
   }
 
   // --- animation: swell, foam rolling in, glinting pools
