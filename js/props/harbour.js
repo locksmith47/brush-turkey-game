@@ -7,9 +7,9 @@ import { BEACH } from '../world.js';
 /*
  * Sydney Harbour, from the ferry. Off to your left as you go: North Head's cliffs, the Heads, with the open sea
  * out between them, and South Head, with the lighthouse; then the eastern suburbs all along the south shore,
- * Fort Denison, and at the far end, by the Quay, the Opera House. On your right, the north shore: the hills
- * behind Manly, the zoo (the giraffes have got the best view in Sydney), Luna Park's big grin and the Harbour
- * Bridge. The yachts are out, and there's the other ferry, going the other way.
+ * Fort Denison, and at the far end, by the Quay, the Opera House (see buildOpera). On your right, the north
+ * shore: the hills behind Manly, the zoo (the giraffes have got the best view in Sydney), Luna Park's big grin
+ * and the Harbour Bridge. The yachts are out, and there's the other ferry, going the other way.
  */
 const HX0 = 72, HX1 = 392, HZ0 = -500, HZ1 = -120; // the water (on the ocean's 4 m grid, carrying on from its south edge)
 export const LANE = -224; // z: the ferry's way across
@@ -37,7 +37,7 @@ const RIGHT = [
   [306, -134, 28, 28, 9, 0.5], [272, -152, 14, 11, 2.4, 0.02], [372, -150, 14, 20, 3, 0.1], // Milsons Point, Luna Park, Dawes Point
   [250, -80, 140, 48, 22, 0.8],
 ];
-const LIGHTHOUSE = [197, -280], FORT = [282, -258], OPERA = { x0: 323, x1: 355.5, z0: -279, z1: -253 };
+const LIGHTHOUSE = [197, -280], FORT = [282, -258];
 const ZOO = [[249, -159.5, 0.3], [255.5, -157, -0.5], [261, -160.5, 2.6]]; // the giraffes: [x, z, which way]
 const LUNA = [272, -162.6], WHEEL = [262, -148], BRIDGE = { x0: 296, x1: 368, z: -152, deck: 11 };
 // (nobody's building houses on the headlands, the zoo, Luna Park or under the Bridge)
@@ -255,30 +255,6 @@ function fort(p, [x, z]) {
   );
 }
 
-/** the Opera House: its white sails, nested one inside the next, up on their granite podium */
-function operaHouse(world) {
-  const { x0, x1, z0, z1 } = OPERA, p = [part(G.box(x1 - 4 - x0, 4, z1 - z0), 0xc9b49a, [(x0 + x1 - 4) / 2, 1, (z0 + z1) / 2])];
-  // (and the steps down off the end of it, towards the Quay)
-  for (let i = 0; i < 8; i++) {
-    const top = 3 - (i + 1) * 0.33;
-    p.push(part(G.box(0.5, top + 1, z1 - z0), i % 2 ? 0xc9b49a : 0xbba68c, [x1 - 3.75 + i * 0.5, (top - 1) / 2, (z0 + z1) / 2]));
-  }
-  const sails = [];
-  // (a sail: a piece of the top of a dome, standing up out of its podium with its open side to the harbour, leaning out over it)
-  const sail = (x, z, h, back) => {
-    const g = new THREE.SphereGeometry(1, 16, 8, Math.PI - 0.95, 1.9, 0, Math.PI / 2);
-    sails.push(part(g, 0xf6f3ea, [x, 3, z], [0, back ? Math.PI : 0, back ? 0.22 : 0.3], [0.62 * h, h, 0.5 * h]));
-  };
-  for (const [z, s] of [[-260.5, 1], [-271.5, 0.82]]) {
-    [[327, 8], [331.5, 11], [336, 14], [340.5, 16]].forEach(([x, h]) => sail(x, z, h * s, false));
-    sail(346 - (1 - s) * 3, z, 11 * s, true);
-  }
-  sail(348, -256.5, 5, false);
-  sail(350, -256.5, 4, true);
-  const m = new THREE.Mesh(merge([...p, ...sails]), toonMat({ vertexColors: true, side: THREE.DoubleSide }));
-  world.scene.add(m);
-}
-
 /** the Harbour Bridge: granite pylons at either end, and the grey steel arch between them, with the deck hung under it */
 function bridge(p) {
   const { x0, x1, z, deck } = BRIDGE, mid = (x0 + x1) / 2, half = (x1 - x0) / 2, STEEL = 0x6d777d, GRANITE = 0xc2b59b;
@@ -396,7 +372,6 @@ export function buildHarbour(world) {
     b.position.set(x, h / 2, -168);
     s.add(b);
   }
-  operaHouse(world);
 
   // --- Luna Park's wheel, going round
   const wheel = new THREE.Group(), wy = landH(RIGHT, ...WHEEL) + 8.5;
@@ -419,7 +394,7 @@ export function buildHarbour(world) {
   const other = new THREE.Group(), fp = ferryParts();
   for (const g of [fp.hull, fp.rails, fp.cabins]) other.add(vcMesh(g, { cast: false }));
   s.add(other);
-  const yachts = [[186, -258, 11], [238, -252, 9], [312, -248, 6], [226, -182, 6]].map(([x, z, r]) => {
+  const yachts = [[186, -258, 11], [238, -252, 9], [298, -243, 4], [226, -182, 6]].map(([x, z, r]) => {
     const m = vcMesh(yachtGeo(), { cast: false });
     m.rotation.order = 'YXZ';
     s.add(m);

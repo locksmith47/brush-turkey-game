@@ -10,7 +10,9 @@ package.json, no test suite. `index.html` pulls three@0.170.0 from jsdelivr thro
 through The Bush, The Backyards and The Oval, then right at the beach and down the second leg (+x) along Manly
 Beach to Manly Wharf, over the harbour on The Manly Ferry, and into The City at Circular Quay. Each is shut off
 from the next by a padlocked gate, whose key the turkeys have to win and carry to it. (The ferry's gangways
-only open while she's in, and the King Ibis in the city is the end of the line, with no gate past him.)
+only open while she's in, and the King Ibis in the city is the end of the line, with no gate past him.) Off the
+way on, through a gap in the railing at the end of the Quay, is The Opera House (`props/opera.js`), looked at down
+the first leg again: Benny the seal (`seal.js`) lazes on the steps out the back.
 
 ## Commands
 

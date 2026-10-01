@@ -8,12 +8,14 @@ import { buildBeach, beachGround, waterAt, shoreDir, seaWave, isSand } from './p
 import { buildWharf, wharfGround, DECK } from './props/wharf.js';
 import { buildHarbour } from './props/harbour.js';
 import { buildCity, STREETS, quayGround } from './props/city.js';
+import { buildOpera, operaGround, onSteps, OPERA_TRACK } from './props/opera.js';
 
 /*
  * The map runs the way the turkeys came, north to south: out of the bush, through the backyards and across
  * the oval (heading -z), to Manly Beach, where it turns right, south, along the sand (heading +x) to the
  * wharf, over the harbour on the ferry, and into the city. Each leg has its own way ahead (and the camera
- * swings round to face down the second one as you come out onto the beach).
+ * swings round to face down the second one as you come out onto the beach). Round the end of the Quay, back
+ * out along the water, is the Opera House: off the way on, and seen side on, looking down the first leg again.
  */
 export const LEGS = [
   { yaw: 0, dir: [0, -1] },
@@ -26,15 +28,17 @@ export const ZONES = [
   { name: 'The Oval', rect: [-46, -178, 46, -98], leg: 0 },
   { name: 'Manly Beach', rect: [-46, -270, 70, -178], leg: 1 },
   { name: 'Manly Wharf', rect: [70, -244, 140, -184], leg: 1 },
-  { name: 'The Manly Ferry', rect: [140, -270, 356, -178], leg: 1 }, // (bounds: wherever the deck's got to, see Ferry)
+  { name: 'The Manly Ferry', rect: [140, -242, 356, -178], leg: 1 }, // (bounds: wherever the deck's got to, see Ferry)
   { name: 'The City', rect: [356, -270, 502, -178], leg: 1 },
+  { name: 'The Opera House', rect: [304, -290, 356, -242], leg: 0 },
 ];
-export const OVAL = 2, BEACH = 3, WHARF = 4, FERRY = 5, CITY = 6;
+export const OVAL = 2, BEACH = 3, WHARF = 4, FERRY = 5, CITY = 6, OPERA = 7;
 /**
  * The fences between them, each with a gate in it at (x, z), going through which (along `d`) takes you on to
  * the next area. `span`: how far the fence runs either way along its line (it's right across the area, by
  * default). The ferry's two gangways (`ferry`) are only open while the ferry's in at that end, and there's no
- * padlock at all on the one at Circular Quay (`lock` false): the ferry keys are for the wharf's
+ * padlock at all on the one at Circular Quay (`lock` false): the ferry keys are for the wharf's. And round the end
+ * of the Quay, the way onto the Opera House's broadwalk is no gate at all, just a gap in the railing (`gap`)
  */
 export const FENCES = [
   { x: 6, z: -38, d: [0, -1], kind: 'wood' },
@@ -42,7 +46,8 @@ export const FENCES = [
   { x: -16, z: -178, d: [0, -1], kind: 'rail' },
   { x: 70, z: -188, d: [1, 0], kind: 'rail', span: [-249, -175] },
   { x: 140, z: -224, d: [1, 0], kind: 'rail', span: [-246, -182], ferry: true },
-  { x: 356, z: -224, d: [1, 0], kind: 'rail', span: [-273, -175], ferry: true, lock: false },
+  { x: 356, z: -224, d: [1, 0], kind: 'rail', span: [-245, -175], ferry: true, lock: false },
+  { x: 356, z: -249.5, d: [-1, 0], kind: 'rail', hw: 4.5, span: [-273, -245], lock: false, gap: true },
 ];
 const SUN = new THREE.Vector3(18, 40, 14); // (where the sun is from you, looking down the first leg)
 const _v = new THREE.Vector3(), _k = new THREE.Vector3();
@@ -58,12 +63,12 @@ export class World {
     this.swayers = [];
     this.occluders = []; // buildings that go see-through when they're in the way of the camera
     this.gates = FENCES.map((f) => ({
-      x: f.x, z: f.z, d: f.d, hw: f.hw ?? 2.6, kind: f.kind, ferry: !!f.ferry, lock: f.lock ?? true,
-      span: f.span ?? (f.d[0] ? [-273, -175] : [-49, 49]), open: false, unlocked: f.lock === false,
+      x: f.x, z: f.z, d: f.d, hw: f.hw ?? 2.6, kind: f.kind, ferry: !!f.ferry, lock: f.lock ?? true, gap: !!f.gap,
+      span: f.span ?? (f.d[0] ? [-273, -175] : [-49, 49]), open: !!f.gap, unlocked: f.lock === false,
     }));
     this.track = this.zoneTrack(0, TRACK); // the way through the bush (the scrub either side of it is impassable)
     // each zone's lie of the land (where there's any to speak of: the beach is wide open, and the ferry's all deck)
-    this.tracks = [this.track, this.zoneTrack(1, BACKYARDS), this.zoneTrack(2, FIELD), null, null, null, this.zoneTrack(CITY, STREETS)];
+    this.tracks = [this.track, this.zoneTrack(1, BACKYARDS), this.zoneTrack(2, FIELD), null, null, null, this.zoneTrack(CITY, STREETS), this.zoneTrack(OPERA, OPERA_TRACK)];
 
     this.buildSky();
     this.buildLights();
@@ -75,6 +80,7 @@ export class World {
     this.wharf = buildWharf(this);
     this.harbour = buildHarbour(this);
     this.city = buildCity(this);
+    this.opera = buildOpera(this); // (and Benny's steps, for turkeys to lie about on: see main.js)
   }
 
   /** zone i's track (see Track), with room to get through the gates in and out of it */
@@ -120,6 +126,7 @@ export class World {
     if (zone === WHARF) return wharfGround(x, z);
     if (zone === FERRY) return this.game.ferry ? this.game.ferry.groundAt(x, z) : DECK;
     if (zone === CITY) return quayGround(x, z);
+    if (zone === OPERA) return operaGround(x, z);
     return this.bushHeight(x, z);
   }
 
@@ -261,6 +268,8 @@ export class World {
   surfaceY(w, x, z) { return w.sea ? w.level + seaWave(x, z, this.game.time) : w.level; }
   shoreDir(x, z, out) { return shoreDir(x, z, out); }
   isSand(x, z) { return isSand(x, z); }
+  /** somewhere turkeys can't help but lie down in the sun: the sand at the beach, and the steps down to Benny */
+  sunTrap(x, z) { return isSand(x, z) || (this.zoneOf(x, z) === OPERA && onSteps(x, z)); }
 
   addSway(mesh) { this.swayers.push({ m: mesh, ph: Math.random() * 6.28 }); }
 
@@ -451,6 +460,7 @@ export class World {
     this.wharf.update(dt, t);
     this.harbour.update(dt, t);
     this.city.update(dt, t);
+    this.opera.update(dt, t);
     for (const s of this.swayers) {
       s.m.rotation.z = Math.sin(t * 0.7 + s.ph) * 0.012;
       s.m.rotation.x = Math.cos(t * 0.53 + s.ph) * 0.01;
