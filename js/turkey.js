@@ -853,8 +853,8 @@ export class Turkey {
       const tr = g.toys.trampolineNear(this.pos, 6);
       if (tr) { this.hopTo(tr.x + rand(-0.6, 0.6), tr.z + rand(-0.6, 0.6), 0.6, 1.6, tr.matY); return true; }
     }
-    // (on the sand at the beach, they can't get enough of it)
-    const sand = g.world.isSand(this.pos.x, this.pos.z);
+    // (on the sand at the beach, or the steps down to Benny, they can't get enough of it)
+    const sand = g.world.sunTrap(this.pos.x, this.pos.z);
     if (Math.random() < (sand ? 0.3 : 0.05) && !g.world.waterDepth(this.pos.x, this.pos.z)) this.sunbake(sand ? rand(12, 25) : rand(6, 12));
     return false;
   }
@@ -1303,8 +1303,8 @@ export class Turkey {
       this.brake(dt);
       if (this.vel.lengthSq() < 0.05) {
         if (!this.showT) this.faceToward(p.pos.x, p.pos.z, dt, 3); // (bar one that's showing off: see updateShow)
-        // (you've stopped on the sand at the beach: one by one, they flop down for a sunbake)
-        if (p.speed < 0.3 && Math.random() < dt * 0.1 && g.world.isSand(this.pos.x, this.pos.z)) this.sunbake(rand(10, 25));
+        // (you've stopped on the sand at the beach, or on Benny's steps: one by one, they flop down for a sunbake)
+        if (p.speed < 0.3 && Math.random() < dt * 0.1 && g.world.sunTrap(this.pos.x, this.pos.z)) this.sunbake(rand(10, 25));
       }
     }
   }
@@ -1761,17 +1761,19 @@ export class Turkey {
       r.bodyPivot.rotation.z = 0;
       flap = 0.03 + Math.pow(Math.max(0, Math.sin(time * 0.7 + this.id * 1.7)), 24) * 1.1;
       r.neck.rotation.x += clamp((Math.sin(time * 0.23 + this.id * 2.1) - 0.75) * 4, 0, 1) * 0.6;
-    } else if (this.sunT > 0) {
+    } else if (this.sunT > 0 || seatPose === 'sunbake') {
       // sunbaking, like brush turkeys do: flat on the ground, wings spread wide and feathers to the sun,
-      // leaning over to one side with its head cocked up
-      const k2 = clamp(Math.min(this.sunIn, this.sunT) / 0.6, 0, 1); // (easing down into it and back up out of it)
+      // leaning over to one side with its head cocked up (or lying about on the steps with Benny, for as long as it's there)
+      const seated = seatPose === 'sunbake';
+      const k2 = clamp((seated ? Math.min(this.t, this.swingT) : Math.min(this.sunIn, this.sunT)) / 0.6, 0, 1); // (easing down into it and back up out of it)
+      const side = seated ? (this.id % 2 ? 1 : -1) : this.sunSide;
       r.legL.rotation.x = r.legR.rotation.x = 0;
       r.legL.scale.y = r.legR.scale.y = 1 - 0.7 * k2;
       r.bodyPivot.position.y = -0.22 * k2;
-      r.bodyPivot.rotation.z = 0.22 * this.sunSide * k2;
+      r.bodyPivot.rotation.z = 0.22 * side * k2;
       flap = 0.05 + 1.05 * k2 + Math.sin(time * 0.9 + this.id) * 0.04 * k2;
       r.neck.rotation.x -= 0.35 * k2;
-      r.neck.rotation.z = this.tilt + 0.45 * this.sunSide * k2;
+      r.neck.rotation.z = this.tilt + 0.45 * side * k2;
     } else if (seatPose === 'lounge') {
       // feet up in a beach chair (or at the wheel of the mower: the legs lean back with the body); a royal wave for
       // the peasants doing the carrying

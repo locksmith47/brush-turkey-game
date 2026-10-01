@@ -66,6 +66,15 @@ class Gate {
     this.frame.position.set(gate.x, game.world.groundHeight(gate.x - dx, gate.z - dz), gate.z);
     this.frame.rotation.y = Math.atan2(-dx, -dz);
     game.scene.add(this.frame);
+    if (gate.gap) {
+      // (no gate in this one at all: it's a gap in the railing, and always open)
+      this.seg.active = false;
+      this.leaves = [];
+      this.state = 'open';
+      this.t = 0;
+      this.openK = 1;
+      return;
+    }
 
     // double gate: two leaves hinged at the outer posts, chained & padlocked in the middle
     this.leaves = [-1, 1].map((side) => {

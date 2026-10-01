@@ -574,6 +574,25 @@ export class Audio {
     for (let i = 0; i < 3; i++) this.noise({ dur: 0.06, vol: 0.12, type: 'bandpass', f1: 1400 + Math.random() * 500, q: 2.5, delay: i * 0.11 });
   }
 
+  /** Benny saying g'day: a bark or two (a fur seal's, gruff, more of a cough than a woof); `vol`: how near he is */
+  bark(n = 1, vol = 1) {
+    if (!this.ok('bark', 250)) return;
+    for (let i = 0; i < n; i++) {
+      const delay = i * 0.34, f = 330 - i * 25;
+      this.tone({ freq: f, freq2: f * 0.62, dur: 0.22, vol: 0.2 * vol, type: 'sawtooth', vib: 18, vibHz: 22, attack: 0.015, delay });
+      this.tone({ freq: f * 2, freq2: f * 1.3, dur: 0.18, vol: 0.05 * vol, type: 'square', attack: 0.015, delay });
+      this.noise({ dur: 0.2, vol: 0.12 * vol, type: 'bandpass', f1: 800, f2: 400, q: 1.5, delay });
+    }
+  }
+
+  /** and a flipper slapping his wet belly: a smack, with a bit of a thump under it */
+  slap(vol = 1) {
+    if (!this.ok('slap', 90)) return;
+    this.noise({ dur: 0.09, vol: 0.3 * vol, type: 'bandpass', f1: 1900, f2: 900, q: 1.2, attack: 0.002 });
+    this.noise({ dur: 0.16, vol: 0.14 * vol, type: 'lowpass', f1: 900, f2: 200, attack: 0.003 });
+    this.tone({ freq: 150, freq2: 85, dur: 0.12, vol: 0.16 * vol, attack: 0.003 });
+  }
+
   /** the Hills Hoist squeaking round */
   creak(speed = 1) {
     if (!this.ok('creak', 250)) return;
