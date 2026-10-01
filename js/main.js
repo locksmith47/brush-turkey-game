@@ -29,7 +29,7 @@ import { UMBRELLAS, FLAGS } from './props/beach.js';
 import { SUBURB_BINS, SIDE_GATE } from './props/suburb.js';
 import { HOME, START, TRACK, ARENAS, BUSH_BINS, BUSH_LITTER } from './props/bush.js';
 import { CITY_BINS, CITY_BAGS, ALLEY_IBISES, CITY_IBISES, QUAY_GULLS, QUAY_MOUND, LANE_GATE, onKingsWay } from './props/city.js';
-import { OVAL_BINS, FIELD_GATE, STUMPS, PLOVER_NESTS, CRICKET_KIT, OVAL_MOUND, OVAL_SNAKES, OVAL_SPIDER, MOWER } from './props/oval.js';
+import { OVAL_BINS, FIELD_GATE, STUMPS, CRICKET_KIT, OVAL_MOUND, OVAL_SNAKES, OVAL_SPIDER, MOWER } from './props/oval.js';
 import { GULL_PATCHES, CAPTAIN_POST, WHARF_BINS, WHARF_MOUND } from './props/wharf.js';
 import { LANE } from './props/harbour.js';
 import { OPERA_GULLS, OPERA_BAR, BENNY } from './props/opera.js';
@@ -106,11 +106,22 @@ for (const a of ARENAS) {
 // the locals: ibises everywhere (one to most of the backyards, and round the Quay and up and down the city's
 // street and back alley), giants by the key in the backyards and down the alley, a gang of them big and small
 // picking over the bins down the bin alley, and at the end of it the King, on his throne of bins in front of
-// the Town Hall: the end of the line
-for (const [x, z] of [[4, -58], [-28, -52], [26, -78], [4, -90]]) enemies.spawn('ibis', x, z);
-enemies.spawn('giant', -30, -80);
-for (const [kind, x, z] of CITY_IBISES) enemies.spawn(kind, x, z);
-for (const [kind, x, z] of ALLEY_IBISES) enemies.spawn(kind, x, z, 2.5); // (they don't stray far from their bins)
+// the Town Hall: the end of the line. Some of them have a plover riding on their backs, keeping a lookout
+// (one in the bush, a couple in the backyards, and a few more round the Quay and the city), and in each area
+// they take it in turns to swoop (see Plover.crewBusy)
+const plovers = [];
+const ridden = (ibis) => plovers.push(enemies.spawn('plover', ibis.pos.x, ibis.pos.z).ride(ibis));
+ridden(barricade.ibises.guards[1]);
+for (const [x, z, plover] of [[4, -58], [-28, -52], [26, -78, true], [4, -90]]) {
+  const e = enemies.spawn('ibis', x, z);
+  if (plover) ridden(e);
+}
+ridden(enemies.spawn('giant', -30, -80));
+for (const [kind, x, z, plover, roam] of [...CITY_IBISES, ...ALLEY_IBISES.map((a) => [...a, 2.5])]) { // (the alley's lot don't stray far from their bins)
+  const e = enemies.spawn(kind, x, z, roam);
+  if (plover) ridden(e);
+}
+for (const p of plovers) p.crew = plovers.filter((q) => q.zone === p.zone);
 enemies.spawn('king', world.throne.down.x, world.throne.down.z);
 // snakes lurking in the litter (and on the way round the oval), funnel-webs in their burrows (one out past
 // the way out of the oval), and Big Kev on his oval, raking it with the oval's key (a key rake)
@@ -119,15 +130,9 @@ for (const [x, z] of [[-4, -79], OVAL_SPIDER]) enemies.spawn('spider', x, z);
 enemies.spawn('keeper', 0, -142);
 // and at Manly Wharf, Captain Gull, standing guard by the gangway with the ferry keys in his beak
 enemies.spawn('captain', ...CAPTAIN_POST, CAPTAIN_POST);
-// on the oval: its own mound, with some of the team's kit in it already; a pair of plovers to each nest,
-// swooping anything that comes near (a taste of Big Kev); the stumps to dig up, and the cricket gear left
-// lying about
+// on the oval: its own mound, with some of the team's kit in it already; the stumps to dig up, and the cricket
+// gear left lying about
 mounds.add(...OVAL_MOUND).startWith(4, 'cricket', ['bat', 'helmet']);
-for (const [x, z] of PLOVER_NESTS) {
-  const [a, b] = [-1, 1].map((s) => enemies.spawn('plover', x + s * 1.3, z + 0.7, [x, z]));
-  a.mate = b;
-  b.mate = a;
-}
 for (const [x, z] of STUMPS) enemies.list.push(new Stumps(game, x, z));
 for (const [type, x, z] of CRICKET_KIT) enemies.list.push(new CricketGear(game, type, x, z));
 // each area hides a giant key for the padlocked gate out of it (or someone's got it)
@@ -177,7 +182,7 @@ for (const [x, z, a, b] of UMBRELLAS) game.toys.addUmbrella(x, z, a, b);
 // (and the bar's, out on the Opera House's broadwalk)
 for (const [x, z] of OPERA_BAR) game.toys.addUmbrella(x, z, 0xfaf7ef, 0xe0d9c8);
 // the wharf's seagulls, a few to each spilt packet of chips (and a couple more down at the Quay, and along the
-// broadwalk round the Opera House): they take it in turns to swoop, no more than a couple at a time (see Plover.mateBusy)
+// broadwalk round the Opera House): they take it in turns to swoop, no more than a couple at a time (see Plover.crewBusy)
 for (const [x, z, n] of [...GULL_PATCHES, ...QUAY_GULLS, ...OPERA_GULLS]) {
   const crew = Array.from({ length: n }, (_, i) => enemies.spawn('gull', x + Math.sin((i / n) * TAU) * 1.4, z + Math.cos((i / n) * TAU) * 1.4, [x, z]));
   for (const e of crew) e.crew = crew;

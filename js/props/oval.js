@@ -5,10 +5,9 @@ import { picketGeo, wireGeo, wireMat, placeAlong } from './fences.js';
 /*
  * The oval. You come in from the backyards at the near end, the oval's own mound off to your left, but the
  * left of the ground's shut off: the members' stand is across it, with the players' race (the caged-in lane
- * the players run out down) from it to the field. The way on is round to the right, past the plovers' nests
- * and a snake or two, and up behind the grandstand, which is hard up against the field on the far side: the
- * players' tunnel through the middle of it takes you out onto the field (Kev's ride-on mower is parked at the
- * back of it). Beat Big Kev for his key rake, and the way out is the gap in the fence on the far left,
+ * the players run out down) from it to the field. The way on is round to the right, past a snake or two, and
+ * up behind the grandstand, which is hard up against the field on the far side: the players' tunnel through
+ * the middle of it takes you out onto the field (Kev's ride-on mower is parked at the back of it). Beat Big Kev for his key rake, and the way out is the gap in the fence on the far left,
  * straight down from the gate to the beach (and the sea's straight ahead of you, through it). The field's
  * white picket fence keeps you out bar those two ways (you can throw over it, mind), and the gate in it at the
  * near end is latched on the field side: once you're on the field you can let yourself out of it, a shortcut
@@ -59,12 +58,11 @@ const ARCS = [
 ];
 // the oval's own mound, by the way in (it's got a bit of the kit in it already)
 export const OVAL_MOUND = [-34, -110];
-// the stumps at either end of the pitch (turkeys can dig them up); a pair of plovers on each nest and snakes in
-// the grass on the way round to the right (and one up behind the grandstand); a funnel-web's burrow out past the
-// way out; and cricket gear left lying about: plenty by the mound, bits and pieces all over, and the team's kit
-// piled up at the end of the grandstand
+// the stumps at either end of the pitch (turkeys can dig them up); snakes in the grass on the way round to the
+// right (and one up behind the grandstand); a funnel-web's burrow out past the way out; and cricket gear left
+// lying about: plenty by the mound, bits and pieces all over, and the team's kit piled up at the end of the
+// grandstand
 export const STUMPS = [[CX, CZ - 9.2], [CX, CZ + 9.2]];
-export const PLOVER_NESTS = [[6, -109], [22, -118]];
 export const OVAL_SNAKES = [[21, -103], [39.5, -124]];
 export const OVAL_SPIDER = [-36, -168];
 export const CRICKET_KIT = [
@@ -287,20 +285,6 @@ export function buildOval(world) {
   world.colliders.push({ x: 44.3, z: CZ + 2.7, r: 0.15 });
   // (the grass worn bare along the way up to it, and through it)
   for (const [x, z] of [[41, -116], [41, -122], [41, -128], [41, -134], [40, -140], [34, -140], [27, -140]]) world.stainGround(x, z, 2.6, 0x9c8a5f, 0.3);
-
-  // the plovers' nests: a scrape in the grass, with a clutch of speckled eggs
-  const nest = [part(G.cyl(0.42, 0.46, 0.04, 14), 0xb09a64, [0, 0.015, 0])];
-  for (let i = 0; i < 12; i++) {
-    const a = (i / 12) * TAU;
-    nest.push(part(G.box(0.2, 0.03, 0.04), pick([0xc8b476, 0xa8925a, 0xd6c48a]), [Math.cos(a) * 0.38, 0.04, Math.sin(a) * 0.38], [0, -a + rand(-0.4, 0.4), 0]));
-  }
-  for (let i = 0; i < 3; i++) {
-    const a = (i / 3) * TAU + 0.4, x = Math.cos(a) * 0.1, z = Math.sin(a) * 0.1;
-    nest.push(part(G.sphere(1, 10, 8), 0x8d8a55, [x, 0.07, z], [Math.PI / 2 - 0.3, a, 0], [0.055, 0.075, 0.055]));
-    for (let k = 0; k < 5; k++) nest.push(part(G.sphere(0.012, 5, 4), 0x3d3222, [x + rand(-0.04, 0.04), 0.1 + rand(-0.02, 0.02), z + rand(-0.04, 0.04)]));
-  }
-  const nestGeo = merge(nest);
-  for (const [x, z] of PLOVER_NESTS) put(world, nestGeo, x, z, rand(0, TAU));
 
   // sightscreens behind each end
   const screen = merge([

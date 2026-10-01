@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Plover } from './plover.js';
+import { Plover, PINNED } from './plover.js';
 import { ferryKeyGeo } from './key.js';
 import { part, merge, vcMesh, G, limb } from './util.js';
 
@@ -25,8 +25,7 @@ const GULL = {
   tips: {
     up: ['gull', 'Seagulls! Dodge the red circle, and when one lands, throw a turkey on it: it can\'t take off with one hanging off'],
     you: ['gull-you', 'Swooped! Those gulls are after your chips'],
-    away: ['gull-away', "It got away! Get a turkey on it before it's up"],
-    down: ['gull-down', "Dragged down! It's seeing stars: mob it"],
+    ...PINNED,
   },
 };
 const CAPTAIN = {

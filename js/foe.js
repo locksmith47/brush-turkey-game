@@ -173,15 +173,15 @@ export class Foe {
   /** can it see t from where it is? (not round a fence, say, or through the scrub) */
   sees(t) { return this.game.world.canSee(this.pos.x, this.pos.z, t.pos.x, t.pos.z); }
 
-  /** somewhere r0..r1 from home to wander over to, in plain sight of it (so never over a fence), into out */
-  wanderPoint(r0, r1, out) {
+  /** somewhere r0..r1 from home (or `from`) to wander over to, in plain sight of it (so never over a fence), into out */
+  wanderPoint(r0, r1, out, from = this.home) {
     const w = this.game.world;
     for (let i = 0; i < 6; i++) {
       const a = rand(0, TAU), r = rand(r0, r1);
-      out.set(this.home.x + Math.cos(a) * r, 0, this.home.z + Math.sin(a) * r);
-      if (w.canSee(this.home.x, this.home.z, out.x, out.z)) return out;
+      out.set(from.x + Math.cos(a) * r, 0, from.z + Math.sin(a) * r);
+      if (w.canSee(from.x, from.z, out.x, out.z)) return out;
     }
-    return out.set(this.home.x, 0, this.home.z);
+    return out.set(from.x, 0, from.z);
   }
 
   forward(out) { return out.set(Math.sin(this.heading), 0, Math.cos(this.heading)); }

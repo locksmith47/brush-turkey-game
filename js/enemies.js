@@ -17,8 +17,8 @@ export class Enemies {
   }
 
   /**
-   * `arg`: for a plover, the [x, z] of the nest it guards (a gull, the chips it's guarding; Captain Gull, where
-   * he stands guard); for an ibis, how far it wanders from (x, z)
+   * `arg`: for a gull, the [x, z] of the chips it's guarding (Captain Gull, where he stands guard; a plover, where
+   * it keeps watch, till it's given an ibis to ride: see Plover.ride); for an ibis, how far it wanders from (x, z)
    */
   spawn(kind, x, z, arg = null) {
     const g = this.game;
