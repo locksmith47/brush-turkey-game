@@ -10,8 +10,12 @@ const OFF_KEY = `turkmin-sound-off:${location.pathname.replace(/index\.html$/, '
 // the recordings: how many single calls there are of each (sounds/<name>-<1 to n>.mp3). They're all as loud as each
 // other (the loudest fifth of a second of each, at -20 LUFS), and LEVEL is how loud each lot goes in (times the file),
 // to sit where the synthesized sound it stands in for did
-const BIRDS = { brushturkey: 9, silvergull: 4, galah: 4, cockatoo: 5, cockatoos: 1 };
-const LEVEL = { brushturkey: 0.38, silvergull: 0.21, galah: 0.25, cockatoo: 0.39, cockatoos: 0.17 };
+const BIRDS = { brushturkey: 9, silvergull: 4, galah: 4, cockatoo: 5, cockatoos: 1, boom: 1 };
+const LEVEL = { brushturkey: 0.38, silvergull: 0.21, galah: 0.25, cockatoo: 0.39, cockatoos: 0.17, boom: 0.57 };
+// a cock's boom, as it goes in the recording (sounds/boom-1.mp3): when each of its three notes starts and how long it
+// goes (seconds in), and how loud it is (times the loudest). The synthesized one keeps to it, and so does his pumping
+// away with it (see Turkey.pose)
+export const BOOM = [[0.03, 0.085, 0.45], [0.31, 0.105, 0.9], [0.515, 0.33, 1]];
 
 export class Audio {
   constructor() {
@@ -174,19 +178,17 @@ export class Audio {
   }
 
   /**
-   * A cock booming, his neck sac puffed right up: a deep, hollow oom. It's his honk slowed right down and muffled by all
-   * that air, over the thrum of the sac itself. `vol`: how loud (he's a way off, say)
+   * A cock booming, his neck sac puffed right up: three deep, hollow ooms, the last one the longest (see BOOM). `vol`:
+   * how loud (he's a way off, say); `rate`: how fast, and high, he goes (his notes come at BOOM's times over `rate`)
    */
-  boom(vol = 1) {
+  boom(vol = 1, rate = 1) {
     if (!this.ok('boom', 300)) return;
-    const f = 84 + Math.random() * 14;
-    this.tone({ freq: f * 1.15, freq2: f * 0.9, dur: 0.6, vol: 0.12 * vol, attack: 0.1, vib: 4, vibHz: 22 });
-    this.tone({ freq: f * 2, freq2: f * 1.75, dur: 0.5, vol: 0.04 * vol, type: 'triangle', attack: 0.08 });
-    const sac = this.ctx.createBiquadFilter();
-    sac.type = 'lowpass'; sac.frequency.value = 650; sac.Q.value = 2; // (the ring of the air in it)
-    sac.connect(this.master);
-    if (!this.bird('brushturkey', { rate: 0.5 + Math.random() * 0.06, vol: 0.85 * vol, delay: 0.03, out: sac })) {
-      this.noise({ dur: 0.45, vol: 2.4 * vol, type: 'bandpass', f1: 260, f2: 180, q: 3, attack: 0.06, out: sac }); // (a breathy oomph)
+    if (this.bird('boom', { rate, vol })) return;
+    // (till the real one's in: a hum for each note, with a lower one under it, and the last one falling away)
+    for (const [at, len, k] of BOOM) {
+      const o = { dur: (len + 0.15) / rate, attack: 0.02, delay: at / rate, vib: 5, vibHz: 20 }, end = len > 0.2 ? 0.7 : 0.95;
+      this.tone({ ...o, freq: 330 * rate, freq2: 330 * end * rate, vol: 0.2 * k * vol });
+      this.tone({ ...o, freq: 165 * rate, freq2: 165 * end * rate, vol: 0.06 * k * vol, type: 'triangle' });
     }
   }
 
