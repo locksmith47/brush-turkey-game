@@ -1,0 +1,33 @@
+Rake It Back: where the bird calls came from
+
+The game makes up nearly every sound it plays as it goes. These are the exception: real recordings, each file one
+call cut out of the recordings below, filtered, and brought to the same loudness (the loudest 200 ms of each at
+about -20 LUFS). The same list is on the pause screen (Esc), under Credits.
+
+Australian brush-turkey (Alectura lathami): brushturkey-1.mp3 to brushturkey-9.mp3
+  Source recording: Nick Talbot, XC694790. Accessible at www.xeno-canto.org/694790.
+  Recorded 2021-12-29, Tweed Heads South, NSW, Australia.
+  Licence: Creative Commons (see the recording page above for the exact licence terms).
+  Changes: individual honks were excerpted, band-pass filtered, noise-reduced and rearranged into short calls
+  (brushturkey-6 to -9 pitch-shifted lower), then cut into single honks and levelled. The game also plays them
+  slowed right down, under a synthesized boom, for a cock showing off.
+
+Silver gull (Chroicocephalus novaehollandiae): silvergull-1.mp3 to silvergull-4.mp3
+  Source recording: Drew Davison, XC608451. Accessible at www.xeno-canto.org/608451.
+  Recorded 2020-12-08, Denmark, Western Australia.
+  Licence: Creative Commons (see the recording page above for the exact licence terms).
+  Changes: single calls excerpted, band-pass filtered (1 to 7.5 kHz) and levelled.
+
+Galah (Eolophus roseicapilla): galah-1.mp3 to galah-4.mp3
+  Source recording: Romuald Mikusek, XC1166610. Accessible at www.xeno-canto.org/1166610.
+  Recorded 2023-12-19, Wilsons Promontory, Victoria, Australia.
+  Licence: CC BY-NC-SA 4.0 (https://creativecommons.org/licenses/by-nc-sa/4.0/). These clips are shared under
+  the same licence.
+  Changes: single calls excerpted, band-pass filtered (0.6 to 11 kHz) and levelled.
+
+Cockatoos (sulphur-crested, by the sound of them): cockatoo-1.mp3 to cockatoo-5.mp3, and cockatoos-1.mp3
+  Source: "Raucous Cockatoos" by freesound_community on Pixabay,
+  https://pixabay.com/sound-effects/raucous-cockatoos-34123/
+  Licence: Pixabay Content License (https://pixabay.com/service/license-summary/).
+  Changes: single calls (and, in cockatoos-1, a few seconds of the whole mob) excerpted, band-pass filtered
+  (0.45 to 10 kHz) and levelled.

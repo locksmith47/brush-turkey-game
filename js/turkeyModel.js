@@ -10,6 +10,9 @@ export const STAGES = [
 // adult hens look just like the cocks bar the wattle (theirs is little more than a yellow neck), and are a
 // touch smaller (only to look at: they're every bit as strong)
 export const HEN_SCALE = 0.9;
+// where a cock's wattle puffs up from, when he's showing off (in the neck's space: up at his throat, so it swells out
+// in front of him and down over his chest)
+const WATTLE_AT = new THREE.Vector3(0, 0, 0.03);
 
 /* ------------------------------------------------------------------ shared bits */
 function legGeo(len, r, color) {
@@ -110,11 +113,12 @@ function adultLike(juvenile, hen = false) {
   for (let i = 0; i < 4; i++) {
     head.push(part(G.cone(0.011, 0.05, 4), 0x151313, [(i - 1.5) * 0.018, 0.33, 0.08 - i * 0.012], [-0.5, 0, (i - 1.5) * 0.25]));
   }
+  let wattle = null;
   if (juvenile) {
     head.push(part(G.torus(0.06, 0.035, 6, 12), 0x4a3c30, [0, 0.02, 0], [Math.PI / 2, 0, 0]));
     head.push(part(G.sphere(0.05, 10, 8), 0xf0c040, [0, 0.02, 0.075], [0, 0, 0], [1.1, 1, 0.8]));
   } else if (!hen) {
-    // the glorious yellow wattle
+    // the glorious yellow wattle (a thing of its own, so it can be puffed up: see createRig)
     const w = [
       part(G.torus(0.066, 0.042, 8, 16), 0xffd21f, [0, 0.03, 0.0], [Math.PI / 2, 0, 0]),
       part(G.sphere(0.115, 16, 12), 0xffcc12, [0, -0.02, 0.09], [0, 0, 0], [1.15, 1.05, 0.9]),
@@ -126,12 +130,14 @@ function adultLike(juvenile, hen = false) {
     ];
     const hi = new THREE.Color(0xffe45c), lo = new THREE.Color(0xffa000);
     for (const g of w) tint(g, (x, y, z, c) => c.lerp(y > 0 ? hi : lo, Math.min(1, Math.abs(y) * 3.2) * 0.6));
-    head.push(...w);
+    head.push(w.shift()); // (the collar round his neck stays put: it's the sac hanging off the front that puffs up)
+    wattle = merge(w).translate(-WATTLE_AT.x, -WATTLE_AT.y, -WATTLE_AT.z);
   }
 
   return {
     body: merge(body),
     head: merge(head),
+    wattle,
     leg: legGeo(0.34, 0.028, 0x6b6158),
     wing: wingGeo(0.27, 0.14, juvenile ? 0x3e3228 : 0x24201d, juvenile ? 0x4d3d30 : 0x2e2824),
     neckPos: new THREE.Vector3(0, 0.62, 0.24),
@@ -326,6 +332,13 @@ export function createRig(stage, kind = 'normal', variant = 0, hen = false, gear
   bodyPivot.add(neck);
   const head = vcMesh(g.head);
   neck.add(head);
+  // (a cock's wattle, which puffs right up when he's showing off: see Turkey's showOff)
+  let wattle = null;
+  if (g.wattle) {
+    wattle = vcMesh(g.wattle);
+    wattle.position.copy(WATTLE_AT);
+    neck.add(wattle);
+  }
   const beak = new THREE.Object3D();
   beak.position.copy(g.beakTip);
   neck.add(beak);
@@ -369,5 +382,5 @@ export function createRig(stage, kind = 'normal', variant = 0, hen = false, gear
   }
 
   root.scale.setScalar(STAGES[stage].scale * (hen ? HEN_SCALE : 1));
-  return { root, bodyPivot, body, neck, head, beak, legL, legR, wingL, wingR, dirt, helmet, pads, neckPos: g.neckPos, headTop: g.headTop };
+  return { root, bodyPivot, body, neck, head, wattle, beak, legL, legR, wingL, wingR, dirt, helmet, pads, neckPos: g.neckPos, headTop: g.headTop };
 }

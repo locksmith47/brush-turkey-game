@@ -521,6 +521,7 @@ new DevMenu(game, {
   },
   invincible() { game.dev.invincible = !game.dev.invincible; return game.dev.invincible; }, // (you and your turkeys)
   flyover() { if (!game.flyovers.send()) hud.toast('No clear way over from here (or some are going over already)', 3); },
+  showOff() { if (!turkeys.showOff()) hud.toast('No grown-up cocks stood about with you (spawn some adults, and stop)', 3); },
   cuttlefish() { // (aboard the ferry, nearly halfway over: up it comes, whether it's been seen off already or not)
     this.goto(FERRY);
     game.cuttle.summon();
