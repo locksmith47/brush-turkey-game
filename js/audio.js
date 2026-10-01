@@ -1,7 +1,24 @@
-/* Tiny WebAudio synth: every sound is generated, no assets needed. */
+/*
+ * Tiny WebAudio synth: nearly every sound is generated as it's needed. The birds are the exception: they're real
+ * recordings, cut down to single calls (in sounds/, and where each one came from is in sounds/CREDITS.txt and on the
+ * pause screen). They come in once you've clicked Play, and till they do (or if they can't be had), the synthesized
+ * ones stand in for them.
+ */
 const VOL = 0.45; // the lot, all together
 // (sound off, remembered in the browser for next time: each copy of the game keeps its own, under the game's old name, like the save)
 const OFF_KEY = `turkmin-sound-off:${location.pathname.replace(/index\.html$/, '')}`;
+// the recordings: how many single calls there are of each (sounds/<name>-<1 to n>.mp3). They're all as loud as each
+// other (the loudest fifth of a second of each, at -20 LUFS), and LEVEL is how loud each lot goes in (times the file),
+// to sit where the synthesized sound it stands in for did
+const BIRDS = { brushturkey: 9, silvergull: 4, galah: 4, cockatoo: 5, cockatoos: 1, boom: 1 };
+const LEVEL = { brushturkey: 0.38, silvergull: 0.21, galah: 0.25, cockatoo: 0.39, cockatoos: 0.17, boom: 0.57 };
+// a male's boom, as it goes in the recording (sounds/boom-1.mp3): when each of its three notes starts and how long it
+// goes (seconds in), and how loud it is (times the loudest). The synthesized one keeps to it, and so does his pumping
+// away with it (see Turkey.pose)
+export const BOOM = [[0.03, 0.085, 0.45], [0.31, 0.105, 0.9], [0.515, 0.33, 1]];
+// the bigger turkeys' honks (they'd a bit much to say): the share of the times they'd honk that they do, and the least
+// milliseconds between two honks of the one size
+const HONK = { share: 0.5, gap: 500 };
 
 export class Audio {
   constructor() {
@@ -9,6 +26,8 @@ export class Audio {
     this.master = null;
     this.whistleOsc = null;
     this.last = {};
+    this.birds = {}; // name -> its recordings, as they come in
+    this.lastBird = {}; // (the one each played last time: not that one again straight off)
     this.muted = false; // (while a save's being put back)
     try { this.off = localStorage.getItem(OFF_KEY) === '1'; } catch { this.off = false; } // (you've turned it off: N)
   }
@@ -25,6 +44,45 @@ export class Audio {
     this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
     const d = this.noiseBuf.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    this.fetchBirds();
+  }
+
+  /** the recordings, fetched and decoded (each one's there to be heard the moment it's in) */
+  fetchBirds() {
+    for (const [name, n] of Object.entries(BIRDS)) {
+      const set = (this.birds[name] = []);
+      for (let i = 1; i <= n; i++) {
+        fetch(`sounds/${name}-${i}.mp3`)
+          .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status}`))))
+          .then((b) => this.ctx.decodeAudioData(b))
+          .then((buf) => set.push(buf))
+          .catch(() => { /* (not to be had: the rest of them, or the synthesized call, will do) */ });
+      }
+    }
+  }
+
+  /** are any of the recordings of `name` in yet? */
+  has(name) { return !!this.birds[name]?.length; }
+
+  /**
+   * One of the recordings of `name` (a different one from last time, if there's a choice), `rate` times as fast (and
+   * as high), at `vol` times its LEVEL, `delay` seconds from now, going to `out`. False if there's none in yet, so
+   * the synthesized one's wanted instead
+   */
+  bird(name, { rate = 1, vol = 1, delay = 0, out = this.master } = {}) {
+    const set = this.birds[name];
+    if (!set?.length) return false;
+    if (this.quiet) return true;
+    let i = (Math.random() * set.length) | 0;
+    if (set.length > 1 && i === this.lastBird[name]) i = (i + 1 + ((Math.random() * (set.length - 1)) | 0)) % set.length;
+    this.lastBird[name] = i;
+    const c = this.ctx, s = c.createBufferSource(), g = c.createGain();
+    s.buffer = set[i];
+    s.playbackRate.value = rate;
+    g.gain.value = LEVEL[name] * vol;
+    s.connect(g).connect(out);
+    s.start(c.currentTime + delay);
+    return true;
   }
 
   /** N: all the sound off, or back on again (fading what's playing, and remembered for next time); true if it's off */
@@ -107,9 +165,15 @@ export class Audio {
     this.noise({ dur: 0.12, vol: 0.18, type: 'lowpass', f1: 700, f2: 200 });
   }
 
-  peep(stage = 0) {
-    if (!this.ok('peep' + stage, 90)) return;
+  /**
+   * A turkey piping up: a chick peeps, and the bigger ones honk (the real thing: a juvenile's a bit higher and
+   * quieter), only so often (see HONK). `always`: it's answering you (Tab or X), so it always does
+   */
+  peep(stage = 0, always = false) {
+    if (stage && !always && Math.random() > HONK.share) return;
+    if (!this.ok('peep' + stage, stage && !always ? HONK.gap : 90)) return;
     const p = 1 + (Math.random() - 0.5) * 0.15;
+    if (stage && this.bird('brushturkey', { rate: p * (stage === 1 ? 1.25 : 1), vol: stage === 1 ? 0.5 : 1 })) return;
     if (stage === 0) {
       this.tone({ freq: 3000 * p, freq2: 2300 * p, dur: 0.07, vol: 0.12 });
       this.tone({ freq: 3200 * p, freq2: 2500 * p, dur: 0.07, vol: 0.1, delay: 0.09 });
@@ -117,6 +181,21 @@ export class Audio {
       this.tone({ freq: 1500 * p, freq2: 900 * p, dur: 0.12, vol: 0.13, type: 'triangle' });
     } else {
       this.tone({ freq: 170 * p, freq2: 120 * p, dur: 0.28, vol: 0.28, type: 'sawtooth', vib: 18, vibHz: 22 });
+    }
+  }
+
+  /**
+   * A male booming, his neck sac puffed right up: three deep, hollow ooms, the last one the longest (see BOOM). `vol`:
+   * how loud (he's a way off, say); `rate`: how fast, and high, he goes (his notes come at BOOM's times over `rate`)
+   */
+  boom(vol = 1, rate = 1) {
+    if (!this.ok('boom', 300)) return;
+    if (this.bird('boom', { rate, vol })) return;
+    // (till the real one's in: a hum for each note, with a lower one under it, and the last one falling away)
+    for (const [at, len, k] of BOOM) {
+      const o = { dur: (len + 0.15) / rate, attack: 0.02, delay: at / rate, vib: 5, vibHz: 20 }, end = len > 0.2 ? 0.7 : 0.95;
+      this.tone({ ...o, freq: 330 * rate, freq2: 330 * end * rate, vol: 0.2 * k * vol });
+      this.tone({ ...o, freq: 165 * rate, freq2: 165 * end * rate, vol: 0.06 * k * vol, type: 'triangle' });
     }
   }
 
@@ -299,6 +378,7 @@ export class Audio {
   gull(size = 1) {
     if (!this.ok('gull', 500)) return;
     const k = Math.min(1.5, Math.max(0.6, size / 1.3));
+    if (this.bird('silvergull', { rate: (0.96 + Math.random() * 0.08) / Math.sqrt(k), vol: k })) return;
     for (let i = 0, t = 0; i < 2; i++, t += 0.42) {
       const f = (1250 + Math.random() * 150) / Math.sqrt(k);
       this.tone({ freq: f, freq2: f * 1.5, type: 'sawtooth', dur: 0.08, vol: 0.08 * k, attack: 0.02, delay: t, vib: 60, vibHz: 38 });

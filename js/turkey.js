@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { createRig, STAGES, HEN_SCALE } from './turkeyModel.js';
-import { rand, clamp, damp, dampAngle, angleDiff, TAU } from './util.js';
+import { rand, clamp, damp, dampAngle, angleDiff, smoothstep, TAU } from './util.js';
 import { BEACH } from './world.js';
+import { BOOM } from './audio.js';
 
 export const S = {
   SPROUT: 'sprout', POP: 'pop', FOLLOW: 'follow', THROWN: 'thrown', IDLE: 'idle', GOTO: 'goto',
@@ -106,6 +107,11 @@ const LEAP_FROM = 0.7, LEAP_LATE = 3.5, LEAP_MAX = 8;
 // the way round, how much shorter (radians round the mound) the other way round to you has to be before it turns back,
 // and how many seconds ahead of you it looks for where you're off to
 const ROUND_PAD = 0.25, ROUND_AHEAD = 2, ROUND_GIVE = 0.6, ROUND_LEAD = 1;
+// a male showing off (see showOff): seconds puffing himself up before he booms, holding it once he's done, and going
+// back down after; how far his wattle swells (times: side to side, up and down, and out in front), and how much more it
+// pumps out with each note of his boom (see BOOM, in audio.js)
+const SHOW = { puff: 0.7, hold: 0.3, down: 0.6, size: [1.5, 1.4, 1.65], pump: 0.16 };
+const BOOM_END = BOOM.at(-1)[0] + BOOM.at(-1)[1]; // (seconds into his boom that the last note's done)
 const _v = new THREE.Vector3(), _r = new THREE.Vector3(), _d = new THREE.Vector3(), _w = new THREE.Vector3();
 const _o = new THREE.Vector3(); // (the way round a mound)
 const _k = new THREE.Vector3(), _s = new THREE.Vector3(); // (which way a pile's being raked, and where to stand to do it)
@@ -169,6 +175,8 @@ export class Turkey {
     this.stoop = 0; this.stoopNeck = 0; this.kickLean = 0; this.legLs = 0; this.legRs = 0; this.scrLean = 0;
     this.wasScratching = false;
     this.sunT = 0; this.sunIn = 0; this.sunSide = 1; // sunbaking: time left, time in, which way it's leaning
+    // showing off (a male): time into it, whether he's boomed yet and how fast (and high) he goes, how puffed up he is
+    this.showT = 0; this.boomed = false; this.boomRate = 1; this.puff = 0;
     this.scanT = rand(0, 0.5);
     this.buildRig();
   }
@@ -179,6 +187,11 @@ export class Turkey {
   get radius() { return this.def.radius; }
   get grounded() { return WALKING.has(this.state) && !this.latched && !this.dead; }
   get busy() { return BUSY.has(this.state) && !this.dead; }
+  /** a male stood still on dry land, with nothing on (with you, or where you left him): he could show off */
+  get canShow() {
+    return !!this.rig.wattle && !this.showT && this.sunT <= 0 && !this.peck && !this.swimming && !this.dead
+      && (this.state === S.FOLLOW || this.state === S.IDLE) && this.vel.lengthSq() < 0.05;
+  }
   /** bouncing on a trampoline (or a beach umbrella, or Big Kev's belly), or on its way up onto one */
   get bouncing() {
     if (this.state !== S.THROWN || this.dead) return false;
@@ -214,6 +227,7 @@ export class Turkey {
     this.state = s;
     this.t = 0;
     this.sunT = 0; // (up it gets, whatever it's off to do)
+    this.showT = 0; // (and that's the end of any showing off)
     this.roundSide = 0;
     this.applyVisibility();
   }
@@ -851,6 +865,34 @@ export class Turkey {
     return false;
   }
 
+  /**
+   * A male showing off, like the real ones do: he puffs his wattle right up, the air sac in his neck with it, and
+   * booms, pumping his whole body with each note (see SHOW, and pose). He stops the moment he's wanted
+   */
+  showOff() {
+    this.showT = 1e-4;
+    this.boomed = false;
+    this.boomRate = rand(0.95, 1.04); // (a touch higher or lower each time)
+  }
+
+  /** puffed up, he booms, then holds it a moment and goes back down (side on to you, and the camera behind you, so you get the full effect) */
+  updateShow(dt) {
+    this.showT += dt;
+    const side = this.game.cam.yaw + Math.PI / 2;
+    this.heading = dampAngle(this.heading, Math.abs(angleDiff(this.heading, side)) < Math.PI / 2 ? side : side + Math.PI, 5, dt);
+    if (!this.boomed && this.showT >= SHOW.puff) {
+      this.boomed = true;
+      const p = this.game.player.pos, d = Math.hypot(p.x - this.pos.x, p.z - this.pos.z);
+      this.game.audio.boom(clamp(1.3 - d / 14, 0.35, 1), this.boomRate); // (quieter a way off)
+    }
+    if (this.showT >= SHOW.puff + BOOM_END / this.boomRate + SHOW.hold + SHOW.down) {
+      this.showT = 0;
+      // (and now and then another grown-up about the place has a honk back at him)
+      const near = (t) => t !== this && t.stage === 2 && t.grounded && Math.hypot(t.pos.x - this.pos.x, t.pos.z - this.pos.z) < 6;
+      if (Math.random() < 0.5 && this.game.turkeys.list.some(near)) this.game.audio.peep(2);
+    }
+  }
+
   /** down it flops for a sunbake, for `secs` (or till it's wanted) */
   sunbake(secs) {
     this.sunT = secs;
@@ -1048,7 +1090,7 @@ export class Turkey {
           if (this.sunT > 0) { this.sunT -= dt; this.sunIn += dt; }
           this.scanT -= dt;
           if (this.scanT <= 0) { this.scanT = rand(0.4, 0.7); this.findWork(); }
-          if (this.sunT <= 0 && Math.random() < dt * 0.25) this.startPeck(null);
+          if (this.sunT <= 0 && !this.showT && Math.random() < dt * 0.25) this.startPeck(null);
           break;
         case S.SEEK: this.updateSeek(dt, sp); break;
         case S.RAKE: this.updateRake(dt, sp); break;
@@ -1089,6 +1131,7 @@ export class Turkey {
     }
 
     this.playCool -= dt;
+    if (this.showT > 0) this.updateShow(dt);
     if (this.grounded) {
       this.pos.x += this.vel.x * dt;
       this.pos.z += this.vel.z * dt;
@@ -1260,12 +1303,13 @@ export class Turkey {
       return;
     }
     if (d > tk.blobR) {
+      this.showT = 0; // (no time for showing off: you're off)
       const boost = d > 5 ? 1.45 : 1.1;
       this.steer(tk.rally.x, tk.rally.z, sp * boost, dt, tk.blobR * 0.7, false, true);
     } else {
       this.brake(dt);
       if (this.vel.lengthSq() < 0.05) {
-        this.faceToward(p.pos.x, p.pos.z, dt, 3);
+        if (!this.showT) this.faceToward(p.pos.x, p.pos.z, dt, 3); // (bar one that's showing off: see updateShow)
         // (you've stopped on the sand at the beach, or on Benny's steps: one by one, they flop down for a sunbake)
         if (p.speed < 0.3 && Math.random() < dt * 0.1 && g.world.sunTrap(this.pos.x, this.pos.z)) this.sunbake(rand(10, 25));
       }
@@ -1835,6 +1879,34 @@ export class Turkey {
       r.wingL.rotation.z = Math.max(r.wingL.rotation.z, stroke);
       r.wingR.rotation.z = Math.min(r.wingR.rotation.z, -stroke);
       if (this.rescued > 0) r.neck.rotation.x = -0.4; // a whistled landlubber, paddling for dear life
+    }
+
+    // a male showing off (see showOff): chest out and head up, wings let down a touch, and his wattle puffed right out,
+    // then with each note of his boom a pump of the whole bird, head going forward and the wattle swelling out that bit
+    // more, for as long as the note goes (and harder for the louder ones)
+    if (r.wattle) {
+      let puff = 0, pump = 0;
+      if (this.showT > 0) {
+        const t = this.showT, done = SHOW.puff + BOOM_END / this.boomRate + SHOW.hold;
+        puff = t < done ? smoothstep(0, SHOW.puff, t) : 1 - smoothstep(done, done + SHOW.down, t);
+        if (this.boomed) {
+          for (const [at, len, loud] of BOOM) {
+            const u = (t - SHOW.puff) * this.boomRate - at; // (since that note started, as the recording goes)
+            if (u >= 0 && u < len + 0.5) pump = Math.max(pump, loud * Math.min(1, u / 0.04) * Math.exp(-Math.max(0, u - len) / 0.1));
+          }
+        }
+      }
+      this.puff = damp(this.puff, puff, 14, dt); // (going down in a hurry if he's cut short)
+      const f = this.puff, sz = SHOW.size, p = pump * SHOW.pump;
+      r.wattle.scale.set(1 + (sz[0] - 1) * f + p, 1 + (sz[1] - 1) * f + p, 1 + (sz[2] - 1) * f + p * 1.5);
+      if (f > 0.001) {
+        r.neck.rotation.x += -0.32 * f + 0.4 * pump;
+        r.neck.rotation.y *= 1 - f; // (looking straight ahead, full of himself)
+        r.bodyPivot.rotation.x += -0.1 * f + 0.12 * pump;
+        r.bodyPivot.position.y += 0.02 * f - 0.035 * pump;
+        r.wingL.rotation.z = Math.max(r.wingL.rotation.z, 0.22 * f);
+        r.wingR.rotation.z = Math.min(r.wingR.rotation.z, -0.22 * f);
+      }
     }
     this.wasScratching = scratching;
   }
