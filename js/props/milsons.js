@@ -29,13 +29,19 @@ const DECK = { x0: -54, z0: -6.5, z1: -2.6 }; // the viaduct the line's on (its 
 const HILL = { x: 26, z: -16, y: 10 }; // the hill the line goes on into: its face (x), the wall along the foot of it (z), and how high
 const PARK = { x0: -45, x1: 48, z0: -56, z1: -8 }; // Bradfield Park
 const SHEET = { x0: -58, x1: 176, z0: -58, z1: 38 }; // the flat, down by the water (the land beyond's all hills, or harbour)
-const FACE = { x: 124, z: -34, r: 8.5, y: 8.6 }; // Luna Park's face, looking out at you from the end of the boardwalk
-const MOUTH = { hw: 2.4, top: 4.0 }; // (its mouth, the way in: half as wide, and how high the top of it is)
+// Luna Park's face, looking out at you from the end of the boardwalk: the middle of it (and how high up that is), how
+// far it goes out either side and up and down from there (the ground cuts it off), and how far it bulges out at you
+const FACE = { x: 124, z: -34, y: 7.2, rx: 8.4, ry: 9, d: 3.4 };
+// (its mouth, the way in, a great grin: half as wide at the ground, how high the top of it is in the middle, and the
+// corners of it (how far out, and how high: up higher than the middle, it's that pleased to see you). Behind it the way
+// in: how wide (half), how high, and how far back it goes. And how close up to the face you can get, out either side
+// of its mouth)
+const MOUTH = { hw: 2.7, top: 4.8, corner: [4.3, 5.3], way: 2.9, h: 4.9, deep: 9, lips: 3.5 };
 const BR = { x: -64, z0: -64, z1: -264, deck: 20, hw: 11 }; // the Bridge: down the middle, the pylons at either end, and its deck
 const OPERA = [-152, -246]; // (the Opera House, on Bennelong Point)
 
 export const MILSONS_RECT = [PARK.x0 + OX, -58, 50 + OX, 8];
-export const LUNA_RECT = [50 + OX, -60, 130 + OX, HILL.z];
+export const LUNA_RECT = [50 + OX, -60, FACE.x + MOUTH.deep + 1 + OX, HILL.z];
 /** round the corner into Luna Park: no gate at all, just the boardwalk going on along the water */
 export const LUNA_GAP = { x: 50 + OX, z: -36, d: [1, 0], hw: 19, span: [-55, -17] };
 
@@ -46,10 +52,10 @@ export const MILSONS_IBISES = [['ibis', OX + 6, -24], ['ibis', OX + 30, -46], ['
 export const MILSONS_RATS = [[OX - 40.5, -13], [OX - 38.5, -11.5], [OX + 84, -43.5], [OX + 88.5, -42.5], [OX + 104, -21.5]];
 export const LUNA_GULLS = [[OX + 64, -52.5, 2], [OX + 96, -53, 3]];
 
-/** is (x, z) in through Luna Park's mouth? (as far as it goes, for now) */
-export const inMouth = (x, z) => x - OX > FACE.x - 0.7 && Math.abs(z - FACE.z) < MOUTH.hw;
+/** is (x, z) in through Luna Park's mouth, and a few steps on along the way in? (as far as it goes, for now) */
+export const inMouth = (x, z) => x - OX > FACE.x + 4 && Math.abs(z - FACE.z) < MOUTH.hw;
 /** where you're stood after, just out in front of the face */
-export const OUTSIDE = [FACE.x - 5 + OX, FACE.z];
+export const OUTSIDE = [FACE.x - 6 + OX, FACE.z];
 
 /* ------------------------------------------------------------------ the lie of the land */
 /** the ground: flat, bar the platform, the stairs down off it, and the line along it */
@@ -76,12 +82,16 @@ export const MILSONS_TRACK = {
     { rect: box(PARK.x0 + 0.4, PARK.z0, PARK.x1 + 2.5, HILL.z - 0.6), nodes: ['park'] },
   ],
 };
-// and Luna Park's: along the boardwalk and over the forecourt to the face, and in through its mouth
+// and Luna Park's: along the boardwalk and over the forecourt, up to the face (and closer in, out either side of it,
+// where it bulges out less), in through its mouth (between its bottom teeth, 1.85 either side of the middle of it),
+// and on along the way in, up to the turnstiles
 export const LUNA_TRACK = {
-  nodes: { mouth: at(FACE.x - 1.6, FACE.z) },
+  nodes: { mouth: at(FACE.x - MOUTH.lips - 1, FACE.z), in: at(FACE.x + 2, FACE.z) },
   rooms: [
-    { rect: box(49.5, -56, FACE.x - 1.2, HILL.z - 0.6), nodes: ['mouth'] },
-    { rect: box(FACE.x - 2, FACE.z - MOUTH.hw + 0.25, FACE.x + 3, FACE.z + MOUTH.hw - 0.25), nodes: ['mouth'], ground: 'dirt' },
+    { rect: box(49.5, -56, FACE.x - MOUTH.lips, HILL.z - 0.6), nodes: ['mouth'] },
+    ...[[5.2, 2.25], [6.6, 1.2]].flatMap(([dz, dx]) => [box(FACE.x - 8, -56, FACE.x - dx, FACE.z - dz), box(FACE.x - 8, FACE.z + dz, FACE.x - dx, HILL.z - 0.6)]).map((rect) => ({ rect })),
+    { rect: box(FACE.x - MOUTH.lips - 2.5, FACE.z - 1.85, FACE.x + 3, FACE.z + 1.85), nodes: ['mouth', 'in'], ground: 'dirt' },
+    { rect: box(FACE.x, FACE.z - MOUTH.way + 0.45, FACE.x + MOUTH.deep - 2, FACE.z + MOUTH.way - 0.45), nodes: ['in'], ground: 'dirt' },
   ],
 };
 
@@ -470,75 +480,363 @@ function northShore(p) {
 }
 
 /* ------------------------------------------------------------------ Luna Park */
+// The face is built in a frame of its own: looking out along +z, with x across it, y up, and the middle of the foot of
+// its mouth at the origin (faceAt puts it where it goes)
+const FACE_PAINT = {
+  skin: [new THREE.Color(0xffdcae), new THREE.Color(0xf0a464)], rosy: new THREE.Color(0xf47a72),
+  lip: 0xd8262c, tooth: 0xfffaf0, nose: 0xf59a6a, brow: 0x4a2412, iris: 0x2f6fd0, red: 0xe8403a, gold: 0xf2c230, blue: 0x2f6fd0,
+};
+const FACE_EYE = { x: 2.8, y: 10.3 }; // (its eyes: how far either side of the middle, and how high)
+const FACE_LOTS = [3.8, 5.6, 8.8]; // m up: its skin comes in lots split at these heights, each going see-through on its own (see luna)
+const FACE_NA = 120; // (how finely its skin goes round, from one side of its mouth, up over the top, to the other)
+// (along the way in, m back from the face: where the colour of its walls changes, with an arch of bulbs halfway between each)
+const FACE_WAY = [0, -1.5, -3, -4.5, -6, -7.5, -MOUTH.deep];
+
+/** a geometry built in the face's frame, put where the face is, looking back down the forecourt */
+const faceAt = (g) => g.rotateY(-Math.PI / 2).translate(FACE.x, 0, FACE.z);
+
+/** how high its upper lip is, x across from the middle of its mouth (from one corner of its grin, over to the other) */
+const lipTop = (x) => MOUTH.top + (MOUTH.corner[1] - MOUTH.top) * Math.min(1, Math.abs(x) / MOUTH.corner[0]) ** 2.2;
+/** and how steep it is there */
+const lipSlope = (x) => (Math.sign(x) * (MOUTH.corner[1] - MOUTH.top) * 2.2 * Math.min(1, Math.abs(x) / MOUTH.corner[0]) ** 1.2) / MOUTH.corner[0];
+/** and its lower lip, out either side of the way in: up from the ground, curving out to the corners of its grin */
+function lipLow(x) {
+  const [w, y] = MOUTH.corner, d = Math.abs(x) - MOUTH.hw;
+  return d <= 0 ? -Infinity : y * Math.min(1, d / (w - MOUTH.hw)) ** (1 / 1.8);
+}
+/** how far the edge of its mouth is from the foot of it, at angle a (0: along the ground one way, π the other) */
+function mouthEdge(a) {
+  const c = Math.cos(a), s = Math.max(0, Math.sin(a));
+  let lo = 0, hi = 10;
+  for (let i = 0; i < 32; i++) {
+    const r = (lo + hi) / 2, x = r * c, y = r * s;
+    if (Math.abs(x) < MOUTH.corner[0] && y < lipTop(x) && y > lipLow(x)) lo = r; else hi = r;
+  }
+  return lo;
+}
+/** and how far the edge of the way in behind it is (a plain arch), that way */
+function wayEdge(a) {
+  const c = Math.abs(Math.cos(a)) / MOUTH.way, s = Math.max(0, Math.sin(a)) / MOUTH.h;
+  return (c ** 3.2 + s ** 3.2) ** (-1 / 3.2);
+}
 /**
- * The face, as a disc (in its own frame: facing +z, the middle of it at the origin), with its mouth cut out of the bottom
- * of it, round over the top, for the way in; the picture on it comes from its outline: see faceTexture
+ * The angles everything round its mouth is worked out at, from 0 to π (FACE_NA + 1 of them): FACE_CORNER and the one
+ * as far from the other end are right at the corners of its grin
  */
-function faceGeo() {
-  const R = FACE.r, hw = MOUTH.hw, spring = MOUTH.top - FACE.y - hw, rim = -Math.sqrt(R * R - hw * hw);
-  const s = new THREE.Shape();
-  s.moveTo(hw, rim);
-  s.lineTo(hw, spring);
-  s.absarc(0, spring, hw, 0, Math.PI, false);
-  s.lineTo(-hw, rim);
-  s.absarc(0, 0, R, Math.atan2(rim, -hw), Math.atan2(rim, hw), true);
-  const g = new THREE.ShapeGeometry(s, 48), pos = g.attributes.position, uv = g.attributes.uv;
-  for (let i = 0; i < pos.count; i++) uv.setXY(i, (pos.getX(i) + R) / (2 * R), (pos.getY(i) + R) / (2 * R));
-  return g;
+const FACE_CORNER = Math.round((FACE_NA * Math.atan2(MOUTH.corner[1], MOUTH.corner[0])) / Math.PI);
+const FACE_ANGLES = Array.from({ length: FACE_NA + 1 }, (_, i) => {
+  const c = Math.atan2(MOUTH.corner[1], MOUTH.corner[0]), n = FACE_CORNER, N = FACE_NA;
+  return i <= n ? (c * i) / n : i >= N - n ? Math.PI - (c * (N - i)) / n : c + ((Math.PI - 2 * c) * (i - n)) / (N - 2 * n);
+});
+
+/** how far the edge of the face is from the foot of its mouth, at angle a (an ellipse round its middle, cut off by the ground) */
+function faceEdge(a) {
+  const c = Math.cos(a), s = Math.sin(a), A = (c / FACE.rx) ** 2 + (s / FACE.ry) ** 2, B = (2 * FACE.y * s) / FACE.ry ** 2;
+  return (B + Math.sqrt(B * B - 4 * A * ((FACE.y / FACE.ry) ** 2 - 1))) / (2 * A);
 }
 
-/** the face's picture: the rays of its headdress, and its big grin, eyes wide and eyebrows up, and red lips round the mouth */
-function faceTexture() {
-  const R = FACE.r, hw = MOUTH.hw, spring = MOUTH.top - FACE.y - hw;
-  return canvasTexture(512, 512, (c, w, h) => {
-    const k = w / (2 * R), X = (x) => w / 2 + x * k, Y = (y) => h / 2 - y * k;
-    for (let i = 0; i < 22; i++) {
-      const a = (i / 22) * TAU;
-      c.fillStyle = i % 2 ? '#f2c230' : '#e8403a';
-      c.beginPath(); c.moveTo(w / 2, h / 2); c.arc(w / 2, h / 2, w / 2 + 2, a, a + TAU / 22 + 0.01); c.fill();
-    }
-    c.fillStyle = '#2f6fd0'; c.beginPath(); c.arc(w / 2, h / 2, 6.9 * k, 0, TAU); c.fill(); // (a blue ring inside them)
-    const skin = c.createRadialGradient(X(-1.5), Y(2), k, w / 2, h / 2, 6.5 * k);
-    skin.addColorStop(0, '#ffe1a8'); skin.addColorStop(1, '#f0a85a');
-    c.fillStyle = skin; c.beginPath(); c.arc(w / 2, h / 2, 6.4 * k, 0, TAU); c.fill();
-    // the cheeks, rosy, and the grin, ear to ear, up round the mouth
-    c.fillStyle = 'rgba(232, 80, 70, .45)';
-    for (const s of [-1, 1]) { c.beginPath(); c.arc(X(s * 3.6), Y(-1.9), 1.2 * k, 0, TAU); c.fill(); }
-    c.strokeStyle = '#c4262a'; c.lineCap = 'round'; c.lineWidth = 0.75 * k;
-    c.beginPath(); c.arc(X(0), Y(-1.4), 4.9 * k, 0.12 * Math.PI, 0.88 * Math.PI); c.stroke();
-    c.lineWidth = 1.1 * k;
-    c.beginPath(); c.moveTo(X(hw + 0.45), Y(-R)); c.lineTo(X(hw + 0.45), Y(spring)); c.arc(X(0), Y(spring), (hw + 0.45) * k, 0, Math.PI, true); c.lineTo(X(-hw - 0.45), Y(-R)); c.stroke();
-    // the eyes: wide, blue, and looking down the boardwalk at you
-    for (const s of [-1, 1]) {
-      c.fillStyle = '#ffffff'; c.beginPath(); c.ellipse(X(s * 2.2), Y(1.6), 1.15 * k, 0.85 * k, 0, 0, TAU); c.fill();
-      c.strokeStyle = '#3a1a0a'; c.lineWidth = 0.14 * k; c.stroke();
-      c.fillStyle = '#2f6fd0'; c.beginPath(); c.arc(X(s * 2.2), Y(1.45), 0.5 * k, 0, TAU); c.fill();
-      c.fillStyle = '#111'; c.beginPath(); c.arc(X(s * 2.2), Y(1.45), 0.24 * k, 0, TAU); c.fill();
-      c.fillStyle = '#fff'; c.beginPath(); c.arc(X(s * 2.2 + 0.15), Y(1.62), 0.09 * k, 0, TAU); c.fill();
-      c.strokeStyle = '#6b3a1a'; c.lineWidth = 0.3 * k;
-      c.beginPath(); c.arc(X(s * 2.2), Y(1.3), 1.6 * k, 1.2 * Math.PI, 1.8 * Math.PI); c.stroke();
-    }
-    c.fillStyle = '#e88a4a'; c.beginPath(); c.moveTo(X(0), Y(0.9)); c.lineTo(X(0.55), Y(-0.6)); c.lineTo(X(-0.55), Y(-0.6)); c.fill(); // (its nose)
+/**
+ * How far the face bulges out at (x, y): like a cushion, full across the middle and rounding off to its edge, its
+ * cheeks plumped up by the grin, and its eyes set in a little
+ */
+function faceBulge(x, y) {
+  let d = FACE.d;
+  for (const k of [-1, 1]) {
+    d += 0.55 * Math.exp(-((x - k * 5.1) ** 2 + (y - 6.6) ** 2) / 3.2) - 0.3 * Math.exp(-((x - k * FACE_EYE.x) ** 2 + (y - FACE_EYE.y) ** 2) / 1.6);
+  }
+  return d * Math.sqrt(Math.max(0, 1 - Math.hypot(x / FACE.rx, (y - FACE.y) / FACE.ry) ** 3.5));
+}
+
+/** the colour of its skin at (x, y), into c: lighter where it's out furthest, and rosy at the cheeks */
+function faceSkin(x, y, c) {
+  c.copy(FACE_PAINT.skin[0]).lerp(FACE_PAINT.skin[1], smoothstep(0.3, 1, Math.hypot(x / FACE.rx, (y - FACE.y) / FACE.ry)));
+  for (const k of [-1, 1]) c.lerp(FACE_PAINT.rosy, 0.8 * smoothstep(1.9, 0.7, Math.hypot(x - k * 5.2, y - 6.7)));
+  return c;
+}
+
+/** the part of polygon `poly` (its corners, each [x, y, z, and whatever else goes along with them]) below height h, or above it */
+function sliceAt(poly, h, below) {
+  const out = [], keep = (q) => (below ? q[1] < h : q[1] >= h);
+  poly.forEach((a, i) => {
+    const b = poly[(i + 1) % poly.length];
+    if (keep(a)) out.push(a);
+    if (keep(a) !== keep(b)) out.push(a.map((v, j) => v + ((b[j] - v) * (h - a[1])) / (b[1] - a[1])));
+  });
+  return out;
+}
+
+/**
+ * Triangles over a grid of points (`pts`: x, y, z, x, y, z...; each of `tris`: [a, b, c, and whatever `paint` wants]),
+ * smooth (the normals worked out with their corners shared), each coloured by `paint(t, k, c)` (corner k of t, into c),
+ * and cut into lots by height (`lots`: the heights between them, each a level cut). `flip`: facing the other way
+ */
+function gridGeo(pts, tris, lots, paint, flip = false) {
+  const g = new THREE.BufferGeometry(), c = new THREE.Color(), s = flip ? -1 : 1;
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  g.setIndex(tris.flatMap((t) => t.slice(0, 3)));
+  g.computeVertexNormals();
+  const nrm = g.attributes.normal.array, out = [...lots, 0].map(() => ({ p: [], n: [], c: [] }));
+  g.dispose();
+  for (const t of tris) {
+    let poly = (flip ? [2, 1, 0] : [0, 1, 2]).map((k) => {
+      const v = t[k] * 3;
+      paint(t, k, c);
+      return [pts[v], pts[v + 1], pts[v + 2], nrm[v] * s, nrm[v + 1] * s, nrm[v + 2] * s, c.r, c.g, c.b];
+    });
+    out.forEach((o, i) => {
+      const lot = i < lots.length ? sliceAt(poly, lots[i], true) : poly;
+      if (i < lots.length) poly = sliceAt(poly, lots[i], false);
+      for (let k = 2; k < lot.length; k++) {
+        for (const q of [lot[0], lot[k - 1], lot[k]]) { o.p.push(q[0], q[1], q[2]); o.n.push(q[3], q[4], q[5]); o.c.push(q[6], q[7], q[8]); }
+      }
+    });
+  }
+  return out.map((o) => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(o.p, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(o.n, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(o.c, 3));
+    return geo;
   });
 }
 
-/** the face, the towers either side of it with LUNA PARK up between them, the walls along the front, and the rides behind */
-function luna(s, p) {
-  const face = new THREE.Mesh(faceGeo(), toonMat({ map: faceTexture() }));
-  face.position.set(FACE.x, FACE.y, FACE.z);
-  face.rotation.y = -Math.PI / 2;
-  face.castShadow = true;
-  s.add(face);
-  // (a dark way in, through its mouth: there's no going in, just yet)
-  const dark = new THREE.Mesh(new THREE.BoxGeometry(6, MOUTH.top + 0.4, MOUTH.hw * 2 + 0.1), new THREE.MeshBasicMaterial({ color: 0x140d0a }));
-  dark.position.set(FACE.x + 3.15, (MOUTH.top + 0.4) / 2, FACE.z);
-  s.add(dark);
-  p.push(part(G.cyl(FACE.r - 0.05, FACE.r - 0.05, 0.7, 40), 0xd03a30, [FACE.x + 0.45, FACE.y, FACE.z], [0, 0, Math.PI / 2]));
-  // its top teeth, along the top of the mouth
-  for (let dz = -1.8; dz <= 1.81; dz += 0.6) {
-    const top = MOUTH.top - MOUTH.hw + Math.sqrt(MOUTH.hw ** 2 - dz * dz);
-    p.push(part(G.box(0.12, 0.55, 0.52), 0xfbf8ee, [FACE.x - 0.04, top - 0.3, FACE.z + dz]));
+/**
+ * The face's skin: bulging out, with its mouth through the bottom of it and its lips painted on round that, in lots by
+ * height (see FACE_LOTS). `back`: the back of it instead, flat, plain, and facing the other way (all the one lot)
+ */
+function skinGeo(back = false) {
+  const ROWS = 30, LIP = 2, pts = [], tris = [], cols = [], c = new THREE.Color(), plain = new THREE.Color(0xefe6d2), lips = new THREE.Color(FACE_PAINT.lip);
+  const sc = Math.sin(FACE_ANGLES[FACE_CORNER]); // (how high round the corners of its grin are)
+  const at = (i, j) => i * (ROWS + 1) + j;
+  for (let i = 0; i <= FACE_NA; i++) {
+    const a = FACE_ANGLES[i], r0 = back ? Math.max(mouthEdge(a), wayEdge(a)) : mouthEdge(a), r1 = faceEdge(a);
+    // (how full its lips are: the top one fullest over the middle of its mouth, bar the dip in it there, and thinning
+    // away to the corners of its grin, and the bottom ones thin, down to the ground)
+    const lip = 0.35 + 0.75 * clamp((Math.sin(a) - sc) / (1 - sc), 0, 1) ** 1.5 - 0.25 * Math.exp(-(((a - Math.PI / 2) / 0.06) ** 2));
+    for (let j = 0; j <= ROWS; j++) {
+      const r = j <= LIP ? r0 + (lip * j) / LIP : r0 + lip + ((r1 - r0 - lip) * (j - LIP)) / (ROWS - LIP);
+      const x = r * Math.cos(a), y = r * Math.sin(a);
+      pts.push(x, y, back ? 0 : faceBulge(x, y));
+      faceSkin(x, y, c);
+      cols.push(c.r, c.g, c.b);
+    }
   }
+  for (let i = 0; i < FACE_NA; i++) {
+    for (let j = 0; j < ROWS; j++) tris.push([at(i, j), at(i + 1, j + 1), at(i + 1, j), j < LIP], [at(i, j), at(i, j + 1), at(i + 1, j + 1), j < LIP]);
+  }
+  const paint = (t, k, out) => (back ? out.copy(plain) : t[3] ? out.copy(lips) : out.fromArray(cols, t[k] * 3));
+  return gridGeo(pts, tris, back ? [] : FACE_LOTS, paint, back);
+}
+
+/**
+ * The inside of its mouth (red), from the edge of it on the face, hollowing out behind its lips and in to the way in, and
+ * on along that to the far end (warm, in bands), all facing in
+ */
+function liningGeo() {
+  const T = 4, N = T + FACE_WAY.length, pts = [], tris = [], COLS = [0x9e2430, 0xf8e2a4, 0xf2c871].map((h) => new THREE.Color(h));
+  const at = (i, k) => i * N + k;
+  for (const a of FACE_ANGLES) {
+    const m = mouthEdge(a), w = wayEdge(a), c = Math.cos(a), s = Math.sin(a), z = faceBulge(m * c, m * s);
+    for (let j = 0; j < T; j++) {
+      const r = m + (w - m) * (j / T) ** 2;
+      pts.push(r * c, r * s, z * (1 - j / T));
+    }
+    for (const z of FACE_WAY) pts.push(w * c, w * s, z);
+  }
+  for (let i = 0; i < FACE_NA; i++) {
+    for (let k = 0; k < N - 1; k++) tris.push([at(i, k), at(i + 1, k), at(i + 1, k + 1), k], [at(i, k), at(i + 1, k + 1), at(i, k + 1), k]);
+  }
+  return gridGeo(pts, tris, [], (t, _, c) => c.copy(COLS[t[3] < T ? 0 : 1 + ((t[3] - T + 1) % 2)]))[0];
+}
+
+/** a tube r round along pts ([x, y, z]s, in order), with a ball on each end (`caps`) */
+function faceTube(pts, r, color, seg = 8, caps = true) {
+  const path = new THREE.CatmullRomCurve3(pts.map((q) => new THREE.Vector3(...q)), false, 'centripetal');
+  const out = [part(new THREE.TubeGeometry(path, pts.length * 2, r, seg, false), color)];
+  if (caps) for (const q of [pts[0], pts[pts.length - 1]]) out.push(part(G.sphere(r, seg, Math.ceil(seg / 2) + 1), color, q));
+  return out;
+}
+
+/**
+ * A tooth w wide and h long, the middle of its root at (x, y, z): a block, rounded off at the end (down, or `up`),
+ * leaning over by `tilt` (radians, the way round the face's frame turns from x to y), and its front tipped up to the
+ * light a little
+ */
+function faceTooth(x, y, z, w, h, tilt = 0, up = false) {
+  const s = up ? 1 : -1, l = h - w / 2, lean = -0.25;
+  const dx = -Math.sin(tilt) * s, dy = Math.cos(tilt) * s * Math.cos(lean), dz = Math.cos(tilt) * s * Math.sin(lean); // (from its root to its end)
+  return [
+    part(G.box(w, l, 0.36), FACE_PAINT.tooth, [x + (dx * l) / 2, y + (dy * l) / 2, z + (dz * l) / 2], [lean, 0, tilt]),
+    part(G.cyl(w / 2, w / 2, 0.36, 14), FACE_PAINT.tooth, [x + dx * l, y + dy * l, z + dz * l], [Math.PI / 2 + lean, 0, 0]),
+  ];
+}
+
+/** an arch of bulbs z along the way in: the rib they're on (into p), and the bulbs, warm, round it clear of the floor (into lit) */
+function bulbArch(p, lit, z) {
+  const rib = [], ring = [], len = [0];
+  for (let i = 0; i <= 80; i++) {
+    const a = (i / 80) * Math.PI, r = wayEdge(a);
+    rib.push([(r - 0.1) * Math.cos(a), (r - 0.1) * Math.sin(a), z]);
+    ring.push([(r - 0.22) * Math.cos(a), (r - 0.22) * Math.sin(a)]);
+    if (i) len.push(len[i - 1] + Math.hypot(ring[i][0] - ring[i - 1][0], ring[i][1] - ring[i - 1][1]));
+  }
+  p.push(...faceTube(rib, 0.07, FACE_PAINT.gold, 6, false));
+  // (evenly round it, from one side to the other)
+  const L = len[len.length - 1], n = Math.round(L / 0.5);
+  for (let k = 0, i = 1; k < n; k++) {
+    const s = ((k + 0.5) * L) / n;
+    while (len[i] < s) i++;
+    const t = (s - len[i - 1]) / (len[i] - len[i - 1]), x = ring[i - 1][0] + (ring[i][0] - ring[i - 1][0]) * t, y = ring[i - 1][1] + (ring[i][1] - ring[i - 1][1]) * t;
+    if (y > 0.5) lit.push(part(G.sphere(0.085, 6, 4), k % 2 ? 0xffc46a : 0xfff4c8, [x, y, z]));
+  }
+}
+
+/** the turnstiles across the way in, z along it: steel posts with a green light on top (into lit), and the arms across the way between them */
+function turnstiles(p, lit, z) {
+  for (const x of [-2.25, -0.75, 0.75, 2.25]) {
+    p.push(part(G.box(0.32, 1, 0.9), 0xa7b0b6, [x, 0.5, z]), part(G.box(0.36, 0.06, 0.94), 0x3a3d40, [x, 1.03, z]));
+    lit.push(part(G.sphere(0.06, 6, 4), 0x5aff7a, [x, 1.1, z + 0.32]));
+    if (x > 2) continue;
+    // (three arms on a tilted hub, the one across the way level)
+    const hub = [x + 0.4, 0.92, z];
+    p.push(part(G.sphere(0.1, 8, 6), 0x8a9298, hub));
+    for (const [dx, dy, dz] of [[1, 0, 0], [-0.5, 0.61, -0.61], [-0.5, -0.61, 0.61]]) {
+      p.push(limb(hub, [hub[0] + dx * 0.75, hub[1] + dy * 0.75, hub[2] + dz * 0.75], 0.035, 0.035, 0xd9dde0, 5));
+    }
+  }
+}
+
+/** the park, all lit up, through the far end of the way in (a picture of it, glowing, filling the arch there) */
+function parkGlow() {
+  const shape = new THREE.Shape();
+  for (let i = 0; i <= 40; i++) {
+    const a = (i / 40) * Math.PI, r = wayEdge(a) - 0.02;
+    if (i) shape.lineTo(r * Math.cos(a), r * Math.sin(a)); else shape.moveTo(r * Math.cos(a), r * Math.sin(a));
+  }
+  const g = new THREE.ShapeGeometry(shape), pos = g.attributes.position, uv = g.attributes.uv;
+  for (let i = 0; i < pos.count; i++) uv.setXY(i, (pos.getX(i) + MOUTH.way) / (2 * MOUTH.way), pos.getY(i) / MOUTH.h);
+  const tex = canvasTexture(256, 256, (c, w, h) => {
+    const sky = c.createRadialGradient(w / 2, h, 8, w / 2, h * 0.8, w * 0.8);
+    sky.addColorStop(0, '#fffbea'); sky.addColorStop(0.45, '#ffe08a'); sky.addColorStop(1, '#ff9a5a');
+    c.fillStyle = sky; c.fillRect(0, 0, w, h);
+    // (the rides in there, against the glow: the big wheel, and the Wild Mouse's track)
+    c.strokeStyle = 'rgba(200, 90, 50, .5)'; c.lineWidth = 3;
+    c.beginPath(); c.arc(w * 0.3, h * 0.45, w * 0.19, 0, TAU); c.stroke();
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * TAU;
+      c.beginPath(); c.moveTo(w * 0.3, h * 0.45); c.lineTo(w * 0.3 + Math.cos(a) * w * 0.19, h * 0.45 + Math.sin(a) * w * 0.19); c.stroke();
+    }
+    c.beginPath(); c.moveTo(w * 0.52, h * 0.8);
+    for (let x = 0.52; x <= 1.01; x += 0.02) c.lineTo(w * x, h * (0.56 - 0.13 * Math.sin((x - 0.52) * 13)));
+    c.stroke();
+    // (and strings of bulbs across, in every colour)
+    for (const [y, n] of [[0.16, 22], [0.3, 18]]) {
+      for (let i = 0; i < n; i++) {
+        c.fillStyle = ['#ff5a4a', '#ffd23a', '#5ab4ff', '#7ad65a', '#ffffff'][i % 5];
+        c.beginPath(); c.arc(((i + 0.5) * w) / n, h * (y + 0.05 * Math.sin((i / (n - 1)) * Math.PI)), 3.2, 0, TAU); c.fill();
+      }
+    }
+  });
+  return new THREE.Mesh(faceAt(g.translate(0, 0, -MOUTH.deep + 0.03)), new THREE.MeshBasicMaterial({ map: tex }));
+}
+
+/**
+ * The face, the way in through its mouth, the towers either side of it with LUNA PARK up between them, the walls along
+ * the front, and the rides behind
+ */
+function luna(s, p, world) {
+  const { way, h, deep } = MOUTH, F = FACE_PAINT, occluders = [];
+  // the face, in lots by height (see FACE_LOTS): each but the lowest (round the sides of its mouth, with its back) goes
+  // see-through while it's between the camera and you, on your way in under it
+  const lots = skinGeo().map((g) => [g]);
+  lots[0].push(...skinGeo(true));
+  // its lips, round its mouth: the top one, from one corner of its grin over to the other, and the bottom ones, either
+  // side of the way in, from the ground up to them
+  const lip = FACE_ANGLES.map((a) => {
+    const r = mouthEdge(a) + 0.2, x = r * Math.cos(a), y = r * Math.sin(a);
+    return [x, y, faceBulge(x, y) + 0.12];
+  });
+  const c0 = FACE_CORNER, c1 = FACE_NA - c0;
+  lots[0].push(...faceTube(lip.slice(0, c0 + 1), 0.36, F.lip, 10), ...faceTube(lip.slice(c1), 0.36, F.lip, 10));
+  lots[1].push(...faceTube(lip.slice(c0, c1 + 1), 0.45, F.lip, 10));
+  // its teeth: big ones all along under its top lip, following it round, and one either side at the bottom, clear of the way in
+  for (let k = -4; k < 4; k++) {
+    const x = (k + 0.5) * 0.88, y = lipTop(x);
+    lots[1].push(...faceTooth(x, y + 0.15, faceBulge(x, y) - 0.12, 0.8, 1.5 - Math.abs(k + 0.5) * 0.12, Math.atan(lipSlope(x))));
+  }
+  for (const k of [-1, 1]) lots[0].push(...faceTooth(k * 2.3, 0, faceBulge(MOUTH.hw, 0) - 0.3, 0.7, 1.1, k * 0.12, true));
+  // its nose (the bridge of it its own colour, just standing out)
+  const nz = faceBulge(0, 7.4), bridge = faceSkin(0, 8.4, new THREE.Color()).getHex();
+  lots[2].push(part(G.sphere(1, 16, 12), F.nose, [0, 7.4, nz + 0.25], [0, 0, 0], [1, 1.05, 0.95]), part(G.sphere(0.45, 10, 8), bridge, [0, 8.4, faceBulge(0, 8.4) - 0.1], [0, 0, 0], [1, 2, 0.6]));
+  for (const k of [-1, 1]) lots[2].push(part(G.sphere(0.55, 12, 8), F.nose, [k * 0.78, 6.9, nz - 0.08]));
+  // its eyes, wide and blue, looking out at you down the forecourt, and its eyebrows, up
+  for (const k of [-1, 1]) {
+    const x = k * FACE_EYE.x, y = FACE_EYE.y, z = faceBulge(x, y);
+    lots[3].push(
+      part(G.sphere(1, 20, 14), 0x3a1a0a, [x, y, z - 0.3], [0, 0, 0], [1.55, 1.92, 0.58]),
+      part(G.sphere(1, 20, 14), 0xffffff, [x, y, z - 0.2], [0, 0, 0], [1.4, 1.75, 0.62]),
+      part(G.sphere(1, 16, 12), F.iris, [x, y - 0.14, z + 0.27], [0, 0, 0], [0.96, 0.96, 0.28]),
+      part(G.sphere(1, 12, 8), 0x111111, [x, y - 0.14, z + 0.45], [0, 0, 0], [0.47, 0.47, 0.14]),
+      part(G.sphere(0.19, 8, 6), 0xffffff, [x + 0.3, y + 0.18, z + 0.58]),
+    );
+    const brow = [[1.25, 13.25], [1.9, 13.75], [2.75, 13.92], [3.6, 13.68], [4.25, 13.1]].map(([bx, by]) => [k * bx, by, faceBulge(k * bx, by) + 0.08]);
+    lots[3].push(...faceTube(brow, 0.27, F.brow, 8));
+  }
+  lots.forEach((l, i) => {
+    const m = vcMesh(faceAt(merge(l)), { cast: true }); // (no shadows on it: its teeth white, its cheeks rosy)
+    s.add(m);
+    if (i) occluders.push(m);
+  });
+  // round it, a blue band, and behind it the rays of its headdress, red and yellow
+  const band = [];
+  for (let i = 0; i <= 80; i++) {
+    const a = (i / 80) * Math.PI, r = faceEdge(a);
+    band.push([r * Math.cos(a), r * Math.sin(a), 0.1]);
+  }
+  const head = faceTube(band, 0.32, F.blue, 8, false);
+  const rim = (f) => 1 / Math.hypot(Math.cos(f) / FACE.rx, Math.sin(f) / FACE.ry); // (the edge of it, from the middle)
+  const pt = (f, r) => new THREE.Vector2(Math.cos(f) * r, FACE.y + Math.sin(f) * r);
+  const f0 = Math.atan2(-FACE.y, faceEdge(0)) - 0.12, N = 26, df = (Math.PI - 2 * f0) / N;
+  for (let k = 0; k < N; k++) {
+    const f = f0 + (k + 0.5) * df, long = k % 2 === 0;
+    const ray = new THREE.Shape([pt(f - df / 2, rim(f - df / 2) - 0.6), pt(f, rim(f) + (long ? 1.9 : 1.3)), pt(f + df / 2, rim(f + df / 2) - 0.6)]);
+    head.push(part(new THREE.ExtrudeGeometry(ray, { depth: 0.36, bevelEnabled: false }), long ? F.red : F.gold, [0, 0, -0.44]));
+  }
+  p.push(...head.map(faceAt));
+
+  // the way in: outside, its walls and its roof (see-through with you in under them); inside, the lining of it on from
+  // its mouth, its floor, tiled, with a red carpet up the middle from out between its lips, arches of bulbs all along,
+  // and at the far end, the turnstiles, a sign over them, and through them the park, all lit up
+  const shell = [
+    part(G.box(2 * way + 1.6, 1.3, deep + 0.6), F.red, [0, h + 0.77, 0.2 - (deep + 0.6) / 2]),
+    part(G.box(2 * way + 1.6, h + 1.3, 0.4), 0xefe6d2, [0, (h + 1.3) / 2, -deep - 0.2]),
+  ];
+  for (const k of [-1, 1]) shell.push(part(G.box(0.8, h + 0.12, deep + 0.6), 0xefe6d2, [k * (way + 0.42), (h + 0.12) / 2, 0.2 - (deep + 0.6) / 2]));
+  const walls = vcMesh(faceAt(merge(shell)), { cast: true, receive: true });
+  s.add(walls);
+  occluders.push(walls);
+  const inside = [liningGeo()], lit = [];
+  for (let i = 0; i < 8; i++) {
+    for (let j = 0; j < 12; j++) inside.push(part(G.box(way / 4, 0.04, deep / 12), (i + j) % 2 ? 0xc8463c : 0xf2dfb0, [-way + ((i + 0.5) * way) / 4, 0.02, (-(j + 0.5) * deep) / 12]));
+  }
+  inside.push(part(G.box(2, 0.05, deep + 1.3), 0xd8404c, [0, 0.045, 1.4 - (deep + 1.3) / 2]), part(G.cyl(1, 1, 0.05, 20), 0xd8404c, [0, 0.045, 1.4]));
+  for (let k = 0; k < FACE_WAY.length - 1; k++) bulbArch(inside, lit, (FACE_WAY[k] + FACE_WAY[k + 1]) / 2);
+  turnstiles(inside, lit, 1.4 - deep);
+  for (const k of [-1, 1]) inside.push(limb([k * 1.4, 3.5, 1 - deep], [k * 1.4, h, 1 - deep], 0.025, 0.025, 0x3a3d40, 4));
+  s.add(new THREE.Mesh(faceAt(merge(inside)), toonMat({ vertexColors: true, emissive: 0x3a2008 })));
+  s.add(new THREE.Mesh(faceAt(merge(lit)), new THREE.MeshBasicMaterial({ vertexColors: true })));
+  s.add(parkGlow());
+  const fun = signFace(3.4, 0.62, (c, cw, ch) => {
+    c.fillStyle = '#c4262a'; c.fillRect(0, 0, cw, ch);
+    c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = `bold ${Math.round(ch * 0.62)}px sans-serif`;
+    c.fillStyle = '#f2c230'; c.fillText('JUST FOR FUN', cw / 2, ch / 2 + 2);
+  });
+  fun.position.set(FACE.x + deep - 1, 3.2, FACE.z);
+  fun.rotation.y = -Math.PI / 2;
+  s.add(fun);
+  s.updateMatrixWorld(true);
+  for (const m of occluders) world.addOccluder(m);
+
   // the towers, either side: in bands, red and white and blue, with bulbs up them, and a spire on top
   for (const k of [-1, 1]) {
     const z = FACE.z + k * 12.5, x = FACE.x + 1;
@@ -555,17 +853,18 @@ function luna(s, p) {
     c.fillStyle = '#e8403a'; c.fillText('LUNA PARK', cw / 2 + 4, ch / 2 + 6);
     c.fillStyle = '#f2c230'; c.fillText('LUNA PARK', cw / 2, ch / 2 + 2);
   });
-  sign.position.set(FACE.x + 0.6, 19.6, FACE.z);
+  sign.position.set(FACE.x + 0.6, 20.4, FACE.z);
   sign.rotation.y = -Math.PI / 2;
   s.add(sign);
-  p.push(part(G.box(0.5, 3, 18), 0xf6f1e4, [FACE.x + 0.9, 19.6, FACE.z]));
-  // the walls along the front, either side, painted, with bulbs along the top
-  for (const [z0, z1] of [[SHEET.z0, FACE.z - FACE.r + 0.2], [FACE.z + FACE.r - 0.2, HILL.z]]) {
-    p.push(part(G.box(1, 3.2, z1 - z0), 0xf6f1e4, [FACE.x + 0.6, 1.6, (z0 + z1) / 2]), part(G.box(1.1, 0.5, z1 - z0), 0x2f6fd0, [FACE.x + 0.6, 3.2, (z0 + z1) / 2]));
+  p.push(part(G.box(0.5, 3, 18), 0xf6f1e4, [FACE.x + 0.9, 20.4, FACE.z]));
+  // the walls along the front, either side, from behind the face's headdress, painted, with bulbs along the top
+  const edge = faceEdge(0); // (where the face comes down to the ground, either side)
+  for (const [z0, z1] of [[SHEET.z0, FACE.z - edge], [FACE.z + edge, HILL.z]]) {
+    p.push(part(G.box(1, 3.2, z1 - z0), 0xf6f1e4, [FACE.x + 1, 1.6, (z0 + z1) / 2]), part(G.box(1.1, 0.5, z1 - z0), 0x2f6fd0, [FACE.x + 1, 3.2, (z0 + z1) / 2]));
     let i = 0;
-    for (let z = z0 + 0.5; z < z1; z += 0.9) p.push(part(G.sphere(0.13, 5, 4), [0xfff0a0, 0xff9a8a, 0xa0d8ff][i++ % 3], [FACE.x + 0.05, 3.55, z]));
+    for (let z = z0 + 0.5; z < z1; z += 0.9) p.push(part(G.sphere(0.13, 5, 4), [0xfff0a0, 0xff9a8a, 0xa0d8ff][i++ % 3], [FACE.x + 0.45, 3.55, z]));
   }
-  // behind: Coney Island, the carousel, the Wild Mouse
+  // behind: Coney Island, the carousel, the Wild Mouse (clear of the way in)
   p.push(part(G.box(30, 9, 13), 0xf2c230, [156, 4.5, -50]), part(G.cyl(1, 1, 30, 3), 0xd8322a, [156, 10.6, -50], [0, 0, Math.PI / 2], [3, 1, 7.4]));
   for (let x = 143; x < 170; x += 4) p.push(part(G.box(2.2, 3.4, 0.1), 0x2c3e55, [x, 3.4, -43.45]));
   p.push(part(G.cyl(4, 4, 0.6, 20), 0xf6f1e4, [134, 0.3, -22]), part(G.cyl(0.25, 0.25, 6, 8), 0xf2c230, [134, 3, -22]));
@@ -577,7 +876,7 @@ function luna(s, p) {
   const loop = [];
   for (let i = 0; i <= 40; i++) {
     const a = (i / 40) * TAU;
-    loop.push([138 + Math.cos(a) * 9, 5 + 3.5 * Math.sin(a * 3) + 2.5 * Math.cos(a), -34 + Math.sin(a) * 6.5]);
+    loop.push([143 + Math.cos(a) * 8.5, 5 + 3.5 * Math.sin(a * 3) + 2.5 * Math.cos(a), -34 + Math.sin(a) * 6.5]);
   }
   for (let i = 0; i < 40; i++) {
     p.push(limb(loop[i], loop[i + 1], 0.22, 0.22, 0xe8403a, 5));
@@ -691,7 +990,7 @@ export function buildMilsons(world) {
   chips.dispose();
 
   // --- Luna Park: the face, the towers, the walls, the rides behind, the bulbs along the forecourt and a ticket box
-  luna(s, near);
+  luna(s, near, world);
   festoons(near);
   for (const z of [-48, -20]) for (let x = 60; x < FACE.x - 4; x += 9) round.push([x, z, 0.2]);
   near.push(part(G.box(2.4, 2.6, 2.4), 0xe8403a, [116, 1.3, -45]), part(G.box(2.5, 0.9, 2.5), 0xf6f1e4, [116, 1.9, -45]), part(G.cone(2, 1.6, 4), 0x2f6fd0, [116, 3.4, -45], [0, Math.PI / 4, 0]));

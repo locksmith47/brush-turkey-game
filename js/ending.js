@@ -3,8 +3,9 @@ import { OUTSIDE, inMouth } from './props/milsons.js';
 import { smoothstep } from './util.js';
 
 /*
- * As far as it goes, for now: walk in through Luna Park's mouth and it all goes black, and up come the words. A key
- * (or a click) and you're back out in front of the face, your squad round you. Like going down, it runs in real time.
+ * As far as it goes, for now: in through Luna Park's mouth, a few steps along the way in, it all goes black, and up come
+ * the words. A key (or a click) and you're back out in front of the face, your squad round you. Like going down, it
+ * runs in real time.
  */
 const DARK_T = 1.2; // going black...
 const WORDS_T = 1.6; // ...and the words coming up out of it
@@ -62,16 +63,24 @@ export class Ending {
   comeBack() { return { x: OUTSIDE[0], z: OUTSIDE[1] }; }
   get zoom() { return this.game.cam.zoom; }
 
-  /** (all black) back out in front of the face, facing back down the boardwalk, and the squad with you */
+  /**
+   * (all black) back out in front of the face, facing back down the forecourt, and the squad that came in with you
+   * gathered just behind you, the way they do
+   */
   out() {
-    const g = this.game, p = g.player, [x, z] = OUTSIDE;
+    const g = this.game, p = g.player, tk = g.turkeys, [x, z] = OUTSIDE, was = p.pos.clone();
     p.pos.set(x, g.world.groundHeight(x, z), z);
     p.heading = -Math.PI / 2;
     p.vel.set(0, 0, 0);
     g.cam.target.set(x, p.pos.y + 1, z);
-    g.turkeys.list.forEach((t) => {
-      if (t.state !== S.FOLLOW || Math.hypot(t.pos.x - x, t.pos.z - z) > 12) return;
-      t.pos.set(x - 1.5 - Math.random() * 3, t.pos.y, z + (Math.random() - 0.5) * 4);
+    const back = p.heading + Math.PI, d = 0.55 + tk.blobR; // (see Turkeys: where they gather)
+    tk.rally.x = x + Math.sin(back) * d;
+    tk.rally.z = z + Math.cos(back) * d;
+    tk.list.forEach((t) => {
+      if (t.state !== S.FOLLOW || Math.hypot(t.pos.x - was.x, t.pos.z - was.z) > 12) return;
+      const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * tk.blobR;
+      const tx = tk.rally.x + Math.cos(a) * r, tz = tk.rally.z + Math.sin(a) * r;
+      t.pos.set(tx, g.world.groundHeight(tx, tz), tz);
     });
   }
 
