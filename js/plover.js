@@ -36,9 +36,10 @@ const ALT = 3.2; // how high it gets before a dive (metres: unless its def says 
 const ALARM_T = 0.55, RISE_T = 0.6, AIM_T = 0.8, DIVE_T = 0.42, CLIMB_T = 0.55, LAND_T = 0.35;
 const FLYING = new Set(['rise', 'aim', 'dive', 'climb', 'return', 'land', 'board']);
 // (riding an ibis) where it sits on the ibis's back (in its body's space, so at the ibis's 1x), how far its belly's
-// up off its feet sat down (at the plover's 1x), and hopping back on: how long it waits for the coast to be clear
-// (seconds, with its ibis back to pottering about), how long the hop takes, and how high it goes (metres)
-const BACK = new THREE.Vector3(0, 0.97, -0.1), SIT = 0.1, CALM_T = 3, BOARD_T = 0.8, BOARD_HOP = 0.6;
+// up off its feet sat down (at the plover's 1x), how much of its legs is left sticking out sat down (folded right up
+// under it), and hopping back on: how long it waits for the coast to be clear (seconds, with its ibis back to
+// pottering about), how long the hop takes, and how high it goes (metres)
+const BACK = new THREE.Vector3(0, 0.97, -0.1), SIT = 0.1, TUCKED = 0.1, CALM_T = 3, BOARD_T = 0.8, BOARD_HOP = 0.6;
 // grabbed hold of, it tries to get up and away, turkeys and all: straining up off the ground for LIFT_T
 // seconds, as high as LIFT_ALT (at 1x: less, the more of them there are hanging off it). Enough of them (its def's
 // drag) and they drag it back down (that takes DROP_T), and it's out for a while (its def's stun), seeing stars,
@@ -187,6 +188,7 @@ export class Plover extends Foe {
     this.leg = { from: new THREE.Vector3(), to: new THREE.Vector3(), T: 1, a0: 0, a1: 0, k: (x) => x };
     this.crew = null; // (the rest of its lot, taking it in turns, a few at a time: see crewBusy)
     this.slump = 0; // (how far it's slumped down, stunned)
+    this.tuck = 0; // (how far its legs are folded up under it, sat on an ibis)
     this.carrier = null; // (the ibis it rides about on, if it's got one: see ride)
     this.aboard = false; // (up on its back right now)
     this.calm = 0; // (how long the coast's been clear, down off its ibis)
@@ -196,7 +198,7 @@ export class Plover extends Foe {
   ride(ibis) {
     this.carrier = ibis;
     this.perch();
-    this.slump = 1;
+    this.slump = this.tuck = 1;
     this.cool = rand(0.5, 1.5);
     return this;
   }
@@ -548,8 +550,8 @@ export class Plover extends Foe {
     let spread = 0, flapA = 0, raise = 0, sweep = 0, legX = Math.sin(this.phase) * 0.7 * moving, neckX = 0, neckZ = 0, roll = 0;
     if (st === 'guard') neckX = moving > 0.1 ? Math.sin(this.phase * 2) * 0.1 : Math.max(0, Math.sin(time * 1.7 + this.bob)) * 0.35;
     else if (st === 'ride') {
-      // sat down on its ibis, legs tucked under, head up and turning, keeping a lookout
-      legX = 1.3; neckX = -0.15 + Math.max(0, Math.sin(time * 1.3 + this.bob)) * 0.2; neckZ = Math.sin(time * 0.7 + this.bob) * 0.3;
+      // sat down on its ibis, legs folded up under it (see tuck), head up and turning, keeping a lookout
+      legX = 0; neckX = -0.15 + Math.max(0, Math.sin(time * 1.3 + this.bob)) * 0.2; neckZ = Math.sin(time * 0.7 + this.bob) * 0.3;
     } else if (st === 'alarm') {
       // wings up and half open, showing off the spurs (flapping like mad, with something hanging off it)
       spread = 0.55; raise = 0.8 + Math.sin(time * 30) * (this.latched.length ? 0.5 : 0.08); neckX = -0.25;
@@ -572,7 +574,13 @@ export class Plover extends Foe {
     r.wingL.rotation.set(0, wy, wz * this.spread + (1 - this.spread) * -0.12);
     r.wingR.rotation.set(0, -wy, -(wz * this.spread + (1 - this.spread) * -0.12));
     r.legL.rotation.x = legX;
-    r.legR.rotation.x = FLYING.has(st) || st === 'stunned' || st === 'ride' ? legX : -legX;
+    r.legR.rotation.x = FLYING.has(st) || st === 'stunned' ? legX : -legX;
+    // (sat on its ibis, or settling onto it, its legs fold right up under it, out of sight; they come back down as it
+    // stands up to go)
+    this.tuck = damp(this.tuck, this.alive && (st === 'ride' || st === 'board') ? 1 : 0, 8, dt);
+    const legs = 1 - (1 - TUCKED) * this.tuck;
+    r.legL.scale.setScalar(legs);
+    r.legR.scale.setScalar(legs);
     r.neck.rotation.set(neckX, 0, neckZ);
     r.bodyPivot.rotation.z = roll + (this.flinch > 0 ? Math.sin(time * 50) * 0.08 * this.flinch : 0);
     this.slump = damp(this.slump, this.alive && (st === 'stunned' || st === 'ride') ? 1 : 0, 8, dt);
