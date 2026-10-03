@@ -126,17 +126,55 @@ export function building(w, h, d, color) {
   return m;
 }
 
+/** a Moreton Bay fig, about h + 2 tall: a stout trunk flaring into buttresses, heavy limbs out low and wide, and a dense dome of leaves over them (and no wider, or it'd get between the camera and you: see World.fadeOccluders) */
 export function fig(h) {
-  const p = [limb([0, 0, 0], [0, h * 0.5, 0], 0.55, 0.4, 0x7d7368, 9)];
-  for (let i = 0; i < 5; i++) {
-    const a = (i / 5) * TAU;
-    p.push(limb([0, 0.6, 0], [Math.cos(a) * 1.1, 0, Math.sin(a) * 1.1], 0.2, 0.08, 0x7d7368, 5));
+  const bark = pick([0x8a8378, 0x837c71, 0x908a80]);
+  const fork = h * 0.3 + 0.45, r0 = 0.3 + h * 0.034, r1 = r0 * 0.82; // (where the trunk splits, and how stout it is at the foot and there)
+  const R = h * 0.42 + 0.6, top = h + 2, rim = fork + 0.9 + h * 0.22; // the canopy: how far it spreads, how high, and where it's widest
+  // the trunk, turned on a lathe: flaring out at the foot, and rounded off over the top, where the limbs come out
+  const prof = [[0, -0.3], [r0 * 1.6, -0.3], [r0 * 1.5, 0.08], [r0 * 1.24, 0.35], [r0 * 1.08, 0.75], [r0, 1.3], [r1, fork], [r1 * 0.75, fork + 0.3], [0, fork + 0.4]];
+  const p = [part(new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, y)), 10), bark, [0, 0, 0], [0, rand(0, TAU), 0])];
+  // a buttress: a fin from `high` up the trunk down to the ground `reach` out, `thick` across (a cone on its side, its
+  // bottom half in the ground), and a root running on out from the foot of it, down into the ground
+  const buttress = (a, reach, high, thick, root) => {
+    p.push(part(G.cone(1, 1, 4), bark, [Math.cos(a) * reach / 2, 0, Math.sin(a) * reach / 2], [0, -a, -Math.PI / 2], [high, reach, thick]));
+    const b = a + rand(-0.25, 0.25), r = reach - 0.4;
+    p.push(limb([Math.cos(a) * r, 0.08, Math.sin(a) * r], [Math.cos(b) * (reach + root), -0.2, Math.sin(b) * (reach + root)], thick * 0.8, thick * 0.45, bark, 5));
+  };
+  // a limb through `pts`, thinning from w0 to w1 (each length runs on past a bend, and the next starts back before it, by
+  // as much as the bend opens up round its outside, so the two meet there instead of gaping)
+  const bough = (pts, w0, w1) => {
+    const v = pts.map((q) => new THREE.Vector3(...q)), n = v.length - 1, w = (k) => w0 + ((w1 - w0) * k) / n;
+    const dir = v.slice(1).map((q, k) => q.clone().sub(v[k]).normalize());
+    const over = (k) => (k > 0 && k < n ? w(k) * Math.tan(dir[k - 1].angleTo(dir[k]) / 2) : 0);
+    for (let k = 0; k < n; k++) {
+      p.push(limb(v[k].clone().addScaledVector(dir[k], -over(k)).toArray(), v[k + 1].clone().addScaledVector(dir[k], over(k + 1)).toArray(), w(k), w(k + 1), bark, 6));
+    }
+  };
+  // the canopy's rim: a ring of clumps, every other one with a limb reaching up into it, and a buttress under that
+  const n = 5, a0 = rand(0, TAU), ring = [];
+  for (let j = 0; j < n * 2; j++) {
+    const a = a0 + (j / (n * 2)) * TAU + rand(-0.12, 0.12), cr = R * rand(0.27, 0.32);
+    ring.push({ a, cr, d: R - cr * rand(1, 1.12), y: rim + rand(-0.3, 0.3) });
   }
-  const greens = [0x2f5f2f, 0x3b6f35, 0x2a5530];
-  for (let i = 0; i < 9; i++) {
-    const a = rand(0, TAU), r = rand(0.5, 2.6);
-    p.push(part(G.ico(rand(1.3, 1.9), 1), pick(greens), [Math.cos(a) * r, h * 0.55 + rand(0.5, 2.4), Math.sin(a) * r], [rand(0, 3), rand(0, 3), 0], [1, 0.7, 1]));
+  for (let i = 0; i < n; i++) {
+    const { a, d, y } = ring[i * 2], c = Math.cos(a), s = Math.sin(a), at = (r, up) => [c * r, up, s * r];
+    buttress(a, r0 + rand(0.25, 0.4), h * rand(0.15, 0.2), rand(0.3, 0.36), rand(0.8, 1.2));
+    if (i % 2 || i === n - 1) buttress(a + Math.PI / n + rand(-0.2, 0.2), r0 + rand(0.15, 0.3), h * rand(0.1, 0.13), 0.28, rand(0.4, 0.6)); // (and a smaller one between, here and there)
+    // out of the top of the trunk, out low and wide, then up into the leaves
+    bough([at(0.1, fork - 0.45), at(R * rand(0.2, 0.24), fork + rand(0.4, 0.6)), at(R * rand(0.44, 0.5), fork + rand(0.9, 1.1)), at(d, y - 0.2)], r1 * rand(0.76, 0.84), r1 * 0.3);
   }
+  const greens = { crown: [0x3b6f35, 0x3f7538, 0x386a33], mid: [0x33652f, 0x386a33, 0x2f5f2f], rim: [0x2f5f2f, 0x2d5a2c, 0x2a5530] };
+  const clump = (cr, colors, a, d, y) => p.push(part(G.ico(cr, 1), pick(colors), [Math.cos(a) * d, y, Math.sin(a) * d], [rand(-0.2, 0.2), rand(0, TAU), rand(-0.2, 0.2)], [1, 0.75, 1]));
+  for (const { a, cr, d, y } of ring) clump(cr, greens.rim, a, d, y);
+  // over it, a ring of bigger ones, and a few more on the crown (and a dark core to fill the lot out)
+  const b0 = rand(0, TAU);
+  for (let j = 0; j < 7; j++) clump(R * rand(0.3, 0.34), greens.mid, b0 + (j / 7) * TAU + rand(-0.2, 0.2), R * rand(0.54, 0.62), rim + (top - rim) * 0.45 + rand(-0.2, 0.2));
+  for (let j = 0; j < 3; j++) {
+    const cr = R * rand(0.31, 0.35);
+    clump(cr, greens.crown, b0 + (j / 3) * TAU + rand(-0.4, 0.4), R * rand(0.1, 0.25), top - cr * 0.75);
+  }
+  p.push(part(G.ico(1, 1), 0x264d2b, [0, rim + 0.95, 0], [0, rand(0, 3), 0], [R * 0.78, (top - rim) * 0.36 + 0.3, R * 0.78]));
   return merge(p);
 }
 
