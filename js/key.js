@@ -12,6 +12,7 @@ import { BEACH } from './world.js';
  *  - the King Crab's lies sunk in his rock pool, at the Shelly Beach end of Manly
  *  - the ferry keys (on a cork float, so they'd float if they went overboard): Captain Gull nicked them, and
  *    he's got them in his beak till he's beaten
+ *  - the key to the city: the King Ibis wears it on a chain round his neck, and it flies off when he's felled
  */
 const GOLD = 0xf2c230, DARK = 0xc8961e, SOIL = [0x5e3e22, 0x7a5230, 0x8b6238];
 const FLY_T = 1.15; // seconds a key takes to fly out of its holder's grip and land
@@ -120,7 +121,7 @@ function keyMesh(model) {
 }
 
 export class Key extends Foe {
-  /** `spec`: { x, z, size, weight, slots, heading, buried (hp to dig it up), holder ('keeper' | 'captain'), model } */
+  /** `spec`: { x, z, size, weight, slots, heading, buried (hp to dig it up), holder ('keeper' | 'captain' | 'king'), model } */
   constructor(game, spec, gate, index) {
     const s = spec.size, holder = spec.holder ? game.enemies[spec.holder] : null;
     super(game, {
@@ -209,17 +210,23 @@ export class Key extends Foe {
     g.fx.sparkle(this.flyFrom.p, 10, [0xffe066, 0xffffff]);
   }
 
-  /** somewhere clear about `dist` from p (towards `dir` if it can be) that the key can be carried away from */
+  /**
+   * somewhere clear about `dist` from p (towards `dir` if it can be) that the key can be carried away from: with room
+   * all round it for its carriers, if there's anywhere like that (not hard up against a throne, say), or if not,
+   * wherever it'll fit
+   */
   landingNear(p, dir, dist) {
-    const g = this.game, w = g.world, r = this.def.carryR * 0.7, lock = this.lockPoint(_w);
-    const clear = (x, z) => w.isFree(x, z, r) && !w.waterDepth(x, z) && !g.mounds.blocked(x, z, r)
+    const g = this.game, w = g.world, lock = this.lockPoint(_w);
+    const clear = (x, z, r) => w.isFree(x, z, r) && !w.waterDepth(x, z) && !g.mounds.blocked(x, z, r)
       && !g.enemies.colliders.some((c) => Math.hypot(x - c.x, z - c.z) < c.r + r)
       && !!w.route(x, z, lock.x, lock.z, _t);
-    for (const d of [dist, dist * 0.7, dist * 1.35, dist * 0.45]) {
-      for (let i = 0; i < 14; i++) {
-        const a = dir + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.45;
-        const x = p.x + Math.sin(a) * d, z = p.z + Math.cos(a) * d;
-        if (clear(x, z)) return _t.set(x, 0, z);
+    for (const r of [this.def.carryR + 0.6, this.def.carryR * 0.7]) {
+      for (const d of [dist, dist * 0.7, dist * 1.35, dist * 0.45]) {
+        for (let i = 0; i < 14; i++) {
+          const a = dir + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.45;
+          const x = p.x + Math.sin(a) * d, z = p.z + Math.cos(a) * d;
+          if (clear(x, z, r)) return _t.set(x, 0, z);
+        }
       }
     }
     return _t.set(p.x, 0, p.z);

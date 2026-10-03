@@ -12,6 +12,7 @@ const LIE_LIFT = 0.16; // (flat on his back, how far up his feet have to be for 
 const POP_T = 0.8; // bursting out of the top of the mound he's been dug out of
 // diving into a mound, to go somewhere else (see Travel): down into a crouch, up and over, and in, head first
 const CROUCH_T = 0.22, LEAP_T = 0.55, SINK_T = 0.3;
+const HOP_T = 0.4; // hopping on or off the train (see Ride)
 const MID = 0.98; // (the middle of him, up from his boots: what he turns head over heels about)
 const _v = new THREE.Vector3();
 
@@ -55,7 +56,8 @@ export class Player {
     this.hop = 0; // height above the ground (trampolining!)
     this.hopV = 0;
     // his health, and how he's doing: 'ok', 'down' (out cold: WASTED), 'diving' (into a mound, to go somewhere
-    // else), 'buried' (in a mound, waiting to be dug out) or 'rising' (bursting out of the top of it)
+    // else), 'buried' (in a mound, waiting to be dug out) or 'rising' (bursting out of the top of it); or 'aboard' the
+    // train, and 'alighting' from it
     this.hp = MAX_HP;
     this.life = 'ok';
     this.lifeT = 0;
@@ -67,6 +69,8 @@ export class Player {
     this.beatT = 0;
     this.digK = 0; // how far he's been dug out of the mound (the turkeys at it set this)
     this.under = 0; // (and how far under he still is, before that: 1 is right under, out of sight)
+    this.hopFrom = new THREE.Vector3(); // (hopping on or off the train: from where, to where)
+    this.hopTo = new THREE.Vector3();
   }
 
   /** as far as anything after him is concerned: he's down, or buried in a mound (so leave him be) */
@@ -177,6 +181,29 @@ export class Player {
     this.speed = this.hop = this.hopV = 0;
     this.diveFrom = this.pos.clone();
     this.heading = Math.atan2(m.pos.x - this.pos.x, m.pos.z - this.pos.z);
+  }
+
+  /** on the train: a hop in through her doorway at `door`, and he's aboard, out of sight (see Ride) */
+  board(door) {
+    this.life = 'aboard';
+    this.lifeT = 0;
+    this.throwT = this.pluckT = 1;
+    this.whistling = false;
+    this.flinch = this.dizzy = this.landK = 0;
+    this.knockVel.set(0, 0, 0);
+    this.vel.set(0, 0, 0);
+    this.speed = this.hop = this.hopV = 0;
+    this.hopFrom.copy(this.pos);
+    this.hopTo.copy(door);
+  }
+
+  /** and off again, out of her doorway at `door`, in a hop down onto the platform at `to` */
+  alight(door, to) {
+    this.life = 'alighting';
+    this.lifeT = 0;
+    this.hopFrom.copy(door);
+    this.hopTo.copy(to);
+    this.pos.copy(door);
   }
 
   /** dug out: up he pops out of the top of the mound, spinning round once, to land on his feet at `to` */
@@ -321,7 +348,22 @@ export class Player {
         this.poseBuried();
       } else this.poseDiving(dt);
     } else if (this.life === 'buried') this.poseBuried();
-    else {
+    else if (this.life === 'aboard' || this.life === 'alighting') {
+      // (a hop up into her doorway, or down out of it onto the platform)
+      const k = Math.min(1, this.lifeT / HOP_T), dx = this.hopTo.x - this.hopFrom.x, dz = this.hopTo.z - this.hopFrom.z;
+      this.pos.lerpVectors(this.hopFrom, this.hopTo, k);
+      this.hop = Math.sin(k * Math.PI) * 0.45;
+      if (dx || dz) this.heading = dampAngle(this.heading, Math.atan2(dx, dz), 14, dt);
+      if (this.life === 'alighting' && k >= 1) {
+        this.life = 'ok';
+        this.hop = 0;
+        this.landK = 1;
+        g.audio.land();
+      }
+      this.speed = k < 1 ? this.maxSpeed * 0.5 : 0;
+      this.animate(dt, this.heading);
+      this.speed = 0;
+    } else {
       const k = Math.min(1, this.lifeT / POP_T);
       this.pos.x = lerp(this.popFrom.x, this.popTo.x, k);
       this.pos.z = lerp(this.popFrom.z, this.popTo.z, k);
@@ -340,7 +382,7 @@ export class Player {
       }
       this.poseRising(k, dt);
     }
-    this.rig.root.visible = this.life !== 'buried' || this.under < 1;
+    this.rig.root.visible = (this.life !== 'buried' || this.under < 1) && (this.life !== 'aboard' || this.lifeT < HOP_T);
     this.rig.root.updateMatrixWorld(true);
   }
 

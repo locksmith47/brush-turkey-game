@@ -176,7 +176,7 @@ function shellAt(sh, s, u, v, o) {
 }
 
 /** the sails, as one geometry (merged like any other, bar that it's built up a triangle at a time) */
-function sailsGeo() {
+export function sailsGeo() {
   const pos = [], nor = [], col = [], _a = new THREE.Vector3(), _b = new THREE.Vector3(), c = new THREE.Color();
   const tri = (pts, ns, color) => pts.forEach((p, i) => { pos.push(p.x, p.y, p.z); nor.push(ns[i].x, ns[i].y, ns[i].z); col.push(color.r, color.g, color.b); });
   for (const sh of SAILS) {

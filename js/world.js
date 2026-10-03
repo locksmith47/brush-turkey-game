@@ -9,6 +9,8 @@ import { buildWharf, wharfGround, DECK } from './props/wharf.js';
 import { buildHarbour } from './props/harbour.js';
 import { buildCity, STREETS, quayGround } from './props/city.js';
 import { buildOpera, operaGround, onSteps, OPERA_TRACK } from './props/opera.js';
+import { buildHyde, hydeGround, HYDE_TRACK, HYDE_RECT, HYDE_GATE } from './props/hyde.js';
+import { buildMilsons, milsonsGround, MILSONS_TRACK, LUNA_TRACK, MILSONS_RECT, LUNA_RECT, LUNA_GAP } from './props/milsons.js';
 
 /*
  * The map runs the way the turkeys came, north to south: out of the bush, through the backyards and across
@@ -16,6 +18,10 @@ import { buildOpera, operaGround, onSteps, OPERA_TRACK } from './props/opera.js'
  * wharf, over the harbour on the ferry, and into the city. Each leg has its own way ahead (and the camera
  * swings round to face down the second one as you come out onto the beach). Round the end of the Quay, back
  * out along the water, is the Opera House: off the way on, and seen side on, looking down the first leg again.
+ * Through the end of the King's court is Hyde Park, looking down the first leg again, and at the far end of
+ * it, Museum station: the train from there goes under the city and over the Bridge to Milsons Point, which is
+ * off on its own, well away from the rest (there's no walking there: see Ride), with Luna Park round the corner
+ * from it.
  */
 export const LEGS = [
   { yaw: 0, dir: [0, -1] },
@@ -29,16 +35,20 @@ export const ZONES = [
   { name: 'Manly Beach', rect: [-46, -270, 70, -178], leg: 1 },
   { name: 'Manly Wharf', rect: [70, -244, 140, -184], leg: 1 },
   { name: 'The Manly Ferry', rect: [140, -242, 356, -178], leg: 1 }, // (bounds: wherever the deck's got to, see Ferry)
-  { name: 'The City', rect: [356, -270, 502, -178], leg: 1 },
+  { name: 'The City', rect: [356, -270, 506, -178], leg: 1 },
   { name: 'The Opera House', rect: [304, -290, 356, -242], leg: 0 },
+  { name: 'Hyde Park', rect: HYDE_RECT, leg: 0 },
+  { name: 'Milsons Point', rect: MILSONS_RECT, leg: 0 },
+  { name: 'Luna Park', rect: LUNA_RECT, leg: 1 },
 ];
-export const OVAL = 2, BEACH = 3, WHARF = 4, FERRY = 5, CITY = 6, OPERA = 7;
+export const OVAL = 2, BEACH = 3, WHARF = 4, FERRY = 5, CITY = 6, OPERA = 7, HYDE = 8, MILSONS = 9, LUNA = 10;
 /**
- * The fences between them, each with a gate in it at (x, z), going through which (along `d`) takes you on to
- * the next area. `span`: how far the fence runs either way along its line (it's right across the area, by
- * default). The ferry's two gangways (`ferry`) are only open while the ferry's in at that end, and there's no
- * padlock at all on the one at Circular Quay (`lock` false): the ferry keys are for the wharf's. And round the end
- * of the Quay, the way onto the Opera House's broadwalk is no gate at all, just a gap in the railing (`gap`)
+ * The fences between them, each with a gate in it at (x, z), going through which (along `d`) takes you on from
+ * area `from` to area `to` (the next one along, unless it says). `span`: how far the fence runs either way along
+ * its line (it's right across the area, by default). The ferry's two gangways (`ferry`) are only open while the
+ * ferry's in at that end, and there's no padlock at all on the one at Circular Quay (`lock` false): the ferry keys
+ * are for the wharf's. And round the end of the Quay, the way onto the Opera House's broadwalk is no gate at all,
+ * just a gap in the railing (`gap`), as is the way round from Milsons Point into Luna Park
  */
 export const FENCES = [
   { x: 6, z: -38, d: [0, -1], kind: 'wood' },
@@ -48,6 +58,8 @@ export const FENCES = [
   { x: 140, z: -224, d: [1, 0], kind: 'rail', span: [-246, -182], ferry: true },
   { x: 356, z: -224, d: [1, 0], kind: 'rail', span: [-245, -175], ferry: true, lock: false },
   { x: 356, z: -249.5, d: [-1, 0], kind: 'rail', hw: 4.5, span: [-273, -245], lock: false, gap: true },
+  { ...HYDE_GATE, kind: 'rail', from: CITY, to: HYDE }, // (in the railings along the end of the King's court)
+  { ...LUNA_GAP, kind: 'rail', lock: false, gap: true, from: MILSONS, to: LUNA },
 ];
 const SUN = new THREE.Vector3(18, 40, 14); // (where the sun is from you, looking down the first leg)
 const _v = new THREE.Vector3(), _k = new THREE.Vector3();
@@ -62,13 +74,34 @@ export class World {
     this.roosts = []; // low branches turkeys can roost on: {tree, x, z, perches, spot} (the toys pick these up)
     this.swayers = [];
     this.occluders = []; // buildings that go see-through when they're in the way of the camera
-    this.gates = FENCES.map((f) => ({
+    this.gates = FENCES.map((f, i) => ({
       x: f.x, z: f.z, d: f.d, hw: f.hw ?? 2.6, kind: f.kind, ferry: !!f.ferry, lock: f.lock ?? true, gap: !!f.gap,
       span: f.span ?? (f.d[0] ? [-273, -175] : [-49, 49]), open: !!f.gap, unlocked: f.lock === false,
+      from: f.from ?? i, to: f.to ?? i + 1,
     }));
+    // (each area's gates, and which way through each is out of it: +1 along `d`, -1 back against it)
+    this.links = ZONES.map((_, i) => this.gates.flatMap((g) => (g.from === i ? [[g, 1]] : g.to === i ? [[g, -1]] : [])));
+    // (and the way from any area to any other: the gate out of the first to head for, or null if there's no way at all)
+    this.hops = ZONES.map((_, i) => {
+      const hop = ZONES.map(() => null), seen = new Set([i]), queue = [i];
+      while (queue.length) {
+        const z = queue.shift();
+        for (const [g, s] of this.links[z]) {
+          const next = s > 0 ? g.to : g.from;
+          if (seen.has(next)) continue;
+          seen.add(next);
+          hop[next] = z === i ? [g, s] : hop[z];
+          queue.push(next);
+        }
+      }
+      return hop;
+    });
     this.track = this.zoneTrack(0, TRACK); // the way through the bush (the scrub either side of it is impassable)
     // each zone's lie of the land (where there's any to speak of: the beach is wide open, and the ferry's all deck)
-    this.tracks = [this.track, this.zoneTrack(1, BACKYARDS), this.zoneTrack(2, FIELD), null, null, null, this.zoneTrack(CITY, STREETS), this.zoneTrack(OPERA, OPERA_TRACK)];
+    this.tracks = [
+      this.track, this.zoneTrack(1, BACKYARDS), this.zoneTrack(2, FIELD), null, null, null, this.zoneTrack(CITY, STREETS), this.zoneTrack(OPERA, OPERA_TRACK),
+      this.zoneTrack(HYDE, HYDE_TRACK), this.zoneTrack(MILSONS, MILSONS_TRACK), this.zoneTrack(LUNA, LUNA_TRACK),
+    ];
 
     this.buildSky();
     this.buildLights();
@@ -81,14 +114,15 @@ export class World {
     this.harbour = buildHarbour(this);
     this.city = buildCity(this);
     this.opera = buildOpera(this); // (and Benny's steps, for turkeys to lie about on: see main.js)
+    this.hyde = buildHyde(this); // (the fountain and the statues, for turkeys to wash in and sit on, and Museum station)
+    this.milsons = buildMilsons(this); // (Milsons Point station, and Luna Park round the corner)
   }
 
   /** zone i's track (see Track), with room to get through the gates in and out of it */
   zoneTrack(i, spec) {
     if (!spec.rooms) spec = Track.fromPaths(spec);
     const rooms = [...spec.rooms];
-    for (const g of [this.gates[i - 1], this.gates[i]]) {
-      if (!g) continue;
+    for (const [g] of this.links[i]) {
       // (3 m either side of it, and the width of the gateway: along x for a fence across the first leg, z the second)
       const ex = g.d[0] ? 3 : g.hw + 0.5, ez = g.d[0] ? g.hw + 0.5 : 3;
       rooms.push({ rect: [g.x - ex, g.z - ez, g.x + ex, g.z + ez], ground: 'dirt' });
@@ -127,6 +161,8 @@ export class World {
     if (zone === FERRY) return this.game.ferry ? this.game.ferry.groundAt(x, z) : DECK;
     if (zone === CITY) return quayGround(x, z);
     if (zone === OPERA) return operaGround(x, z);
+    if (zone === HYDE) return hydeGround(x, z);
+    if (zone === MILSONS || zone === LUNA) return milsonsGround(x, z);
     return this.bushHeight(x, z);
   }
 
@@ -293,8 +329,8 @@ export class World {
   keepIn(p, r) {
     const i = this.zoneOf(p.x, p.z), ferry = i === FERRY ? this.game.ferry : null;
     let [x0, z0, x1, z1] = this.boundsOf(i);
-    for (const [g, s] of [[this.gates[i - 1], -1], [this.gates[i], 1]]) {
-      if (!g || (ferry && ferry.docked !== (s < 0 ? 'wharf' : 'quay'))) continue;
+    for (const [g, s] of this.links[i]) {
+      if (ferry && ferry.docked !== (s < 0 ? 'wharf' : 'quay')) continue;
       const along = g.d[0] ? p.z : p.x;
       if (along < g.span[0] || along > g.span[1]) continue;
       // (the side facing the gate: s is +1 for the way on out of it, -1 for the way back in)
@@ -406,15 +442,17 @@ export class World {
 
   /**
    * Next point to walk to on the way from (fx,fz) to (tx,tz), going through gates between zones, and in
-   * the bush, along the track. Returns null if the way is still fenced off (or barricaded). `ferry`: count
-   * the harbour as crossed, if the ferry's running at all (it comes to whichever side you're on), bar past the
-   * giant cuttlefish, till it's been seen off (see Cuttle.bars)
+   * the bush, along the track. Returns null if the way is still fenced off (or barricaded), or there's no way
+   * there on foot at all (Milsons Point's over the harbour). `ferry`: count the harbour as crossed, if the ferry's
+   * running at all (it comes to whichever side you're on), bar past the giant cuttlefish, till it's been seen off
+   * (see Cuttle.bars)
    */
   route(fx, fz, tx, tz, out, ferry = false) {
     const zf = this.zoneOf(fx, fz), zt = this.zoneOf(tx, tz);
     if (zf !== zt) {
-      const s = zt > zf ? 1 : -1; // (+1: on the way you're headed, -1: back the way you came)
-      const gate = this.gates[s > 0 ? zf : zf - 1];
+      const hop = this.hops[zf][zt];
+      if (!hop) return null;
+      const [gate, s] = hop; // (s: +1 on through it the way it goes, -1 back the way you came)
       if (!gate.open && !(ferry && gate.ferry && this.gates[WHARF].unlocked && !this.game.cuttle?.bars(gate))) return null;
       const [dx, dz] = gate.d, rx = fx - gate.x, rz = fz - gate.z;
       const nearGap = Math.abs(rz * dx - rx * dz) < gate.hw - 0.3 && Math.abs(rx * dx + rz * dz) < 1.6;
@@ -461,6 +499,8 @@ export class World {
     this.harbour.update(dt, t);
     this.city.update(dt, t);
     this.opera.update(dt, t);
+    this.hyde.update(dt, t);
+    this.milsons.update(dt, t);
     for (const s of this.swayers) {
       s.m.rotation.z = Math.sin(t * 0.7 + s.ph) * 0.012;
       s.m.rotation.x = Math.cos(t * 0.53 + s.ph) * 0.01;

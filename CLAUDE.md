@@ -10,9 +10,14 @@ package.json, no test suite. `index.html` pulls three@0.170.0 from jsdelivr thro
 through The Bush, The Backyards and The Oval, then right at the beach and down the second leg (+x) along Manly
 Beach to Manly Wharf, over the harbour on The Manly Ferry, and into The City at Circular Quay. Each is shut off
 from the next by a padlocked gate, whose key the turkeys have to win and carry to it. (The ferry's gangways
-only open while she's in, and the King Ibis in the city is the end of the line, with no gate past him.) Off the
-way on, through a gap in the railing at the end of the Quay, is The Opera House (`props/opera.js`), looked at down
-the first leg again: Benny the seal (`seal.js`) lazes on the steps out the back.
+only open while she's in.) The King Ibis's key, round his neck, opens the lane at the end of his court into Hyde
+Park (`props/hyde.js`): rats (`rat.js`) as well as ibis, the Archibald Fountain to have a wash in, statues to sit on
+the heads of, and Museum station down in a cutting at the far end. There the train (`train.js`) takes you, F at her
+doors, across to Milsons Point. That's an island of its own, a kilometre off down -x (`props/milsons.js`, local
+coordinates plus `OX`), with the Bridge, the city and the north shore round it as far-off scenery; the map draws
+it next to the rest. Past the station is Luna Park, and walking into the face's mouth ends it, for now, with "To be
+continued" (`ending.js`). Off the way on, through a gap in the railing at the end of the Quay, is The Opera House
+(`props/opera.js`), looked at down the first leg again: Benny the seal (`seal.js`) lazes on the steps out the back.
 
 ## Commands
 

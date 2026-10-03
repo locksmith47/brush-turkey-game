@@ -5,10 +5,10 @@ import { S } from './turkey.js';
 /*
  * Backyard toys: a trampoline turkeys bounce on, and "rides" they can sit on: a swing set,
  * the Hills Hoist (roost on it and it spins), the low branches of the gums out in the bush, the
- * oval's stands and Big Kev's ride-on mower and, at Manly, the beach chairs.
+ * oval's stands and Big Kev's ride-on mower, at Manly, the beach chairs and, in Hyde Park, the fountain.
  *
  * A ride has seats [{ rider }] and:
- *   seatPose               'swing' | 'perch' | 'roost' | 'lounge' (how the rider sits)
+ *   seatPose               'swing' | 'perch' | 'roost' | 'lounge' | 'bathe' (how the rider sits)
  *   nearestSeat(p)         { i, d } for the best free seat, or null
  *   approach(i, from, out) where to walk to before hopping on
  *   seatPos(i, out, t)     where rider t sits (world)      seatHeading(i)  which way it faces
@@ -504,6 +504,32 @@ export class Perches {
   }
 }
 
+/* A fountain to have a wash in (the Archibald, in Hyde Park): in over the rim with a splash, and a dunk and a shake every so often */
+const _d = new THREE.Vector3();
+class Bath extends Perches {
+  constructor(game, obj, perches, opts) {
+    super(game, obj, perches, { pose: 'bathe', time: [12, 30], ...opts });
+    this.dropT = 0;
+  }
+
+  onMount(t, i) {
+    this.game.fx.burst(this.seatPos(i, _d), { n: 8, colors: [0xffffff, 0xcfefff], speed: [0.8, 2], up: [1.5, 3], grav: 9, size: [0.03, 0.06], life: [0.3, 0.6] });
+    this.game.audio.splash();
+  }
+
+  update(dt) {
+    // (the drops flying off whoever's shaking out their wings)
+    if ((this.dropT -= dt) > 0) return;
+    this.dropT = 0.1;
+    const time = this.game.time;
+    this.seats.forEach((s, i) => {
+      if (!s.rider || Math.sin(time * 1.1 + s.rider.id * 1.9) < 0.85) return;
+      this.seatPos(i, _d).y += 0.35;
+      this.game.fx.burst(_d, { n: 3, colors: [0xffffff, 0xdff6ff], speed: [0.8, 1.8], up: [0.6, 1.6], grav: 8, size: [0.025, 0.045], life: [0.25, 0.5] });
+    });
+  }
+}
+
 /* Big Kev's ride-on mower, parked: one up in the driver's seat (feet up: it idles away), one on the bonnet, one on the catcher */
 const MOWER_SIZE = 1.4;
 let MOWER = null;
@@ -597,6 +623,8 @@ export class Toys {
   /** seats to sit in (see Perches): a stand's, say */
   addPerches(obj, perches, opts) { return this.addRide(new Perches(this.game, obj, perches, opts)); }
   addMower(x, z, rotY) { return this.addRide(new RideOnMower(this.game, x, z, rotY)); }
+  /** a fountain's water, to wash in (see Bath) */
+  addBath(obj, perches, opts) { return this.addRide(new Bath(this.game, obj, perches, opts)); }
   addRide(r) { this.rides.push(r); return r; }
   removeRide(r) { this.rides = this.rides.filter((x) => x !== r); }
 

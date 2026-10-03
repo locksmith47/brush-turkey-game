@@ -6,6 +6,7 @@ import { Keeper } from './keeper.js';
 import { Crab } from './crab.js';
 import { Plover } from './plover.js';
 import { Gull, CaptainGull } from './gull.js';
+import { Rat } from './rat.js';
 
 /* Owns every foe (and every carcass / leaf bag waiting to be hauled). */
 export class Enemies {
@@ -27,6 +28,7 @@ export class Enemies {
       : kind === 'gull' ? new Gull(g, x, z, arg ?? [x, z])
       : kind === 'captain' ? new CaptainGull(g, x, z, arg ?? [x, z])
       : kind === 'spider' ? new Spider(g, x, z)
+      : kind === 'rat' ? new Rat(g, x, z)
         : kind === 'keeper' ? new Keeper(g, x, z)
           : kind === 'crab' ? new Crab(g, 'crab', x, z)
             : kind === 'kingcrab' ? new Crab(g, 'king', x, z)

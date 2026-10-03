@@ -7,13 +7,18 @@ import { TRACK } from './props/bush.js';
 import { webTexture } from './spider.js';
 import { POOLS } from './props/beach.js';
 
-/* One giant key per area (bar the city: the King Ibis is the end of the line); each needs more turkeys to lift than the last. */
+/*
+ * One giant key per padlocked gate (by the gate's number: there's none for the gangway at the Quay, nor the gap round
+ * to the Opera House); each needs more turkeys to lift than the last.
+ */
 const KEYS = [
   { x: TRACK.clearings.key[0], z: TRACK.clearings.key[1], size: 1.0, weight: 4, slots: 8, heading: 0.6, buried: 18 }, // buried behind the funnel-web's web, off to the right of the gate
   { x: -34, z: -86, size: 1.6, weight: 10, slots: 14, heading: 2.2 }, // in the far yard on the left, the giant ibis's
   { holder: 'keeper', model: 'rake', size: 2.3, weight: 18, slots: 24 }, // Big Kev's rake is a key rake
   { x: POOLS[0].x - 3, z: POOLS[0].z + 1, size: 2.7, weight: 22, slots: 26, heading: -1.2 }, // sunk in the King Crab's rock pool
   { holder: 'captain', model: 'ferry', size: 3.0, weight: 26, slots: 28 }, // the ferry keys: Captain Gull's nicked them
+  null, null,
+  { holder: 'king', size: 3.3, weight: 28, slots: 30 }, // the key to the city, round the King Ibis's neck: it opens the way to Hyde Park
 ];
 
 function leafGeo(kind, w) {
@@ -522,10 +527,11 @@ export class Barriers {
 
   /** drop each area's key into the world, or into its holder's hands (needs game.enemies, which hauls them) */
   spawnKeys() {
-    this.keys = KEYS.map((spec, i) => {
-      const k = new Key(this.game, spec, this.game.world.gates[i], i);
+    this.keys = []; // (by gate: none for the gates with no padlock)
+    KEYS.forEach((spec, i) => {
+      if (!spec) return;
+      const k = (this.keys[i] = new Key(this.game, spec, this.game.world.gates[i], i));
       this.game.enemies.list.push(k);
-      return k;
     });
   }
 

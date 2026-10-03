@@ -23,13 +23,14 @@ const QUAY = -74, STREET = -118, ALLEY = [-128, -138], PLAZA = -148, YARD = -170
 // the laneways through each row: [name, x0, x1] (10 m across: room enough for the key and its carriers)
 const FRONT_LANES = [['w', -40, -30], ['m', -4, 6], ['e', 20, 30]];
 const BACK_LANES = [['w2', -20, -10], ['e2', 28, 38]];
-// the bin alley, and the King's court at the end of it (up to the Town Hall)
-const BIN_ALLEY = ['bin', -26, -14], COURT = { x0: -40, x1: 0, z0: -198, z1: -220 };
+// the bin alley, and the King's court at the end of it (up to the Town Hall). Its side towards x0 is the railings
+// along the top of Hyde Park, with the gate in them that his key opens (see HYDE_GATE)
+const BIN_ALLEY = ['bin', -26, -14], COURT = { x0: -46, x1: 0, z0: -198, z1: -224 };
 /**
  * The King's throne of bins, in the middle of his court: it faces up the bin alley, with the Town Hall behind
  * it. He sits `sitZ` in front of the middle of the seat (`seatY` up), and gets down onto the ground at `front`
  */
-const THRONE = { x: -20, z: -208, seatY: 1.65, sitZ: 0.5, front: 3.9 };
+const THRONE = { x: -20, z: -210, seatY: 1.65, sitZ: 0.5, front: 3.9 };
 
 /* ------------------------------------------------------------------ the city's frame */
 const FX = 282, FZ = -224; // (where its (0, 0) is in the world: it's turned a quarter to the right from there)
@@ -37,6 +38,8 @@ const FX = 282, FZ = -224; // (where its (0, 0) is in the world: it's turned a q
 export const toWorld = (x, z) => [FX - z, FZ + x];
 const toLocal = (X, Z) => [Z - FZ, FX - X];
 const rectToWorld = ([x0, z0, x1, z1]) => [FX - z1, FZ + x0, FX - z0, FZ + x1];
+/** how far the King's court reaches along the top of Hyde Park, in the world (the railings there, with the gate in them: see HYDE_GATE) */
+export const COURT_SPAN = [FX - COURT.z0, FX - COURT.z1];
 /** the ground in the city: flat, bar at the Quay, which rises at the water's edge to meet the ferry's deck */
 export function quayGround(x) { return 0.35 * smoothstep(362, 356.5, x); }
 
@@ -123,17 +126,55 @@ export function building(w, h, d, color) {
   return m;
 }
 
-function fig(h) {
-  const p = [limb([0, 0, 0], [0, h * 0.5, 0], 0.55, 0.4, 0x7d7368, 9)];
-  for (let i = 0; i < 5; i++) {
-    const a = (i / 5) * TAU;
-    p.push(limb([0, 0.6, 0], [Math.cos(a) * 1.1, 0, Math.sin(a) * 1.1], 0.2, 0.08, 0x7d7368, 5));
+/** a Moreton Bay fig, about h + 2 tall: a stout trunk flaring into buttresses, heavy limbs out low and wide, and a dense dome of leaves over them (and no wider, or it'd get between the camera and you: see World.fadeOccluders) */
+export function fig(h) {
+  const bark = pick([0x8a8378, 0x837c71, 0x908a80]);
+  const fork = h * 0.3 + 0.45, r0 = 0.3 + h * 0.034, r1 = r0 * 0.82; // (where the trunk splits, and how stout it is at the foot and there)
+  const R = h * 0.42 + 0.6, top = h + 2, rim = fork + 0.9 + h * 0.22; // the canopy: how far it spreads, how high, and where it's widest
+  // the trunk, turned on a lathe: flaring out at the foot, and rounded off over the top, where the limbs come out
+  const prof = [[0, -0.3], [r0 * 1.6, -0.3], [r0 * 1.5, 0.08], [r0 * 1.24, 0.35], [r0 * 1.08, 0.75], [r0, 1.3], [r1, fork], [r1 * 0.75, fork + 0.3], [0, fork + 0.4]];
+  const p = [part(new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, y)), 10), bark, [0, 0, 0], [0, rand(0, TAU), 0])];
+  // a buttress: a fin from `high` up the trunk down to the ground `reach` out, `thick` across (a cone on its side, its
+  // bottom half in the ground), and a root running on out from the foot of it, down into the ground
+  const buttress = (a, reach, high, thick, root) => {
+    p.push(part(G.cone(1, 1, 4), bark, [Math.cos(a) * reach / 2, 0, Math.sin(a) * reach / 2], [0, -a, -Math.PI / 2], [high, reach, thick]));
+    const b = a + rand(-0.25, 0.25), r = reach - 0.4;
+    p.push(limb([Math.cos(a) * r, 0.08, Math.sin(a) * r], [Math.cos(b) * (reach + root), -0.2, Math.sin(b) * (reach + root)], thick * 0.8, thick * 0.45, bark, 5));
+  };
+  // a limb through `pts`, thinning from w0 to w1 (each length runs on past a bend, and the next starts back before it, by
+  // as much as the bend opens up round its outside, so the two meet there instead of gaping)
+  const bough = (pts, w0, w1) => {
+    const v = pts.map((q) => new THREE.Vector3(...q)), n = v.length - 1, w = (k) => w0 + ((w1 - w0) * k) / n;
+    const dir = v.slice(1).map((q, k) => q.clone().sub(v[k]).normalize());
+    const over = (k) => (k > 0 && k < n ? w(k) * Math.tan(dir[k - 1].angleTo(dir[k]) / 2) : 0);
+    for (let k = 0; k < n; k++) {
+      p.push(limb(v[k].clone().addScaledVector(dir[k], -over(k)).toArray(), v[k + 1].clone().addScaledVector(dir[k], over(k + 1)).toArray(), w(k), w(k + 1), bark, 6));
+    }
+  };
+  // the canopy's rim: a ring of clumps, every other one with a limb reaching up into it, and a buttress under that
+  const n = 5, a0 = rand(0, TAU), ring = [];
+  for (let j = 0; j < n * 2; j++) {
+    const a = a0 + (j / (n * 2)) * TAU + rand(-0.12, 0.12), cr = R * rand(0.27, 0.32);
+    ring.push({ a, cr, d: R - cr * rand(1, 1.12), y: rim + rand(-0.3, 0.3) });
   }
-  const greens = [0x2f5f2f, 0x3b6f35, 0x2a5530];
-  for (let i = 0; i < 9; i++) {
-    const a = rand(0, TAU), r = rand(0.5, 2.6);
-    p.push(part(G.ico(rand(1.3, 1.9), 1), pick(greens), [Math.cos(a) * r, h * 0.55 + rand(0.5, 2.4), Math.sin(a) * r], [rand(0, 3), rand(0, 3), 0], [1, 0.7, 1]));
+  for (let i = 0; i < n; i++) {
+    const { a, d, y } = ring[i * 2], c = Math.cos(a), s = Math.sin(a), at = (r, up) => [c * r, up, s * r];
+    buttress(a, r0 + rand(0.25, 0.4), h * rand(0.15, 0.2), rand(0.3, 0.36), rand(0.8, 1.2));
+    if (i % 2 || i === n - 1) buttress(a + Math.PI / n + rand(-0.2, 0.2), r0 + rand(0.15, 0.3), h * rand(0.1, 0.13), 0.28, rand(0.4, 0.6)); // (and a smaller one between, here and there)
+    // out of the top of the trunk, out low and wide, then up into the leaves
+    bough([at(0.1, fork - 0.45), at(R * rand(0.2, 0.24), fork + rand(0.4, 0.6)), at(R * rand(0.44, 0.5), fork + rand(0.9, 1.1)), at(d, y - 0.2)], r1 * rand(0.76, 0.84), r1 * 0.3);
   }
+  const greens = { crown: [0x3b6f35, 0x3f7538, 0x386a33], mid: [0x33652f, 0x386a33, 0x2f5f2f], rim: [0x2f5f2f, 0x2d5a2c, 0x2a5530] };
+  const clump = (cr, colors, a, d, y) => p.push(part(G.ico(cr, 1), pick(colors), [Math.cos(a) * d, y, Math.sin(a) * d], [rand(-0.2, 0.2), rand(0, TAU), rand(-0.2, 0.2)], [1, 0.75, 1]));
+  for (const { a, cr, d, y } of ring) clump(cr, greens.rim, a, d, y);
+  // over it, a ring of bigger ones, and a few more on the crown (and a dark core to fill the lot out)
+  const b0 = rand(0, TAU);
+  for (let j = 0; j < 7; j++) clump(R * rand(0.3, 0.34), greens.mid, b0 + (j / 7) * TAU + rand(-0.2, 0.2), R * rand(0.54, 0.62), rim + (top - rim) * 0.45 + rand(-0.2, 0.2));
+  for (let j = 0; j < 3; j++) {
+    const cr = R * rand(0.31, 0.35);
+    clump(cr, greens.crown, b0 + (j / 3) * TAU + rand(-0.4, 0.4), R * rand(0.1, 0.25), top - cr * 0.75);
+  }
+  p.push(part(G.ico(1, 1), 0x264d2b, [0, rim + 0.95, 0], [0, rand(0, 3), 0], [R * 0.78, (top - rim) * 0.36 + 0.3, R * 0.78]));
   return merge(p);
 }
 
@@ -181,16 +222,18 @@ export const QUAY_GULLS = [[-15, -80, 2]].map(([x, z, n]) => [...toWorld(x, z), 
 /**
  * A row of buildings from z0 to z1 (all the way across, bar its laneways), a few of them to each block,
  * each a different height (between `heights`) and colour. They go see-through when they're in the way of
- * the camera
+ * the camera. `from`: where the row starts, if not right out at the edge (past the King's court, it's Hyde Park)
  */
-function row(world, z0, z1, lanes, shopfronts, heights = [5.5, 9.5]) {
+function row(world, z0, z1, lanes, shopfronts, heights = [5.5, 9.5], from = -50) {
   const cols = [0xa0523d, 0xd9c49a, 0x9aa3ab, 0x6fa3b0, 0xc47c5a, 0xb9b39f, 0xc9a27a, 0x8f9c84];
   const awnings = [0x2f6fb0, 0xc0392b, 0x2e8b57, 0xe0a526];
-  const edges = [-50, ...lanes.flatMap(([, x0, x1]) => [x0, x1]), 50];
+  const edges = [from, ...lanes.flatMap(([, x0, x1]) => [x0, x1]), 50];
   for (let i = 0; i < edges.length; i += 2) {
     const a = edges[i], b = edges[i + 1], n = Math.max(1, Math.round((b - a) / 11)), w = (b - a) / n;
+    if (b - a < 1) continue; // (a laneway right at the start of it)
     for (let k = 0; k < n; k++) {
-      const h = rand(...heights), x = a + w * (k + 0.5), m = building(w - 0.1, h, z0 - z1, pick(cols));
+      const h = rand(...heights), x = a + w * (k + 0.5);
+      const m = building(w - 0.1, h, z0 - z1, pick(cols));
       m.position.set(x, h / 2, (z0 + z1) / 2);
       frame.add(m);
       world.addOccluder(m);
@@ -212,7 +255,7 @@ export function buildCity(world) {
   frame.updateMatrixWorld(true);
   const s = frame, track = world.trackAt(...toWorld(0, STREET + 5));
   const ground = [
-    flat(130, 172, 0x9a978f, 0, -162, 0.005), // (concrete, under everything)
+    flat(111, 172, 0x9a978f, 9.5, -162, 0.005), // (concrete, under everything, as far as the top of Hyde Park)
     flat(92, 6, 0xc9c6bd, 0, -101, 0.03),
     flat(92, 10, 0x4a4d52, 0, -109, 0.02),
     flat(92, 4, 0xc9c6bd, 0, -116, 0.03),
@@ -240,6 +283,7 @@ export function buildCity(world) {
   const cols = [0xa0523d, 0xd9c49a, 0x9aa3ab, 0x6fa3b0, 0xc47c5a, 0xb9b39f];
   for (let z = -100; z > COURT.z1 + 4; z -= 13) {
     for (const side of [-1, 1]) {
+      if (side < 0 && z < -130) continue; // (Hyde Park's there, past the King's court, and St Mary's)
       const w = rand(9, 12), h = rand(9, 24);
       const b = building(w, h, 12, pick(cols));
       b.position.set(side * (50 + w / 2), h / 2, z - 6);
@@ -248,8 +292,8 @@ export function buildCity(world) {
   }
   row(world, STREET, ALLEY[0], FRONT_LANES, true);
   row(world, ALLEY[1], PLAZA, BACK_LANES, false);
-  row(world, YARD, COURT.z0, [BIN_ALLEY], false, [10, 17]);
-  row(world, COURT.z0, COURT.z1 + 0.4, [['court', COURT.x0, COURT.x1]], false, [8, 13]);
+  row(world, YARD, COURT.z0, [BIN_ALLEY], false, [10, 17], COURT.x0);
+  row(world, COURT.z0, COURT.z1 + 0.4, [['court', COURT.x0, COURT.x1]], false, [8, 13], COURT.x0);
   // (the way through a laneway keeps to the middle of it, clear of the corners, where the key's carriers need the room)
   const guide = (ax, az, bx, bz) => {
     const [AX, AZ] = toWorld(ax, az), [BX, BZ] = toWorld(bx, bz);
@@ -587,12 +631,13 @@ function throne(world) {
  */
 function townHall(world) {
   const z = COURT.z1 - 0.4, cx = THRONE.x, SAND = 0xdcc091, DARK = 0xc4a574;
-  const hall = building(100, 13, 18, SAND);
-  hall.position.set(0, 6.5, z - 9);
+  const w = 50 - COURT.x0, mid = (50 + COURT.x0) / 2; // (from the top of Hyde Park, across)
+  const hall = building(w, 13, 18, SAND);
+  hall.position.set(mid, 6.5, z - 9);
   frame.add(hall);
   const p = [
-    part(G.box(100.6, 0.8, 18.6), DARK, [0, 13.2, z - 9]),
-    part(G.box(100.2, 0.4, 18.2), DARK, [0, 4.4, z - 9]),
+    part(G.box(w + 0.6, 0.8, 18.6), DARK, [mid, 13.2, z - 9]),
+    part(G.box(w + 0.2, 0.4, 18.2), DARK, [mid, 4.4, z - 9]),
     part(G.box(15, 1.2, 1.2), DARK, [cx, 9.9, z + 0.1]),
     part(G.cyl(1, 1, 1, 3), SAND, [cx, 11.8, z + 0.1], [-Math.PI / 2, 0, 0], [8.6, 1.2, 2.2]),
     part(G.box(7.4, 12, 7.4), SAND, [cx, 19.4, z - 5]),
@@ -682,6 +727,7 @@ function skyline() {
   const cols = [0x8fa9bf, 0x6f8faf, 0xb9c3cb, 0xd9d4c5, 0x9fb3c2, 0xc9c1b0, 0xa7b4a8];
   for (let z = -252; z > -310; z -= 17) {
     for (let x = -96; x <= 96; x += 24) {
+      if (x < -40) continue; // (Hyde Park's off that side: see buildHyde)
       const w = rand(11, 16), d = rand(11, 16), h = rand(28, 46) + (-252 - z) * 0.5, b = building(w, h, d, pick(cols));
       b.position.set(x + rand(-3, 3), h / 2, z + rand(-3, 3));
       frame.add(b);
@@ -689,6 +735,7 @@ function skyline() {
   }
   for (const side of [-1, 1]) {
     for (let z = -104; z > -250; z -= 18) {
+      if (side < 0 && z < -130) continue; // (Hyde Park, and St Mary's)
       const w = rand(11, 15), h = rand(22, 42), b = building(w, h, 14, pick(cols));
       b.position.set(side * (64 + w / 2 + rand(0, 8)), h / 2, z + rand(-3, 3));
       frame.add(b);
