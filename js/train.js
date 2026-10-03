@@ -317,7 +317,7 @@ export class Ride {
     this.arrived = true;
     this.opened = false;
     this.wait(MILSONS_STOP);
-    const door = this.nearestDoor(_v.set(MILSONS_STOP.x, 0, MILSONS_STOP.z)).door;
+    const door = this.nearestDoor(_w.set(MILSONS_STOP.x, 0, MILSONS_STOP.z)).door;
     this.from = door.pos.clone();
     p.pos.copy(this.from);
     p.hopFrom.copy(this.from);

@@ -8,27 +8,32 @@ import { chipsGeo } from './wharf.js';
 import { signFace, benchGeo, lampGeo } from './hyde.js';
 
 /*
- * Milsons Point, over the Bridge, where the train from Museum comes in: the platform up on the viaduct, the stairs
- * down off the end of it to the street, and under the line, Bradfield Park, running down to the water. And the view:
- * the Bridge going over on your left, from the pylons at the bottom of the park, and across the harbour, the Quay,
- * the Opera House and the city (a long way off, and kept simple). Round along the water is Luna Park, its big face
- * grinning at you over the boardwalk: walk in through its mouth, and that's as far as it goes, for now.
+ * Milsons Point, over the Bridge, where the train from Museum comes in: in off the Bridge, down the west side of it,
+ * to the platform up on the viaduct beside the Bridge's road, and on north past it into the hill, under North Sydney.
+ * The stairs come down off the south end of the platform, by the Bridge's pylons, and Bradfield Park runs off along the
+ * water from the foot of them, Alfred Street along the top of it. And the view: the Bridge going away over the harbour
+ * on your left, and across it, the Quay, the Opera House and the city (a long way off, and kept simple). Round along the
+ * water is Luna Park, its big face grinning at you over the boardwalk: walk in through its mouth, and that's as far as
+ * it goes, for now.
  *
  * It's off on its own, well away from everywhere else (the train's the only way here, and the tunnels the only way
  * back): OX along from the rest of the world, and laid out the way the first leg is, looking down it, so south, over
  * the harbour, is -z, and round the corner into Luna Park, west, is +x (the second leg's way on).
  */
 export const OX = -1000; // (how far along x from the rest of the world it all is: everything below's from there)
-const PLAT = { x0: -22, x1: 22, z0: -2.6, z1: 3.2, y: 6 }; // the platform, up on the viaduct
-const TRACK_Z = -4.5, RAIL_Y = PLAT.y - 1.1; // (the line, along the front of it, and the tops of its rails)
-/** where the train stops at Milsons Point (the middle of her): her doors open onto the platform, on her +z side */
-export const MILSONS_STOP = { x: OX, z: TRACK_Z, y: PLAT.y, dir: [1, 0], side: 1 };
-const STAIRS = { x0: -32, x1: -22, z0: -1.6, z1: 2.4, n: 24 }; // down off the east end of the platform, to the street (the foot's at x0)
-const FORE = { x0: -45, x1: -31.5, z0: -9, z1: 7 }; // the forecourt at the foot of the stairs, and the way under the line
-const DECK = { x0: -54, z0: -6.5, z1: -2.6 }; // the viaduct the line's on (its top at RAIL_Y), from the Bridge's approach to the hill
-const HILL = { x: 26, z: -16, y: 10 }; // the hill the line goes on into: its face (x), the wall along the foot of it (z), and how high
-const PARK = { x0: -45, x1: 48, z0: -56, z1: -8 }; // Bradfield Park
-const SHEET = { x0: -58, x1: 176, z0: -58, z1: 38 }; // the flat, down by the water (the land beyond's all hills, or harbour)
+// the line: in off the Bridge, along the west side of it, past the platform and on north into the hill: x down the
+// middle of it, the tops of its rails, the top of the deck under it (and the Bridge's, either side of the span), and z
+// where it goes in, at the portal (and the road with it)
+const LINE = { x: -57, y: 6.9, deck: 6.5, portal: 56 };
+const PLAT = { x0: -55.2, x1: -49, z0: -14, z1: 30, y: 8 }; // the platform, up on the viaduct, along the west side of the line
+/** where the train stops at Milsons Point (the middle of her): in off the Bridge, heading north, her doors opening onto the platform on her west side */
+export const MILSONS_STOP = { x: OX + LINE.x, z: 8, y: PLAT.y, dir: [0, 1], side: -1 };
+const STAIRS = { x0: -54.7, x1: -49.5, z0: -27.5, n: 27 }; // down off the south end of the platform, towards the water (the foot's at z0)
+const HILL = { x: 26, z: -16, y: 10 }; // the hill behind Luna Park: its face (x), the wall along the foot of it (z), and how high
+const PARK = { x0: -46, x1: 48, z0: -56, z1: -8 }; // Bradfield Park
+const ALFRED = [-4, 4]; // (Alfred Street, along the top of the park and on under the station, the line and the Bridge's road)
+const SHEET = { x0: -82, x1: 176, z0: -58, z1: 56 }; // the flat, down by the water (the land beyond's all hills, or harbour)
+const PORTAL = { x0: -82, x1: -40, y: 13.2 }; // (the wall across the line and the road where they go in, and the hill over it)
 // Luna Park's face, looking out at you from the end of the boardwalk: the middle of it (and how high up that is), how
 // far it goes out either side and up and down from there (the ground cuts it off), and how far it bulges out at you
 const FACE = { x: 124, z: -34, y: 7.2, rx: 8.4, ry: 9, d: 3.4 };
@@ -37,10 +42,10 @@ const FACE = { x: 124, z: -34, y: 7.2, rx: 8.4, ry: 9, d: 3.4 };
 // in: how wide (half), how high, and how far back it goes. And how close up to the face you can get, out either side
 // of its mouth)
 const MOUTH = { hw: 2.7, top: 4.8, corner: [4.3, 5.3], way: 2.9, h: 4.9, deep: 9, lips: 3.5 };
-const BR = { x: -64, z0: -64, z1: -264, deck: 20, hw: 11 }; // the Bridge: down the middle, the pylons at either end, and its deck
+const BR = { x: -64, z0: -64, z1: -264, rise: 12, hw: 11 }; // the Bridge: down the middle, the pylons at either end, how far up its deck goes over the middle, and how wide (half)
 const OPERA = [-152, -246]; // (the Opera House, on Bennelong Point)
 
-export const MILSONS_RECT = [PARK.x0 + OX, -58, 50 + OX, 8];
+export const MILSONS_RECT = [LINE.x - 2 + OX, -58, 50 + OX, PLAT.z1 + 2];
 export const LUNA_RECT = [50 + OX, -60, FACE.x + MOUTH.deep + 1 + OX, HILL.z];
 /** round the corner into Luna Park: no gate at all, just the boardwalk going on along the water */
 export const LUNA_GAP = { x: 50 + OX, z: -36, d: [1, 0], hw: 19, span: [-55, -17] };
@@ -58,27 +63,24 @@ export const inMouth = (x, z) => x - OX > FACE.x + 4 && Math.abs(z - FACE.z) < M
 export const OUTSIDE = [FACE.x - 6 + OX, FACE.z];
 
 /* ------------------------------------------------------------------ the lie of the land */
-/** the ground: flat, bar the platform, the stairs down off it, and the line along it */
+/** the ground: flat, bar the platform and the stairs down off it */
 export function milsonsGround(x, z) {
   x -= OX;
-  if (x >= PLAT.x0 && x <= PLAT.x1) {
-    if (z >= PLAT.z0 && z <= PLAT.z1) return PLAT.y;
-    if (z >= DECK.z0 && z < PLAT.z0) return RAIL_Y;
-  }
-  if (x >= STAIRS.x0 && x < STAIRS.x1 && z >= STAIRS.z0 - 0.3 && z <= STAIRS.z1 + 0.3) return (PLAT.y * (x - STAIRS.x0)) / (STAIRS.x1 - STAIRS.x0);
+  if (x >= PLAT.x0 && x <= PLAT.x1 && z >= PLAT.z0 && z <= PLAT.z1) return PLAT.y;
+  if (x >= STAIRS.x0 - 0.3 && x <= STAIRS.x1 + 0.3 && z >= STAIRS.z0 && z < PLAT.z0) return (PLAT.y * (z - STAIRS.z0)) / (PLAT.z0 - STAIRS.z0);
   return 0;
 }
 
 const at = (x, z) => [x + OX, z];
 const box = (x0, z0, x1, z1) => [x0 + OX, z0, x1 + OX, z1];
-// the lie of the land (see Track): off the platform, down the stairs, under the line and into the park
+// the lie of the land (see Track): off the platform, down the stairs, round the foot of them and into the park
 export const MILSONS_TRACK = {
-  nodes: { plat: at(-21.8, 0.4), foot: at(-31.9, 0.4), under: at(-38.5, -8.5), park: at(10, -24) },
+  nodes: { plat: at(-52.1, PLAT.z0 + 1.6), foot: at(-52.1, STAIRS.z0 - 1.5), east: at(-43, -34), park: at(10, -24) },
   rooms: [
-    { rect: box(PLAT.x0 + 0.2, PLAT.z0 + 0.35, PLAT.x1 - 0.4, PLAT.z1 - 0.4), nodes: ['plat'], ground: 'dirt' },
-    { rect: box(STAIRS.x0 - 0.6, STAIRS.z0 + 0.2, STAIRS.x1 + 0.4, STAIRS.z1 - 0.2), nodes: ['plat', 'foot'], ground: 'dirt' },
-    { rect: box(FORE.x0 + 0.4, FORE.z0, FORE.x1, FORE.z1 - 0.4), nodes: ['foot', 'under'], ground: 'dirt' },
-    { rect: box(PARK.x0 + 0.4, PARK.z0, HILL.x - 0.6, PARK.z1), nodes: ['under', 'park'] },
+    { rect: box(PLAT.x0 + 0.3, PLAT.z0 + 0.3, PLAT.x1 - 0.3, PLAT.z1 - 0.3), nodes: ['plat'], ground: 'dirt' },
+    { rect: box(STAIRS.x0 + 0.2, STAIRS.z0 - 3, STAIRS.x1 - 0.2, PLAT.z0 + 3), nodes: ['plat', 'foot'], ground: 'dirt' },
+    { rect: box(LINE.x + 2.1, -48.8, -40, STAIRS.z0), nodes: ['foot', 'east'], ground: 'dirt' },
+    { rect: box(PARK.x0 + 0.4, PARK.z0, HILL.x - 0.6, PARK.z1), nodes: ['east', 'park'] },
     { rect: box(PARK.x0 + 0.4, PARK.z0, PARK.x1 + 2.5, HILL.z - 0.6), nodes: ['park'] },
   ],
 };
@@ -119,16 +121,18 @@ function landH(x, z) {
   return Math.max(y, -2);
 }
 
-/** the hill behind Luna Park, that the line goes on into: up from the top of its wall, and on up to North Sydney */
+/** the hill behind Luna Park: up from the top of its wall, and on up to North Sydney */
 const hillH = (x, z) => Math.max(landH(x, z), (HILL.y + 6 * smoothstep(-10, 50, z)) * smoothstep(198, 178, x));
+/** and the one over the portal, where the line and the road go in: level with the top of its wall, going down either side of it */
+const portalH = (x, z) => PORTAL.y * smoothstep(PORTAL.x0 - 12, PORTAL.x0, x) * smoothstep(PORTAL.x1 + 12, PORTAL.x1, x) * smoothstep(LINE.portal, LINE.portal + 6, z);
 
-/** the height of the land all round: the flat (just under it: it's got its own ground), the hill, and the rest */
+/** the height of the land all round: the flat (just under it: it's got its own ground), the hills, and the rest */
 function terrainH(x, z) {
   const out = Math.hypot(Math.max(SHEET.x0 - x, 0, x - SHEET.x1), Math.max(SHEET.z0 - z, 0, z - SHEET.z1));
   if (x >= HILL.x + 6 - 0.1 && z >= HILL.z + 6 - 0.1) return hillH(x, z);
   if (out < 0.1) return -0.05;
-  const y = landH(x, z);
-  return y > 0 ? y * smoothstep(0, 30, out) : y; // (rising gently away from the flat)
+  const y = landH(x, z), h = y > 0 ? y * smoothstep(0, 30, out) : y, over = portalH(x, z); // (rising gently away from the flat)
+  return over > 0 ? Math.max(h, over) : h;
 }
 
 const C = {
@@ -148,7 +152,7 @@ function terrainGeo() {
     pos.setY(i, y);
     if (y < SEA) c.copy(C.sand).lerp(C.deep, smoothstep(SEA - 0.1, SEA - 1.3, y));
     else if (steep > 1.1) c.copy(Math.sin(y * 2.6) > 0 ? C.cliff : C.cliff2); // (sandstone, in bands)
-    else if (y < 0.7) c.copy(steep > 0.5 ? C.rock : C.sand);
+    else if (y < 0.7) c.copy(steep > 0.5 ? C.rock : y > -0.1 && z > SHEET.z0 + 4 ? C.grass : C.sand); // (sand down at the water, grass back off it)
     else c.copy(C.bush).lerp(C.bush2, 0.5 + 0.5 * Math.sin(x * 0.3 + z * 0.23)).lerp(C.grass, smoothstep(0.35, 0, steep) * 0.4);
     if (z < -258 && y > 0.7) c.lerp(C.city, 0.7); // (over the water, it's all city)
     col.set([c.r, c.g, c.b], i * 3);
@@ -163,50 +167,46 @@ const LAWN = [new THREE.Color(0x6fa548), new THREE.Color(0x82b453)], SHADE = new
 const PAVE = new THREE.Color(0xcfc9bc), PATH = new THREE.Color(0xd8c9a2), ROAD = new THREE.Color(0x4a4d52), TAR = new THREE.Color(0x77736c);
 const PLANKS = [new THREE.Color(0x9a7a55), new THREE.Color(0x8f7050)], TILES = [new THREE.Color(0xd84a3a), new THREE.Color(0xf2d27a)];
 // the park's paths, as capsules: [ax, az, bx, bz, half their width]
-const PATHS = [
-  [-38.5, -8, -24, -30, 1.6], [-24, -30, -8, -50, 1.6], [-24, -30, 20, -36, 1.4], [20, -36, 50, -40, 1.8],
-  [PARK.x0, -52.5, 50, -52.5, 2.8], // (the promenade, along the water)
-];
-function offPath(x, z) {
-  let d = Infinity;
-  for (const [ax, az, bx, bz, w] of PATHS) {
-    const vx = bx - ax, vz = bz - az, t = clamp(((x - ax) * vx + (z - az) * vz) / (vx * vx + vz * vz), 0, 1);
-    d = Math.min(d, Math.hypot(x - ax - vx * t, z - az - vz * t) - w);
+const PATHS = [[-47, -30.5, -24, -30, 1.8], [-24, -30, -8, -50.5, 1.6], [-24, -30, 20, -36, 1.4], [20, -36, 50, -40, 1.8]];
+
+/**
+ * What the flat's made of, in the 2 m square round (x, z): Luna Park's boardwalk and forecourt, the street and its
+ * footpaths, the paving round the foot of the stairs and along the water, or (null) the park's lawn, which goes on
+ * under the Bridge's road
+ */
+function groundKind(x, z) {
+  if (x >= 50) {
+    if (z < -48.5) return PLANKS[Math.floor(x / 2) % 2]; // (the boardwalk)
+    if (x > FACE.x + 0.5) return TAR; // (under the way in, through the face's mouth)
+    return PAVE; // (the forecourt's tiles are laid over it: see forecourtGeo)
   }
-  return d;
+  if (z > ALFRED[0] && z < ALFRED[1]) return ROAD;
+  if (x < LINE.x - 1.7) return null;
+  if (z > PARK.z1 || x < PARK.x0 || z < -50) return PAVE;
+  return null;
 }
 
-/** the colour of the flat at (x, z): the park's lawn and paths, the street, Luna Park's boardwalk and forecourt */
-function groundColour(x, z, trees, c) {
-  if (x >= 50) {
-    if (z < -48.5) return c.copy(PLANKS[Math.floor(x / 2) % 2]); // (the boardwalk)
-    if (x > FACE.x + 0.5) return c.copy(TAR); // (inside: there's no going in, just yet)
-    return c.copy(PAVE); // (the forecourt's tiles are laid over it: see forecourtGeo)
-  }
-  if (z > PARK.z1 + 0.5) {
-    // the street north of the station (Alfred Street), and the paving round the station
-    if (z > 9 && z < 16) return c.copy(ROAD);
-    return c.copy(PAVE);
-  }
-  const n = 0.5 + 0.5 * noise(x * 0.09, z * 0.09);
-  c.copy(LAWN[0]).lerp(LAWN[1], n);
+/** the lawn's colour at (x, z): mottled, and darker in under the figs */
+function lawnColour(x, z, trees, c) {
+  c.copy(LAWN[0]).lerp(LAWN[1], 0.5 + 0.5 * noise(x * 0.09, z * 0.09));
   let shade = 0;
   for (const [tx, tz] of trees) shade = Math.max(shade, 1 - smoothstep(2.5, 6.5, Math.hypot(x - tx, z - tz)));
-  c.lerp(SHADE, shade * 0.55);
-  const p = offPath(x, z);
-  if (p < 0.6) c.lerp(z < -49 ? PAVE : PATH, smoothstep(0.6, -0.4, p));
-  return c;
+  return c.lerp(SHADE, shade * 0.55);
 }
 
-/** the flat, in 2 m squares: from Kirribilli's edge to Lavender Bay, and the water up to Alfred Street (bar the hill) */
+/** the flat, in 2 m squares: from under the Bridge to Lavender Bay, and the water up to the portal (bar the hill) */
 function groundGeo(trees) {
   const S = 2, pos = [], col = [], c = new THREE.Color();
-  const corner = (x, z) => { groundColour(x, z, trees, c); pos.push(x, 0, z); col.push(c.r, c.g, c.b); };
   for (let x = SHEET.x0; x < SHEET.x1; x += S) {
     for (let z = SHEET.z0; z < SHEET.z1; z += S) {
       if (x >= HILL.x && z >= HILL.z) continue;
-      corner(x, z); corner(x, z + S); corner(x + S, z);
-      corner(x + S, z); corner(x, z + S); corner(x + S, z + S);
+      const kind = groundKind(x + S / 2, z + S / 2);
+      for (const [dx, dz] of [[0, 0], [0, S], [S, 0], [S, 0], [0, S], [S, S]]) {
+        if (kind) c.copy(kind);
+        else lawnColour(x + dx, z + dz, trees, c);
+        pos.push(x + dx, 0, z + dz);
+        col.push(c.r, c.g, c.b);
+      }
     }
   }
   const g = new THREE.BufferGeometry();
@@ -214,6 +214,20 @@ function groundGeo(trees) {
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   g.computeVertexNormals();
   return g;
+}
+
+/** the park's paths, laid over the lawn (round at the ends), and the markings down Alfred Street */
+function paths(p) {
+  for (const [ax, az, bx, bz, w] of PATHS) {
+    const len = Math.hypot(bx - ax, bz - az), s = new THREE.Shape();
+    s.moveTo(0, -w);
+    s.lineTo(len, -w);
+    s.absarc(len, 0, w, -Math.PI / 2, Math.PI / 2, false);
+    s.lineTo(0, w);
+    s.absarc(0, 0, w, Math.PI / 2, Math.PI * 1.5, false);
+    p.push(part(new THREE.ShapeGeometry(s, 6).rotateX(-Math.PI / 2).rotateY(Math.atan2(az - bz, bx - ax)), PATH, [ax, 0.02, az]));
+  }
+  for (let x = SHEET.x0 + 2; x < 48; x += 6) p.push(part(G.box(3, 0.02, 0.15), 0xf2efe6, [x, 0.02, (ALFRED[0] + ALFRED[1]) / 2]));
 }
 
 /** the forecourt's tiles, in red and yellow rays fanning out from the face (each ray cut to the forecourt's edges) */
@@ -252,6 +266,7 @@ function forecourtGeo() {
 
 /* ------------------------------------------------------------------ the station */
 const BRICK = 0xa8553c, BRICK2 = 0x924a35, CREAM = 0xe8dcc0, GREEN = 0x2f5a3f, STEEL = 0x6d777d, GRANITE = 0xc2b59b;
+const SAND = 0xc9a874, SAND2 = 0xb89660, DARK = 0x231c18;
 
 /** a railing along (ax, az) to (bx, bz), at height y */
 function railing(p, ax, az, bx, bz, y, color = GREEN) {
@@ -261,107 +276,185 @@ function railing(p, ax, az, bx, bz, y, color = GREEN) {
   for (let i = 0; i <= n; i++) p.push(part(G.box(0.06, 1.05, 0.06), color, [ax + ((bx - ax) * i) / n, y + 0.52, az + ((bz - az) * i) / n]));
 }
 
+/** an arch's dark doorway, on a wall at x facing along +x (k 1) or -x (k -1), its middle at z */
+function archway(p, x, z, k = 1, w = 2.2, h = 2.6) {
+  p.push(part(G.box(0.06, h, w), DARK, [x + k * 0.03, h / 2, z]), part(G.cyl(w / 2, w / 2, 0.06, 14), DARK, [x + k * 0.03, h, z], [0, 0, Math.PI / 2]));
+  p.push(part(G.box(0.12, 0.22, w + 0.4), CREAM, [x + k * 0.06, h + w / 2 + 0.3, z]));
+}
+
+/** the way under for Alfred Street, through a wall at x facing along +x (k 1) or -x (k -1): dark, under a girder */
+function underpass(p, x, k = 1) {
+  const w = ALFRED[1] - ALFRED[0] + 1, m = (ALFRED[0] + ALFRED[1]) / 2;
+  p.push(part(G.box(0.06, 4.6, w), DARK, [x + k * 0.03, 2.3, m]));
+  p.push(part(G.box(0.4, 1.1, w + 1.6), GREEN, [x + k * 0.2, 5.15, m]), part(G.box(0.5, 0.12, w + 1.8), GREEN, [x + k * 0.25, 4.62, m]));
+  for (const s of [-1, 1]) p.push(part(G.box(0.3, 4.6, 0.6), SAND2, [x + k * 0.15, 2.3, m + s * (w / 2 + 0.3)]));
+}
+
+/** a box down along z from a to b, at x, w wide and h deep, its top `top` over y(z) all the way (in lengths of no more than `step`, each tilted to follow it) */
+function along(p, x, a, b, w, h, top, color, y, step = 8) {
+  const n = Math.max(1, Math.ceil((b - a) / step));
+  for (let i = 0; i < n; i++) {
+    const za = a + ((b - a) * i) / n, zb = a + ((b - a) * (i + 1)) / n, ya = y(za) + top - h / 2, yb = y(zb) + top - h / 2;
+    p.push(part(G.box(w, h, Math.hypot(zb - za, yb - ya) + 0.05), color, [x, (ya + yb) / 2, (za + zb) / 2], [-Math.atan2(yb - ya, zb - za), 0, 0]));
+  }
+}
+const level = () => LINE.deck; // (the line's deck, off the Bridge: level all the way)
+
+/** the line along its deck, from z a to b (the deck's top at y(z)): its ballast, its sleepers (from z `near` on: further off, you'd never see them) and its rails */
+function track(p, a, b, y = level, near = a) {
+  along(p, LINE.x, a, b, 3.2, 0.24, 0.22, 0x6b6560, y);
+  for (let z = Math.max(a, near) + 0.35; z < b; z += 0.7) p.push(part(G.box(2.5, 0.12, 0.24), 0x5a4a3a, [LINE.x, y(z) + 0.28, z]));
+  for (const s of [-1, 1]) along(p, LINE.x + s * 0.72, a, b, 0.08, 0.14, LINE.y - LINE.deck, 0x9aa0a6, y);
+}
+
 /**
- * The station: the building under the platform (brick, with its arches along the street side), the platform up
- * top, the stairs down off the end of it, and the viaduct the line runs along, on to the hill, where it goes in
+ * The station: the brick building under the platform, with arches along its street side and Alfred Street through it,
+ * the platform up on top, and the stairs down off the south end of it, between their walls, to the way in at the foot
  */
 function station(p) {
-  const { x0, x1, z0, z1, y } = PLAT, DB = RAIL_Y - 1.3;
-  // the building, and its arches, and the platform on top
-  p.push(part(G.box(x1 - x0, y, z1 - z0), BRICK, [(x0 + x1) / 2, y / 2, (z0 + z1) / 2]));
-  for (let x = x0 + 2.5; x < x1 - 1; x += 4) {
-    p.push(part(G.box(2.2, 2.6, 0.06), 0x2a2420, [x, 1.3, z1 + 0.02]), part(G.cyl(1.1, 1.1, 0.06, 14), 0x2a2420, [x, 2.6, z1 + 0.02], [Math.PI / 2, 0, 0]));
-    p.push(part(G.box(2.6, 0.2, 0.1), CREAM, [x, 3.9, z1 + 0.04]));
-  }
-  p.push(part(G.box(x1 - x0 + 0.3, 0.3, z1 - z0 + 0.3), CREAM, [(x0 + x1) / 2, y - 0.15, (z0 + z1) / 2]));
-  p.push(part(G.box(x1 - x0, 0.04, z1 - z0), 0xbdb8ab, [(x0 + x1) / 2, y + 0.01, (z0 + z1) / 2]));
-  p.push(part(G.box(x1 - x0, 0.02, 0.35), 0xf2c230, [(x0 + x1) / 2, y + 0.04, z0 + 0.3])); // (the yellow line along the edge)
-  railing(p, x0, z1 - 0.1, x1, z1 - 0.1, y);
-  railing(p, x1 - 0.1, z0 + 1.2, x1 - 0.1, z1, y);
-  // the stairs down to the street, between their walls
-  const { n } = STAIRS, tread = (STAIRS.x1 - STAIRS.x0) / n;
+  const { x0, x1, z0, z1, y } = PLAT, mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+  p.push(part(G.box(x1 - x0, y - 0.3, z1 - z0), BRICK, [mx, (y - 0.3) / 2, mz]));
+  for (let z = z0 + 2.5; z < z1 - 1; z += 4) if (z < ALFRED[0] - 2 || z > ALFRED[1] + 2) archway(p, x1, z);
+  p.push(part(G.box(0.1, 0.22, z1 - z0), CREAM, [x1 + 0.05, 5.6, mz]));
+  underpass(p, x1);
+  // the platform: its edge, the yellow line along it, and railings round the back and the far end
+  p.push(part(G.box(x1 - x0 + 0.3, 0.3, z1 - z0 + 0.3), CREAM, [mx, y - 0.15, mz]));
+  p.push(part(G.box(x1 - x0, 0.04, z1 - z0), 0xbdb8ab, [mx, y + 0.01, mz]));
+  p.push(part(G.box(0.35, 0.02, z1 - z0), 0xf2c230, [x0 + 0.45, y + 0.04, mz]));
+  railing(p, x1 - 0.1, z0, x1 - 0.1, z1, y);
+  railing(p, x0 + 0.6, z1 - 0.1, x1 - 0.1, z1 - 0.1, y);
+  // the stairs, their walls stepping down with them, and the way in at the foot of them (its name on it: see platformSigns)
+  const { n } = STAIRS, run = z0 - STAIRS.z0, tread = run / n, sx = (STAIRS.x0 + STAIRS.x1) / 2;
   for (let i = 0; i < n; i++) {
-    const top = y * ((i + 0.5) / n);
-    p.push(part(G.box(tread, top, STAIRS.z1 - STAIRS.z0), i % 2 ? 0xc8c2b2 : 0xbdb6a5, [STAIRS.x0 + (i + 0.5) * tread, top / 2, (STAIRS.z0 + STAIRS.z1) / 2]));
+    const top = (y * (i + 0.5)) / n;
+    p.push(part(G.box(STAIRS.x1 - STAIRS.x0, top, tread), i % 2 ? 0xc8c2b2 : 0xbdb6a5, [sx, top / 2, STAIRS.z0 + (i + 0.5) * tread]));
   }
-  for (const z of [STAIRS.z0 - 0.25, STAIRS.z1 + 0.25]) {
-    for (let i = 0; i < 5; i++) {
-      const a = STAIRS.x0 + (i * (STAIRS.x1 - STAIRS.x0)) / 5, b = a + (STAIRS.x1 - STAIRS.x0) / 5, h = (y * (i + 1)) / 5 + 1;
-      p.push(part(G.box(b - a, h, 0.5), BRICK2, [(a + b) / 2, h / 2, z]));
+  for (const x of [STAIRS.x0 - 0.25, STAIRS.x1 + 0.25]) {
+    for (let i = 0; i < 6; i++) {
+      const h = (y * (i + 1)) / 6 + 1, z = STAIRS.z0 + ((i + 0.5) * run) / 6;
+      p.push(part(G.box(0.5, h, run / 6), BRICK2, [x, h / 2, z]), part(G.box(0.62, 0.12, run / 6 + 0.02), CREAM, [x, h + 0.06, z]));
     }
   }
-  // the viaduct: its deck, the ballast and the sleepers and the rails on it; brick arches under it as far as the
-  // stairs, and iron piers on past them over the street
-  p.push(part(G.box(HILL.x - DECK.x0, RAIL_Y - 0.3 - DB, DECK.z1 - DECK.z0), BRICK2, [(HILL.x + DECK.x0) / 2, (RAIL_Y - 0.3 + DB) / 2, (DECK.z0 + DECK.z1) / 2]));
-  p.push(part(G.box(HILL.x - DECK.x0, 0.2, DECK.z1 - DECK.z0 + 0.3), CREAM, [(HILL.x + DECK.x0) / 2, DB, (DECK.z0 + DECK.z1) / 2]));
-  p.push(part(G.box(HILL.x - DECK.x0, 0.24, 3.2), 0x6b6560, [(HILL.x + DECK.x0) / 2, RAIL_Y - 0.3, TRACK_Z]));
-  for (let x = DECK.x0 + 0.4; x < HILL.x; x += 0.7) p.push(part(G.box(0.24, 0.12, 2.5), 0x5a4a3a, [x, RAIL_Y - 0.12, TRACK_Z]));
-  for (const s of [-1, 1]) p.push(part(G.box(HILL.x - DECK.x0, 0.14, 0.08), 0x9aa0a6, [(HILL.x + DECK.x0) / 2, RAIL_Y - 0.07, TRACK_Z + s * 0.72]));
-  railing(p, DECK.x0, DECK.z0 + 0.1, HILL.x, DECK.z0 + 0.1, RAIL_Y - 0.3, STEEL);
-  p.push(part(G.box(HILL.x - FORE.x1, DB, DECK.z1 - DECK.z0), BRICK, [(HILL.x + FORE.x1) / 2, DB / 2, (DECK.z0 + DECK.z1) / 2]));
-  for (let x = FORE.x1 + 2.5; x < HILL.x - 1; x += 4) {
-    p.push(part(G.box(2.4, 2.4, 0.06), 0x3a2e28, [x, 1.2, DECK.z0 - 0.02]), part(G.cyl(1.2, 1.2, 0.06, 14), 0x3a2e28, [x, 2.4, DECK.z0 - 0.02], [Math.PI / 2, 0, 0]));
-  }
-  for (const x of PIERS) p.push(part(G.box(1.2, DB, DECK.z1 - DECK.z0 - 0.4), 0x4a4f53, [x, DB / 2, (DECK.z0 + DECK.z1) / 2]));
+  for (const x of FOOT) p.push(part(G.box(0.8, 4.4, 0.8), SAND, [x, 2.2, STAIRS.z0]), part(G.box(0.95, 0.25, 0.95), SAND2, [x, 4.52, STAIRS.z0]));
+  p.push(part(G.box(STAIRS.x1 - STAIRS.x0 + 1.5, 0.9, 0.5), SAND, [sx, 3.85, STAIRS.z0]));
 }
-const PIERS = [-33, -42.5, -51]; // (the viaduct's piers, over the forecourt)
+const FOOT = [STAIRS.x0 - 0.35, STAIRS.x1 + 0.35]; // (x: the piers either side of the way in, at the foot of the stairs)
+const BED = { x0: STAIRS.x1 + 0.6, x1: PARK.x0, z0: STAIRS.z0 + 0.4, z1: PARK.z1 }; // (the garden bed beside the stairs, up to Alfred Street)
 
-/** the hill the line goes into: a sandstone face, with the tunnel's mouth in it, and the wall along the foot of it, by Luna Park */
+/**
+ * The line's viaduct, from the Bridge's pylons on to the portal: brick, with blind arches along its west face where you
+ * can see it (the stairs and the station are along it from there), and the line along the top of it; and the road
+ * beside it, on its own deck, on granite piers, with Alfred Street under the lot
+ */
+function viaduct(p) {
+  const za = BR.z0 + 10, zb = LINE.portal + 1, v0 = LINE.x - 1.7, v1 = LINE.x + 1.7, len = zb - za, mz = (za + zb) / 2;
+  p.push(part(G.box(v1 - v0, LINE.deck - 0.3, len), BRICK2, [LINE.x, (LINE.deck - 0.3) / 2, mz]));
+  p.push(part(G.box(v1 - v0 + 0.3, 0.3, len), CREAM, [LINE.x, LINE.deck - 0.15, mz]));
+  for (let z = za + 2.6; z < STAIRS.z0 - 1.2; z += 4) archway(p, v1, z);
+  track(p, za, zb);
+  railing(p, v1 - 0.06, za, v1 - 0.06, STAIRS.z0 + 1, LINE.deck, STEEL);
+  railing(p, v1 - 0.06, PLAT.z1, v1 - 0.06, LINE.portal, LINE.deck, STEEL);
+  // the road: its deck, the parapet along its far side, the fence between it and the line, its lanes, and its piers
+  const r0 = BR.x - BR.hw, r1 = v0, rm = (r0 + r1) / 2;
+  p.push(part(G.box(r1 - r0, 1.4, len), 0x55595c, [rm, LINE.deck - 0.7, mz]), part(G.box(r1 - r0 + 0.2, 0.25, len), 0x8a8f94, [rm, LINE.deck - 1.3, mz]));
+  p.push(part(G.box(0.3, 1.1, len), 0x7d858a, [r0 + 0.15, LINE.deck + 0.55, mz]));
+  railing(p, r1 - 0.1, za, r1 - 0.1, LINE.portal, LINE.deck, STEEL);
+  for (const x of [r0 + 4, r0 + 8, r0 + 12]) for (let z = za + 2; z < LINE.portal - 1; z += 8) p.push(part(G.box(0.15, 0.02, 3), 0xf2efe6, [x, LINE.deck + 0.01, z]));
+  for (const z of [-44, -28, -13, 11, 27, 43]) for (const x of [r0 + 2.5, r1 - 2.6]) p.push(part(G.box(2.6, LINE.deck + 0.6, 2.6), GRANITE, [x, (LINE.deck - 3.4) / 2, z]));
+}
+
+/** the hill behind Luna Park: a sandstone face along the side of it, and the wall along the foot of it, by Luna Park */
 function hill(p) {
-  const top = HILL.y + 0.2, SAND = 0xc9a874, SAND2 = 0xb89660;
+  const top = HILL.y + 0.2;
   p.push(part(G.box(6, top, SHEET.z1 - HILL.z), SAND, [HILL.x + 3, top / 2, (SHEET.z1 + HILL.z) / 2]));
   p.push(part(G.box(178 - HILL.x, top, 6), SAND, [(178 + HILL.x) / 2, top / 2, HILL.z + 3]));
   for (let y = 1.6; y < top; y += 1.6) {
     p.push(part(G.box(0.04, 0.08, SHEET.z1 - HILL.z), SAND2, [HILL.x - 0.01, y, (SHEET.z1 + HILL.z) / 2]));
     p.push(part(G.box(178 - HILL.x, 0.08, 0.04), SAND2, [(178 + HILL.x) / 2, y, HILL.z - 0.01]));
   }
-  // (the tunnel's mouth: a stone arch round it)
-  p.push(part(G.box(0.4, 1.2, 6.4), 0xd8c08f, [HILL.x - 0.2, RAIL_Y + 5.2, TRACK_Z]));
-  for (const s of [-1, 1]) p.push(part(G.box(0.4, 5.4, 1.0), 0xd8c08f, [HILL.x - 0.2, RAIL_Y + 2.3, TRACK_Z + s * 2.7]));
 }
 
-/** the station's name, on boards along the platform (facing the street side: the way you see them, looking down the line) */
+/**
+ * Where the line and the road go in, under North Sydney: a sandstone wall across the end of them, the hill over it, and
+ * their tunnels' mouths in it, the road's and the line's. Returns the mouths, [x0, x1, how high]
+ */
+function portal(p) {
+  const z = LINE.portal, top = PORTAL.y + 0.25, mz = z + 3, mouths = [[BR.x - BR.hw + 0.5, LINE.x - 2.4, 12.2], [LINE.x - 1.8, LINE.x + 2.1, 12]];
+  const piece = (x0, x1, y0, y1) => p.push(part(G.box(x1 - x0, y1 - y0, 6), SAND, [(x0 + x1) / 2, (y0 + y1) / 2, mz]));
+  const [[a0, a1, ah], [b0, b1, bh]] = mouths;
+  piece(PORTAL.x0, PORTAL.x1, -1, LINE.deck);
+  piece(PORTAL.x0, a0, LINE.deck, top);
+  piece(a1, b0, LINE.deck, top);
+  piece(b1, PORTAL.x1, LINE.deck, top);
+  piece(a0, a1, ah, top);
+  piece(b0, b1, bh, top);
+  p.push(part(G.box(PORTAL.x1 - PORTAL.x0 + 0.6, 0.5, 6.6), SAND2, [(PORTAL.x0 + PORTAL.x1) / 2, top + 0.25, mz]));
+  for (const [x0, x1, h] of mouths) {
+    p.push(part(G.box(x1 - x0 + 1.2, 0.6, 0.3), SAND2, [(x0 + x1) / 2, h + 0.3, z - 0.15]));
+    for (const x of [x0 - 0.3, x1 + 0.3]) p.push(part(G.box(0.6, h - LINE.deck, 0.3), SAND2, [x, (h + LINE.deck) / 2, z - 0.15]));
+  }
+  return mouths;
+}
+
+/** the station's name: on boards hung across the platform, and over the way in at the foot of the stairs (returns the boards' frames) */
 function platformSigns(s) {
   const draw = (c, cw, ch) => {
     c.fillStyle = '#1d2f5c'; c.fillRect(0, 0, cw, ch);
     c.fillStyle = '#ffffff'; c.textAlign = 'center'; c.textBaseline = 'middle';
     c.font = `bold ${Math.round(ch * 0.52)}px sans-serif`; c.fillText('MILSONS POINT', cw / 2, ch / 2 + 2);
   };
-  const posts = [];
-  for (const x of [-13, 13]) {
+  const posts = [], face = (w, h, x, y, z, gap = 0.04) => {
     for (const k of [-1, 1]) {
-      const m = signFace(4.4, 0.75, draw);
-      m.position.set(x, PLAT.y + 2.6, 1.6 + k * 0.03);
+      const m = signFace(w, h, draw);
+      m.position.set(x, y, z + k * gap);
       if (k < 0) m.rotation.y = Math.PI;
       s.add(m);
     }
-    for (const dx of [-2, 2]) posts.push(part(G.box(0.1, 2.6, 0.1), 0x24272a, [x + dx, PLAT.y + 1.3, 1.6]));
+  };
+  for (const z of SIGNS) {
+    face(3.4, 0.62, SIGN_X, PLAT.y + 2.75, z);
+    for (const dx of [-1.9, 1.9]) posts.push(part(G.box(0.1, 3.2, 0.1), 0x24272a, [SIGN_X + dx, PLAT.y + 1.6, z]));
+    posts.push(part(G.box(3.9, 0.1, 0.1), 0x24272a, [SIGN_X, PLAT.y + 3.15, z]), part(G.box(3.5, 0.72, 0.04), 0x24272a, [SIGN_X, PLAT.y + 2.75, z]));
   }
-  // and at the foot of the stairs, over the way up
-  const foot = signFace(5, 0.9, draw);
-  foot.position.set(STAIRS.x0 + 4, 4.2, STAIRS.z1 + 0.52);
-  s.add(foot);
+  face(4.8, 0.62, (STAIRS.x0 + STAIRS.x1) / 2, 3.85, STAIRS.z0, 0.27);
   return posts;
 }
+const SIGNS = [-2, 18], SIGN_X = (PLAT.x0 + PLAT.x1) / 2 + 0.3; // (where the boards hang across the platform)
 
 /* ------------------------------------------------------------------ the Bridge, and over the water */
-/** the Harbour Bridge: the granite pylons at either end, the steel arch between, and the deck hung under it, out over the land either side on piers */
+/** how high the top of the Bridge's deck is at z: level with the line's, either side of the span, and up over the middle of the harbour */
+function deckY(z) {
+  const mid = (BR.z0 + BR.z1) / 2, half = (BR.z0 - BR.z1) / 2;
+  return LINE.deck + BR.rise * smoothstep(half + 6, 0, Math.abs(z - mid));
+}
+
+/**
+ * The Harbour Bridge: the granite pylons at either end, the steel arch between, and the deck hung under it, the line
+ * along the west side of it, up over the middle of the harbour and down again. This side, the line and the road go on
+ * on viaducts of their own (see viaduct); the far side, the deck goes on into the city, on piers
+ */
 function bridge(p) {
-  const { x, z0, z1, deck, hw } = BR, mid = (z0 + z1) / 2, half = (z0 - z1) / 2;
+  const { x, z0, z1, hw } = BR, mid = (z0 + z1) / 2, half = (z0 - z1) / 2;
   const u = (z) => (z - mid) / half, low = (z) => 1 + 47 * (1 - u(z) ** 2), high = (z) => low(z) + 3.5 + 12 * u(z) ** 2;
   for (const pz of [z0 + 5, z1 - 5]) {
     for (const s of [-1, 1]) {
-      const px = x + s * (hw + 3);
-      p.push(part(G.box(9, 32, 12), GRANITE, [px, 15, pz]), part(G.box(10, 1.6, 13), 0xa89c84, [px, 31.5, pz]), part(G.box(7.6, 6, 10.6), GRANITE, [px, 35, pz]));
-      for (const k of [-1, 1]) p.push(part(G.box(0.1, 4, 1.6), 0x8d8270, [px - k * 4.52, 34, pz]));
+      // (each up against the side of the deck, in courses of granite, with an arch through it, up high)
+      const px = x + s * (hw + 2.6);
+      p.push(part(G.box(9.8, 32, 12), GRANITE, [px, 15, pz]), part(G.box(10.8, 1.6, 13), 0xa89c84, [px, 31.5, pz]), part(G.box(8.4, 6, 10.6), GRANITE, [px, 35, pz]));
+      for (const k of [-1, 1]) p.push(part(G.box(0.1, 4, 1.6), 0x8d8270, [px - k * 4.92, 34, pz]));
+      for (const y of [9, 19.5]) p.push(part(G.box(10.1, 0.5, 12.3), 0xa89c84, [px, y, pz]));
+      for (const k of [-1, 1]) p.push(part(G.box(4, 5, 0.06), 0x4d463e, [px, 23.5, pz + k * 6.03]), part(G.cyl(2, 2, 0.06, 16), 0x4d463e, [px, 26, pz + k * 6.03], [Math.PI / 2, 0, 0]));
     }
   }
-  p.push(part(G.box(36, 2.4, 22), GRANITE, [x, 1.2, z0 + 4])); // (the abutment the north pylons stand on, at the water's edge)
-  const zs = z1 - 70, ze = z0 + 120;
-  p.push(part(G.box(hw * 2, 1.8, ze - zs), 0x55595c, [x, deck, (zs + ze) / 2]));
-  for (const s of [-1, 1]) p.push(part(G.box(0.3, 1.2, ze - zs), 0x7d858a, [x + s * (hw - 0.2), deck + 1.4, (zs + ze) / 2]));
-  for (let z = z0 + 14; z < ze; z += 16) for (const s of [-1, 1]) p.push(part(G.box(3, deck + 6, 3), GRANITE, [x + s * (hw - 2.5), deck / 2 - 3, z]));
-  for (let z = z1 - 14; z > zs; z -= 16) for (const s of [-1, 1]) p.push(part(G.box(3, deck + 6, 3), GRANITE, [x + s * (hw - 2.5), deck / 2 - 3, z]));
+  // (the abutment the north pylons stand on, at the water's edge: its coping, and the joints in its face)
+  p.push(part(G.box(36, 2.4, 22), GRANITE, [x, 1.2, z0 + 4]), part(G.box(36.4, 0.35, 22.4), 0xa89c84, [x, 2.4, z0 + 4]));
+  for (let k = -16.5; k < 17; k += 3) p.push(part(G.box(0.06, 2.1, 0.04), 0x8d8270, [x + k, 1.05, z0 + 15.02]));
+  // the deck, from the far side to in between the pylons this side: the road, its parapets, and the line
+  const zs = z1 - 70, ze = z0 + 10;
+  along(p, x, zs, ze, hw * 2, 1.8, 0, 0x55595c, deckY);
+  for (const s of [-1, 1]) along(p, x + s * (hw - 0.2), zs, ze, 0.3, 1.1, 1.1, 0x7d858a, deckY);
+  track(p, zs, ze, deckY, -150);
+  for (let z = z1 - 14; z > zs; z -= 16) for (const s of [-1, 1]) p.push(part(G.box(3, deckY(z) + 0.2, 3), GRANITE, [x + s * (hw - 2.5), (deckY(z) - 3.8) / 2, z]));
   // the arch: two ribs, each a top and a bottom chord braced between, with hangers down to the deck and posts up to it
   const N = 28;
   for (const s of [-1, 1]) {
@@ -370,8 +463,9 @@ function bridge(p) {
       const a = z0 - ((z0 - z1) * i) / N, b = z0 - ((z0 - z1) * (i + 1)) / N;
       p.push(limb([rx, low(a), a], [rx, low(b), b], 0.9, 0.9, STEEL, 6), limb([rx, high(a), a], [rx, high(b), b], 0.8, 0.8, STEEL, 6));
       p.push(limb([rx, low(a), a], [rx, high(b), b], 0.28, 0.28, STEEL, 4), limb([rx, low(b), b], [rx, high(b), b], 0.28, 0.28, STEEL, 4));
+      const deck = deckY(b);
       if (low(b) > deck + 1) p.push(limb([rx, low(b), b], [rx, deck, b], 0.16, 0.16, STEEL, 4));
-      else if (low(b) < deck - 1) p.push(limb([rx, low(b), b], [rx, deck, b], 0.35, 0.35, STEEL, 4));
+      else if (low(b) < deck - 2.8) p.push(limb([rx, low(b), b], [rx, deck - 1.8, b], 0.35, 0.35, STEEL, 4));
     }
   }
   for (let i = 1; i < N; i++) {
@@ -382,6 +476,36 @@ function bridge(p) {
   for (const [dz, color] of [[-6, 0x1d3f8f], [6, 0xd8322a]]) {
     p.push(part(G.box(0.15, 5, 0.15), 0xeeeeee, [x, high(mid + dz) + 2.5, mid + dz]), part(G.box(0.1, 1.4, 2.6), color, [x, high(mid + dz) + 4.2, mid + dz + 1.4]));
   }
+}
+
+/** a car (lying along z, its wheels on y 0) */
+function carGeo(color) {
+  const p = [part(G.box(1.8, 0.75, 4.3), color, [0, 0.62, 0]), part(G.box(1.62, 0.62, 2.3), color, [0, 1.3, -0.25])];
+  p.push(part(G.box(1.66, 0.42, 2.2), 0x26303a, [0, 1.3, -0.25]), part(G.box(1.7, 0.18, 0.06), 0xfff3c4, [0, 0.72, 2.16]), part(G.box(1.7, 0.16, 0.06), 0xc0302a, [0, 0.72, -2.16]));
+  for (const [dx, dz] of [[-0.85, 1.35], [0.85, 1.35], [-0.85, -1.35], [0.85, -1.35]]) p.push(part(G.cyl(0.34, 0.34, 0.24, 10), 0x24272a, [dx, 0.34, dz], [0, 0, Math.PI / 2]));
+  return merge(p);
+}
+
+/** the traffic on the Bridge's road, going over and coming back (keeping left), and off into the tunnel under North Sydney: returns its update(dt) */
+function traffic(s) {
+  const r0 = BR.x - BR.hw, far = BR.z1 - 60, back = LINE.portal + 14, cars = [];
+  const colors = [0xd8322a, 0xf6f1e4, 0x2f6fd0, 0x3a3d40, 0xf2c230, 0x9aa0a6, 0x2f5a3f, 0xe8e8e8];
+  for (let i = 0; i < 10; i++) {
+    const m = vcMesh(carGeo(colors[i % colors.length]), { cast: true, receive: false }), lane = i % 4, north = lane >= 2;
+    m.userData.moves = true;
+    s.add(m);
+    cars.push({ m, x: r0 + 2 + lane * 4, dir: north ? 1 : -1, z: far + ((back - far) * ((i * 0.37) % 1)), v: rand(12, 16) });
+  }
+  return (dt) => {
+    for (const c of cars) {
+      c.z += c.dir * c.v * dt;
+      if (c.z > back) c.z = far;
+      else if (c.z < far) c.z = back;
+      const y = deckY(c.z), up = Math.atan2(deckY(c.z + 0.5) - deckY(c.z - 0.5), 1);
+      c.m.position.set(c.x, y, c.z);
+      c.m.rotation.set(-up, c.dir > 0 ? 0 : Math.PI, 0);
+    }
+  };
 }
 
 /** a city block, far off: plain, with a few strips of window up its front, at y */
@@ -395,7 +519,7 @@ const TOWERS = [0x8fa9bf, 0x6f8faf, 0xb9c3cb, 0xd9d4c5, 0x9fb3c2, 0xc9c1b0, 0xa7
 
 /** a house on the hill: walls, and its roof (terracotta, mostly) */
 function house(p, x, z, r) {
-  const y = landH(x, z), w = rand(5, 8), d = rand(5, 7), h = rand(3, 6), roof = pick([0xb4553a, 0xa04a34, 0x8a8f94, 0xc0653f]);
+  const y = terrainH(x, z), w = rand(5, 8), d = rand(5, 7), h = rand(3, 6), roof = pick([0xb4553a, 0xa04a34, 0x8a8f94, 0xc0653f]);
   p.push(part(G.box(w, h, d), pick([0xefe2c4, 0xdce8cf, 0xf1d9c9, 0xe6e2d6, 0xc98a6a]), [x, y + h / 2 - 0.5, z], [0, r, 0]));
   p.push(part(G.cone(Math.max(w, d) * 0.72, 2.2, 4), roof, [x, y + h + 0.6, z], [0, r + Math.PI / 4, 0], [1, 1, d / w]));
 }
@@ -449,7 +573,7 @@ function city(p) {
 function northShore(p) {
   for (let i = 0; i < 90; i++) {
     const x = rand(-420, -76), z = rand(-80, 70);
-    if (landH(x, z) < 1.2 || (Math.abs(x - BR.x) < 16)) continue;
+    if (terrainH(x, z) < 1.2 || x > SHEET.x0 - 4) continue;
     house(p, x, z, rand(-0.3, 0.3));
   }
   // Admiralty House, and Kirribilli House next door, on the point
@@ -458,18 +582,22 @@ function northShore(p) {
   // North Sydney, up the hill, its towers going up over the station
   for (let i = 0; i < 30; i++) {
     const x = rand(-170, 150), z = rand(70, 200);
-    tower(p, x, landH(x, z) - 1, z, rand(12, 22), rand(24, 70), rand(12, 18), pick(TOWERS));
+    tower(p, x, terrainH(x, z) - 1, z, rand(12, 22), rand(24, 70), rand(12, 18), pick(TOWERS));
   }
-  // and along the street behind the station, shops and flats, a few storeys up
-  for (let x = SHEET.x0 + 4; x < HILL.x - 4; x += 10) {
-    const h = rand(6, 10);
-    p.push(part(G.box(9, h, 10), pick([0xd9c49a, 0xc98a6a, 0xe8dcc0, 0xb9a07a, 0xa8553c]), [x, h / 2, 25]), part(G.box(9.2, 0.4, 10.2), 0x8a8f94, [x, h + 0.2, 25]));
-    p.push(part(G.box(7, 1.6, 0.1), 0x2c3e55, [x, 1.4, 19.96]), part(G.box(9, 0.3, 1.4), pick([0x2f5a3f, 0xb4553a, 0x1d2f5c]), [x, 3, 19.3]));
+  // and along Alfred Street, past the station, shops with flats over them (their backs to you, from up on the
+  // platform), and the bigger blocks behind them
+  for (let x = PARK.x0 + 4.5; x < HILL.x - 4; x += 10) {
+    const h = rand(7, 11), z = ALFRED[1] + 9, f = z - 5.04, b = z + 5.04;
+    p.push(part(G.box(9, h, 10), pick([0xd9c49a, 0xc98a6a, 0xe8dcc0, 0xb9a07a, 0xa8553c]), [x, h / 2, z]), part(G.box(9.2, 0.5, 10.2), 0x8a8f94, [x, h + 0.25, z]));
+    p.push(part(G.box(7, 1.8, 0.1), 0x2c3e55, [x, 1.3, f]), part(G.box(9, 0.3, 1.4), pick([0x2f5a3f, 0xb4553a, 0x1d2f5c]), [x, 3, f - 0.7]));
+    for (let y = 4.4; y < h - 1; y += 3) for (const k of [-2.7, 0, 2.7]) p.push(part(G.box(1.3, 1.5, 0.1), 0x2c3e55, [x + k, y, f]), part(G.box(1.3, 1.5, 0.1), 0x2c3e55, [x + k, y, b]));
+    p.push(part(G.box(2, 1.2, 2.4), 0x9aa0a6, [x + rand(-2.5, 2.5), h + 1.1, z + rand(-2.5, 2.5)])); // (something up on the roof)
+    tower(p, x + rand(-1, 1), -0.5, z + 22 + rand(-2, 2), 8.6, rand(14, 24), 12, pick(TOWERS));
   }
   // McMahons Point's houses, and out on the end of Blues Point, the Tower, all on its own
   for (let i = 0; i < 40; i++) {
     const x = rand(196, 300), z = rand(-90, 60);
-    if (landH(x, z) < 1.2) continue;
+    if (terrainH(x, z) < 1.2) continue;
     house(p, x, z, rand(-0.3, 0.3));
   }
   const by = landH(245, -122) - 1;
@@ -931,7 +1059,7 @@ export function buildMilsons(world) {
   const water = new THREE.PlaneGeometry(924, 762).rotateX(-Math.PI / 2).translate(2, SEA, -79);
   s.add(new THREE.Mesh(water, seaMat()));
   s.add(vcMesh(terrainGeo(), { cast: false, receive: true }));
-  const trees = [[-30, -22, 7.5], [-18, -44, 8], [6, -16, 7], [22, -46, 7.5], [36, -24, 8], [-38, -38, 7], [-2, -42, 6.5], [40, -50, 6]];
+  const trees = [[-30, -22, 7.5], [-18, -44, 8], [6, -16, 7], [22, -46, 7.5], [36, -24, 8], [-38, -38, 7], [-2, -42, 6.5], [38, -45, 6], [-79.5, -32, 6], [-79.5, 16, 6.5]];
   for (const [x, z, h] of trees) {
     const m = vcMesh(fig(h));
     m.position.set(x + OX, 0, z);
@@ -944,27 +1072,46 @@ export function buildMilsons(world) {
   }
   s.add(vcMesh(groundGeo(trees), { cast: false, receive: true }));
   s.add(vcMesh(forecourtGeo(), { cast: false, receive: true }));
-  near.push(part(G.box(SHEET.x1 - SHEET.x0, 2.1, 0.6), 0xb9a27a, [(SHEET.x0 + SHEET.x1) / 2, -1, SHEET.z0 + 0.3]));
+  near.push(part(G.box(SHEET.x1 - PARK.x0, 2.1, 0.6), 0xb9a27a, [(PARK.x0 + SHEET.x1) / 2, -1, SHEET.z0 + 0.3]));
   near.push(part(G.box(0.6, 2.1, HILL.z - SHEET.z0), 0xb9a27a, [SHEET.x1 - 0.3, -1, (HILL.z + SHEET.z0) / 2]));
-  railing(near, SHEET.x0, SHEET.z0 + 0.5, SHEET.x1, SHEET.z0 + 0.5, 0);
+  railing(near, PARK.x0, SHEET.z0 + 0.5, SHEET.x1, SHEET.z0 + 0.5, 0);
   railing(near, SHEET.x1 - 0.4, SHEET.z0 + 0.5, SHEET.x1 - 0.4, HILL.z, 0);
+  paths(near);
 
-  // --- the station, the hill the line goes into, and the viaduct's piers over the forecourt
+  // --- the station, the line's viaduct (and the road's), the portal they go in at, and the hill behind Luna Park
   station(near);
+  viaduct(near);
   hill(near);
-  for (const x of PIERS) for (const z of [-3.6, -5.5]) round.push([x, z, 0.75]);
-  const posts = platformSigns(s);
-  near.push(...posts);
-  for (const x of [-15, -11, 11, 15]) round.push([x, 1.6, 0.15]);
-  const dark = new THREE.Mesh(new THREE.BoxGeometry(90, 5.4, 3.9), new THREE.MeshBasicMaterial({ color: 0x0a0a0c }));
-  dark.position.set(HILL.x - 0.15 + 45, RAIL_Y + 2.45, TRACK_Z); // (the tunnel: dark all the way in, so she's gone once she's in it)
-  s.add(dark);
+  const dark = new THREE.MeshBasicMaterial({ color: 0x0a0a0c });
+  for (const [a, b, h] of portal(near)) {
+    // (the tunnels: dark all the way in, so she's gone once she's in hers)
+    const m = new THREE.Mesh(new THREE.BoxGeometry(b - a, h - LINE.deck, 60), dark);
+    m.position.set((a + b) / 2, (h + LINE.deck) / 2, LINE.portal + 30.05);
+    s.add(m);
+  }
+  near.push(...platformSigns(s));
+  for (const z of SIGNS) for (const dx of [-1.9, 1.9]) round.push([SIGN_X + dx, z, 0.15]);
+  for (const x of FOOT) round.push([x, STAIRS.z0, 0.55]);
+  // (the park's railing along Alfred Street, on its kerb, and the garden bed beside the stairs)
+  near.push(part(G.box(HILL.x - BED.x0, 0.5, 0.45), SAND2, [(HILL.x + BED.x0) / 2, 0.25, PARK.z1 + 0.22]));
+  railing(near, BED.x0, PARK.z1 + 0.22, HILL.x, PARK.z1 + 0.22, 0.5);
+  near.push(part(G.box(BED.x1 - BED.x0, 0.45, BED.z1 - BED.z0), SAND2, [(BED.x0 + BED.x1) / 2, 0.22, (BED.z0 + BED.z1) / 2]));
+  near.push(part(G.box(BED.x1 - BED.x0 - 0.4, 0.06, BED.z1 - BED.z0 - 0.4), 0x5b4632, [(BED.x0 + BED.x1) / 2, 0.45, (BED.z0 + BED.z1) / 2]));
+  for (let z = BED.z0 + 1; z < BED.z1 - 0.6; z += 1.5) {
+    const x = (BED.x0 + BED.x1) / 2 + rand(-0.5, 0.5);
+    near.push(part(G.ico(rand(0.55, 0.85), 0), pick([0x3f6b35, 0x4d7a3a, 0x355f30]), [x, 0.85, z], [0, rand(0, 3), 0], [1, 0.8, 1]));
+    if (Math.random() < 0.6) near.push(part(G.sphere(0.2, 6, 4), pick([0x6a5acd, 0x7b68ee, 0xf6f1e4]), [x + rand(-0.6, 0.6), 1.35, z + rand(-0.5, 0.5)]));
+  }
 
   // --- the park: lamps along the paths, benches, and a bin or two (see main.js)
   const lamp = lampGeo();
-  for (const [x, z] of [[-30, -14], [-16, -34], [-6, -46], [4, -32], [26, -38], [-30, -50], [-6, -50], [18, -50], [42, -50], [62, -46], [84, -46], [106, -46]]) {
+  for (const [x, z] of [[-30, -14], [-16, -34], [-6, -46], [4, -32], [26, -38], [-30, -50], [-6, -50], [18, -50], [42, -50], [62, -46], [84, -46], [106, -46], [-36, -32.6], [-50.5, -40]]) {
     near.push(lamp.clone().translate(x, 0, z));
     round.push([x, z, 0.2]);
+  }
+  for (const z of [-10, 13, 28]) {
+    near.push(lamp.clone().translate(PLAT.x1 - 0.45, PLAT.y, z));
+    round.push([PLAT.x1 - 0.45, z, 0.2]);
   }
   lamp.dispose();
   const bench = benchGeo(), backs = [-0.66, 0, 0.66].map((x) => ({ at: [x, 1.03, -0.26], face: 0, ground: [x, 1.1], hop: [0.45, 0.8] })), seats = [];
@@ -976,12 +1123,14 @@ export function buildMilsons(world) {
     for (const k of [-0.6, 0.6]) round.push([x + k * Math.cos(r), z - k * Math.sin(r), 0.45]);
     seats.push({ obj: b, perches: backs });
   }
-  for (const x of [-8, 8]) {
-    const b = vcMesh(bench.clone(), { cast: true, receive: true });
-    b.position.set(x, PLAT.y, PLAT.z1 - 0.7);
-    b.rotation.y = Math.PI;
+  for (const z of [3, 23]) {
+    // (and on the platform, along the back of it, looking out at the line)
+    const b = vcMesh(bench.clone(), { cast: true, receive: true }), x = PLAT.x1 - 0.7;
+    b.position.set(x, PLAT.y, z);
+    b.rotation.y = -Math.PI / 2;
     s.add(b);
-    for (const k of [-0.6, 0.6]) round.push([x + k, PLAT.z1 - 0.7, 0.45]);
+    for (const k of [-0.6, 0.6]) round.push([x, z + k, 0.45]);
+    seats.push({ obj: b, perches: backs });
   }
   bench.dispose();
   // (the chips the gulls are at, on the boardwalk)
@@ -999,6 +1148,7 @@ export function buildMilsons(world) {
 
   // --- and all round: the Bridge, the city over the water (and the Opera House), and our side of the harbour
   bridge(far);
+  const cars = traffic(s);
   city(far);
   northShore(far);
   const sails = sailsGeo().translate(-337, -3, 267).rotateY(Math.PI / 2).scale(2.2, 2.2, 2.2).translate(OPERA[0], 4, OPERA[1]);
@@ -1017,6 +1167,7 @@ export function buildMilsons(world) {
   return {
     seats, // (the backs of the benches, for turkeys to perch on: see main.js)
     update(dt, t) {
+      cars(dt);
       big.w.rotation.x = t * 0.09;
       for (const c of big.cars) c.rotation.x = -big.w.rotation.x;
       // (she slows right down at either end, as if she's pulling in somewhere)

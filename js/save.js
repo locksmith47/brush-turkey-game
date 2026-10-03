@@ -2,7 +2,7 @@ import { Bin } from './bin.js';
 import { LeafBag } from './keeper.js';
 import { PALETTES } from './leaves.js';
 import { S } from './turkey.js';
-import { LEGS, WHARF, HYDE, MILSONS } from './world.js';
+import { LEGS, WHARF, HYDE, MILSONS, LUNA } from './world.js';
 import { QUAY_MOUND } from './props/city.js';
 import { WHARF_MOUND } from './props/wharf.js';
 import { HYDE_MOUND } from './props/hyde.js';
@@ -231,6 +231,13 @@ export class Saves {
       else if (s?.hp !== undefined && k.alive) k.hp = Math.max(0.5, s.hp);
     });
     g.mounds.restore(d.mounds);
+    // (a save from before Hyde Park, Milsons Point and Luna Park were laid out the way they are now: a mound that's
+    // ended up in a tree or a wall or off the paths goes, and theirs turn up where they are now, below)
+    const M = g.mounds.list;
+    for (let i = M.length - 1; i >= 0; i--) {
+      const { x, z } = M[i].pos;
+      if ([HYDE, MILSONS, LUNA].includes(g.world.zoneOf(x, z)) && !g.world.isFree(x, z, 0.5)) M.splice(i, 1)[0].dispose();
+    }
     // (a save from before there was a mound on the Quay: it's there now, bar where you've built one of your own)
     const [qx, qz] = QUAY_MOUND;
     if (!g.mounds.list.some((m) => Math.hypot(m.pos.x - qx, m.pos.z - qz) < 12)) g.mounds.add(qx, qz).startWith(3, 'fish');
