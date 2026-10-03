@@ -6,36 +6,36 @@ const Z0 = -38, Z1 = -98;
 
 /*
  * The backyards are six yards in two rows, paling fences between them. You come in from the bush into the
- * back lawn (the middle of the near row), and the gate out to the city is in the middle of the far row,
- * with the key off in the yard to its left. There's no straight way through: round to the left (the
- * barbecue yard, then the key's yard) or round to the right (the shed, then the trampoline), each yard with
- * its own locals. The side gate between the two middle yards is latched on the far side, so once you've
- * made it round, you can let yourself back through it: a shortcut home.
+ * back lawn (the middle of the near row), and the gate out to the oval is in the far corner on the left, in
+ * the giant ibis's yard with the key, lined up with the padded mound on the other side of it. The only way
+ * there is the long way round, through every yard bar one: right through the shed's yard, on into the
+ * trampoline's, back along the far row through the middle yard, and so into the key's. The barbecue yard,
+ * on the left of the back lawn, is a dead end: the side gate from it into the key's yard is latched on the
+ * far side, so once you've made it round, you can let yourself back through it: a shortcut home.
  */
 const XW = -15, XE = 15, ZM = -68; // (the fences: two running away from you, and one across the middle)
 // the open gateways between yards: [name, x, z, width] (on the fence line through that spot)
 const DOORS = [
-  ['s_sw', XW, -53, 6], ['s_se', XE, -47, 6], ['sw_nw', -33, ZM, 6], ['se_ne', 35, ZM, 6],
-  ['nw_n', XW, -84, 8], // (wide enough to get the key through)
-  ['ne_n', XE, -89, 6],
+  ['s_sw', XW, -53, 6], ['s_se', XE, -47, 6], ['se_ne', 35, ZM, 6],
+  ['nw_n', XW, -84, 8], ['ne_n', XE, -89, 6],
 ];
-// the latched side gate from the back lawn to the far yard ([x, z] ends; it opens from the latch side)
-export const SIDE_GATE = { a: [-4, ZM], b: [2, ZM], latch: [0, -1], kind: 'painted' };
+// the latched side gate from the barbecue yard to the key's yard ([x, z] ends; it opens from the latch side)
+export const SIDE_GATE = { a: [-36, ZM], b: [-30, ZM], latch: [0, -1], kind: 'painted' };
 
 // each yard: its name, the ground it covers ([x0, z0, x1, z1]), its gateways, and its lawn's two stripes
 const YARDS = [
   ['sw', [-46, ZM, XW, Z0], ['s_sw', 'sw_nw'], [0x86bd52, 0x78ae48]],
-  ['s', [XW, ZM, XE, Z0], ['s_sw', 's_se', 's_n'], [0x8cc458, 0x7db44c]],
+  ['s', [XW, ZM, XE, Z0], ['s_sw', 's_se'], [0x8cc458, 0x7db44c]],
   ['se', [XE, ZM, 46, Z0], ['s_se', 'se_ne'], [0x90c65c, 0x80b64e]],
   ['nw', [-46, Z1, XW, ZM], ['sw_nw', 'nw_n'], [0x7aa94a, 0x6c9c40]],
-  ['n', [XW, Z1, XE, ZM], ['nw_n', 'ne_n', 's_n'], [0x8cc458, 0x7db44c]],
+  ['n', [XW, Z1, XE, ZM], ['nw_n', 'ne_n'], [0x8cc458, 0x7db44c]],
   ['ne', [XE, Z1, 46, ZM], ['se_ne', 'ne_n'], [0x88c056, 0x79b04a]],
 ];
 
 // the lie of the land (see Track): each yard's a room (overlapping its neighbours a little over the fence),
 // with a waypoint in every gateway, and another room straddling each gateway (so anything big on its way
-// through, like the key, is always well inside one or the other); the fences are walls
-const GAPS = [...DOORS, ['s_n', (SIDE_GATE.a[0] + SIDE_GATE.b[0]) / 2, ZM, SIDE_GATE.b[0] - SIDE_GATE.a[0]]];
+// through is always well inside one or the other); the fences are walls
+const GAPS = [...DOORS, ['sw_nw', (SIDE_GATE.a[0] + SIDE_GATE.b[0]) / 2, ZM, SIDE_GATE.b[0] - SIDE_GATE.a[0]]];
 export const BACKYARDS = {
   nodes: Object.fromEntries(GAPS.map(([name, x, z]) => [name, [x, z]])),
   rooms: [

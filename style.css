@@ -142,6 +142,9 @@ kbd {
 .dial.hot svg { animation: dial-pulse .3s ease-in-out infinite alternate; } /* (not on .dial: its transform places it) */
 @keyframes dial-pulse { to { transform: rotate(-90deg) scale(1.14); } }
 .dial.wait .d-fill { stroke: #c8c2b0; }
+/* (the padded mound's: round the outside, how much kit it's got left in it) */
+.dial.kit .d-xtrack { stroke: rgba(255, 255, 255, .2); stroke-width: 3; }
+.dial.kit .d-extra { stroke: #5ccf6e; }
 .dial .d-icon {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   font-size: 15px; line-height: 1; text-shadow: 0 1px 2px rgba(0,0,0,.6);
@@ -349,6 +352,8 @@ body.paused #help { z-index: 12; opacity: 1 !important; }
 #travel-map .pin i { font-style: normal; font-size: 16px; line-height: 1; }
 #travel-map .pin.beach { border-color: #7fd6ff; }
 #travel-map .pin.beach::after { border-top-color: #7fd6ff; }
+#travel-map .pin.padded { border-color: #5ccf6e; background: rgba(24, 66, 34, .94); }
+#travel-map .pin.padded::after { border-top-color: #5ccf6e; }
 #travel-map .pin.sel {
   z-index: 2; transform: scale(1.25); border-color: #fff;
   box-shadow: 0 0 0 4px rgba(255, 210, 31, .45), 0 0 18px 4px rgba(255, 210, 31, .55), 0 3px 7px rgba(0, 0, 0, .55);

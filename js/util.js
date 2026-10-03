@@ -189,6 +189,7 @@ export class Dial {
     el.innerHTML = '<svg viewBox="0 0 44 44"><circle class="d-back" cx="22" cy="22" r="15"/>'
       + '<circle class="d-track" cx="22" cy="22" r="12.5"/>'
       + '<circle class="d-fill" cx="22" cy="22" r="12.5" pathLength="100" stroke-dasharray="0 100"/>'
+      + '<circle class="d-xtrack" cx="22" cy="22" r="18.5"/>'
       + '<circle class="d-extra" cx="22" cy="22" r="18.5" pathLength="100" stroke-dasharray="0 100"/></svg>'
       + '<span class="d-icon"></span><span class="d-note"></span>';
     document.getElementById('labels').appendChild(el);
@@ -211,6 +212,11 @@ export class Dial {
   }
 
   icon(text) { if (text !== this.iconText) { this.iconText = text; this.iconEl.textContent = text; } }
+  /** a look of its own, for good (a CSS class: 'kit' gives the outer ring a track, and the padded mound's colours) */
+  also(cls) {
+    this.base += ` ${cls}`;
+    this.el.className = this.state ? `${this.base} ${this.state}` : this.base;
+  }
   /** the note under it (`key`: a key to press for it, shown in front of it) */
   note(text, key = '') {
     const s = `${key}|${text}`;

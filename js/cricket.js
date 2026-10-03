@@ -5,7 +5,8 @@ import { part, merge, vcMesh, G, limb, rand, pick, TAU } from './util.js';
 /*
  * The oval's cricket gear: the stumps at either end of the pitch, which turkeys can dig up (and carry off to
  * a mound, where they get planted on top), and the kit left lying about the ground (bats, balls, pads,
- * helmets, the lot), for hauling to a mound like anything else.
+ * helmets, the lot), for hauling to a mound like anything else. It all goes to the padded mound, if there's a
+ * way there: the more of it that's in there, the more turkeys come out of it padded up (see Mound.padUp).
  */
 const WOOD = 0xefe3c4, SOIL = [0x5e3e22, 0x7a5230, 0x8b6238];
 const SIZE = 1.5; // (the kit lying about is bigger than life, so you can see it from up where the camera is)
@@ -50,7 +51,7 @@ export class Stumps extends Foe {
   constructor(game, x, z) {
     super(game, {
       name: 'Stumps', hp: 12, scale: 1, radius: 0.2, labelY: 1.05, carcassLabelY: 0.6, dieTime: 0.7,
-      value: 6, weight: 2, slots: 6, carryR: 0.5, task: 'dig', bits: 'soil', icon: '🏏', loot: true, palette: 'cricket',
+      value: 6, weight: 2, slots: 6, carryR: 0.5, task: 'dig', bits: 'soil', icon: '🏏', loot: true, palette: 'cricket', mound: 'padded',
     }, x, z);
     const root = new THREE.Group(), s = stumpsMesh();
     this.set = s.group;
@@ -84,7 +85,7 @@ export class Stumps extends Foe {
   finishAbsorb() {
     const m = this.mound;
     super.finishAbsorb();
-    m.addTrophy('stumps'); // planted on top of the mound, for all to see
+    m.kitIn('stumps', this.def.value); // planted on top of the mound, for all to see (and the padded mound's more kit to go round)
   }
 
   pose(dt) {
@@ -216,7 +217,7 @@ export class CricketGear extends Foe {
     const T = KIT[type], r = T.carryR * SIZE;
     super(game, {
       name: T.name, hp: 1, scale: SIZE, radius: r * 0.8, value: T.value, weight: T.weight, slots: T.slots,
-      carryR: r, carcassLabelY: 0.7, noLabel: T.weight <= 1, loot: true, palette: 'cricket',
+      carryR: r, carcassLabelY: 0.7, noLabel: T.weight <= 1, loot: true, palette: 'cricket', mound: 'padded',
     }, x, z);
     this.type = type;
     const root = new THREE.Group();
@@ -231,6 +232,13 @@ export class CricketGear extends Foe {
   }
 
   get targetable() { return false; }
+
+  /** in it goes: the padded mound's got that much more kit to pad them up with */
+  finishAbsorb() {
+    const m = this.mound;
+    super.finishAbsorb();
+    m.kitIn(this.type, this.def.value);
+  }
 
   // only the big things get in the way
   colliderR() { return this.def.weight >= 3 && this.state === 'carcass' ? this.def.carryR * 0.6 : 0; }
