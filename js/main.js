@@ -536,7 +536,7 @@ function updateTips(dt) {
 
 /* ------------------------------------------------------------------ dev menu (~) */
 // (just through the gate into each; and on the ferry, on her deck, wherever she's got to)
-const ZONE_SPAWN = [[START.x, START.z], [6, -44], [-34, -103], [-16, -184], [76, -188], null, [362, -224], [352, -249.5], [491, -276], [OX - 10, 1], [OX + 56, -36]];
+const ZONE_SPAWN = [[START.x, START.z], [6, -44], [-34, -103], [-16, -184], [76, -188], null, [362, -224], [352, -249.5], [493, -279], [OX - 10, 1], [OX + 56, -36]];
 new DevMenu(game, {
   goto(v) {
     const zi = +v;

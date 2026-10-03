@@ -18,9 +18,10 @@ import { buildMilsons, milsonsGround, MILSONS_TRACK, LUNA_TRACK, MILSONS_RECT, L
  * wharf, over the harbour on the ferry, and into the city. Each leg has its own way ahead (and the camera
  * swings round to face down the second one as you come out onto the beach). Round the end of the Quay, back
  * out along the water, is the Opera House: off the way on, and seen side on, looking down the first leg again.
- * Through the side of the King's court is Hyde Park, and at the far end of that, Museum station: the train
- * from there goes under the city and over the Bridge to Milsons Point, which is off on its own, well away from
- * the rest (there's no walking there: see Ride), with Luna Park round the corner from it.
+ * Through the end of the King's court is Hyde Park, looking down the first leg again, and at the far end of
+ * it, Museum station: the train from there goes under the city and over the Bridge to Milsons Point, which is
+ * off on its own, well away from the rest (there's no walking there: see Ride), with Luna Park round the corner
+ * from it.
  */
 export const LEGS = [
   { yaw: 0, dir: [0, -1] },
@@ -34,9 +35,9 @@ export const ZONES = [
   { name: 'Manly Beach', rect: [-46, -270, 70, -178], leg: 1 },
   { name: 'Manly Wharf', rect: [70, -244, 140, -184], leg: 1 },
   { name: 'The Manly Ferry', rect: [140, -242, 356, -178], leg: 1 }, // (bounds: wherever the deck's got to, see Ferry)
-  { name: 'The City', rect: [356, -270, 502, -178], leg: 1 },
+  { name: 'The City', rect: [356, -270, 506, -178], leg: 1 },
   { name: 'The Opera House', rect: [304, -290, 356, -242], leg: 0 },
-  { name: 'Hyde Park', rect: HYDE_RECT, leg: 1 },
+  { name: 'Hyde Park', rect: HYDE_RECT, leg: 0 },
   { name: 'Milsons Point', rect: MILSONS_RECT, leg: 0 },
   { name: 'Luna Park', rect: LUNA_RECT, leg: 1 },
 ];
@@ -57,7 +58,7 @@ export const FENCES = [
   { x: 140, z: -224, d: [1, 0], kind: 'rail', span: [-246, -182], ferry: true },
   { x: 356, z: -224, d: [1, 0], kind: 'rail', span: [-245, -175], ferry: true, lock: false },
   { x: 356, z: -249.5, d: [-1, 0], kind: 'rail', hw: 4.5, span: [-273, -245], lock: false, gap: true },
-  { ...HYDE_GATE, kind: 'rail', from: CITY, to: HYDE }, // (in a laneway out of the side of the King's court)
+  { ...HYDE_GATE, kind: 'rail', from: CITY, to: HYDE }, // (in the railings along the end of the King's court)
   { ...LUNA_GAP, kind: 'rail', lock: false, gap: true, from: MILSONS, to: LUNA },
 ];
 const SUN = new THREE.Vector3(18, 40, 14); // (where the sun is from you, looking down the first leg)

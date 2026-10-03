@@ -210,17 +210,23 @@ export class Key extends Foe {
     g.fx.sparkle(this.flyFrom.p, 10, [0xffe066, 0xffffff]);
   }
 
-  /** somewhere clear about `dist` from p (towards `dir` if it can be) that the key can be carried away from */
+  /**
+   * somewhere clear about `dist` from p (towards `dir` if it can be) that the key can be carried away from: with room
+   * all round it for its carriers, if there's anywhere like that (not hard up against a throne, say), or if not,
+   * wherever it'll fit
+   */
   landingNear(p, dir, dist) {
-    const g = this.game, w = g.world, r = this.def.carryR * 0.7, lock = this.lockPoint(_w);
-    const clear = (x, z) => w.isFree(x, z, r) && !w.waterDepth(x, z) && !g.mounds.blocked(x, z, r)
+    const g = this.game, w = g.world, lock = this.lockPoint(_w);
+    const clear = (x, z, r) => w.isFree(x, z, r) && !w.waterDepth(x, z) && !g.mounds.blocked(x, z, r)
       && !g.enemies.colliders.some((c) => Math.hypot(x - c.x, z - c.z) < c.r + r)
       && !!w.route(x, z, lock.x, lock.z, _t);
-    for (const d of [dist, dist * 0.7, dist * 1.35, dist * 0.45]) {
-      for (let i = 0; i < 14; i++) {
-        const a = dir + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.45;
-        const x = p.x + Math.sin(a) * d, z = p.z + Math.cos(a) * d;
-        if (clear(x, z)) return _t.set(x, 0, z);
+    for (const r of [this.def.carryR + 0.6, this.def.carryR * 0.7]) {
+      for (const d of [dist, dist * 0.7, dist * 1.35, dist * 0.45]) {
+        for (let i = 0; i < 14; i++) {
+          const a = dir + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.45;
+          const x = p.x + Math.sin(a) * d, z = p.z + Math.cos(a) * d;
+          if (clear(x, z, r)) return _t.set(x, 0, z);
+        }
       }
     }
     return _t.set(p.x, 0, p.z);

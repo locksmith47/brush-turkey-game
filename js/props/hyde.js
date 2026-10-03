@@ -1,142 +1,200 @@
 import * as THREE from 'three';
 import { part, merge, vcMesh, G, limb, rand, pick, hash, noise, smoothstep, clamp, TAU, toonMat, canvasTexture } from '../util.js';
-import { building, fig } from './city.js';
+import { building, fig, COURT_SPAN } from './city.js';
 
 /*
- * Hyde Park, through the laneway out of the side of the King's court (the King's key opens the gate across it),
- * over Elizabeth Street and in at the park gates. It's the city's backyard: lawns, Hill's figs everywhere, an
- * avenue of them down the middle, and the ibises and the rats have the run of it. At the top end, the Archibald
- * Fountain: Apollo up in the middle, with the others round him in the water, and jets arching in over the lot
- * (turkeys climb in and have a wash). There are bronze gents on sandstone plinths about the lawns (turkeys sit on
- * their heads, the way birds do), Park Street across the middle, and at the bottom end, the Pool of Reflection
- * and the Anzac Memorial. St Mary's looks on over College Street, along the other side.
+ * Hyde Park, out through the gate in the railings along one side of the King's court (the King's key opens it), and
+ * in at the park's top gates, over the footpath. It's the city's backyard: lawns, Hill's figs everywhere, an avenue of
+ * them down the middle, and the ibises and the rats have the run of it. At the top end, the Archibald Fountain: Apollo
+ * up in the middle, with the others round him in the water, and jets arching in over the lot (turkeys climb in and
+ * have a wash). There are bronze gents on sandstone plinths about the lawns (turkeys sit on their heads, the way birds
+ * do), Park Street across the middle, and at the bottom end, the Pool of Reflection and the Anzac Memorial. Elizabeth
+ * Street runs down the one side, and College Street down the other, with St Mary's and the Museum looking on over it.
  *
- * In the far corner is Museum station: stairs down from the park to the platform, in a cutting with a tunnel at
- * either end, and the train in, with its doors open (see Ride).
+ * In the bottom corner, on the Elizabeth Street side, is Museum station: stairs down from the park to the platform, in
+ * a cutting with a tunnel at either end, and the train in, with its doors open (see Ride).
  *
- * The park's on the second leg, like the city, so it's laid out in the world as it is: down the park is +x (south,
- * the way on), and across it, from Elizabeth Street over to College Street, is -z.
+ * It runs north to south, the way the real one does: down the first leg's way, like the Opera House (the camera swings
+ * round to look down it as you come in). It's all laid out in its own frame (see toWorld): down the park, from the
+ * fountain to the memorial, is +x, and across it, from Elizabeth Street over to College Street, is -z.
  */
-export const HYDE_RECT = [474, -352, 600, -270];
-/** the gate across the laneway out of the King's court, at the far end, where it comes out on Elizabeth Street */
-export const HYDE_GATE = { x: 491, z: -270, d: [0, -1], span: [485, 497] };
-const LANE = { x0: 485.6, x1: 496.4 }; // (the laneway itself, across)
-const PARK = { x0: 477, x1: 597, z0: -349, z1: -277.5 }; // inside the railings
+const TX = 806, TZ = 204; // (where the park's frame sits in the world: it's turned a quarter to the left from there)
+/** the world's [x, z] for (x, z) in the park's own frame */
+const toWorld = (x, z) => [z + TX, TZ - x];
+/** and the park's frame's, for (x, z) in the world */
+const toLocal = (X, Z) => [TZ - Z, X - TX];
+const rectToWorld = ([x0, z0, x1, z1]) => [z0 + TX, TZ - x1, z1 + TX, TZ - x0];
+
+const RECT = [474, -352, 600, -270]; // (the lot: the footpath along the top end, the park, and the cutting)
+export const HYDE_RECT = rectToWorld(RECT);
+const PARK = { x0: 478, x1: 596, z0: -350, z1: -278 }; // inside the railings (on the lines between the ground's squares: see groundGeo)
 const AXIS = -313; // z: the avenue down the middle, which the fountain sits across, lined up on St Mary's
+const GATE_W = 3.6; // (the top gates, either side of the avenue: their piers, out from the middle of it)
+/**
+ * The gate in the railings along the King's court, across the footpath from the park's top gates: in the world, the
+ * way through it's south, and the railings run right along that side of his court
+ */
+export const HYDE_GATE = (() => {
+  const [x, z] = toWorld(RECT[0], AXIS);
+  return { x, z, d: [0, -1], span: COURT_SPAN };
+})();
 const FOUNTAIN = { x: 505, z: AXIS, r: 7, water: 0.45 }; // the basin's rim (and the water's level)
 const PARK_ST = [538, 546]; // x: Park Street, across the middle
 const POOL = { x0: 556, x1: 574, z0: AXIS - 3.5, z1: AXIS + 3.5 }; // the Pool of Reflection
 const MEMORIAL = { x: 585, z: AXIS, half: 7.5 }; // the Anzac Memorial (half: half its podium's width)
+// the streets round it: Elizabeth Street's road (z), College Street's, and Liverpool Street's, along the bottom end (x),
+// and the footpaths either side of them (m across)
+const ELIZABETH = [-274, -264], COLLEGE = [-362, -354], LIVERPOOL = [602, 610], FOOTPATH = 4;
 // the station: the cutting it's in, and the stairs down into it from the park (`n` steps), and the platform
-export const CUT = { x0: 552, x1: 598, z0: -286, z1: -274 };
+const CUT = { x0: 552, x1: 598, z0: -286, z1: -274 };
 const STAIRS = { x0: 552, x1: 562, z0: -284.4, z1: -279.4, n: 20 };
-export const PLATFORM = { x0: 562, x1: 597, z0: -285.2, z1: -278.4, y: -6 };
+const PLATFORM = { x0: 562, x1: 597, z0: -285.2, z1: -278.4, y: -6 };
 const RAIL_Y = -7.1; // (the top of the rails, down in the cutting)
 const MOUTH_TOP = RAIL_Y + 5.2; // (and the top of the tunnels' mouths, at either end of it)
-export const TRACK_Z = -276.6;
-/** where the train stops at Museum (the middle of it): its doors open onto the platform, on its -z side */
-export const MUSEUM_STOP = { x: 579, z: TRACK_Z, y: PLATFORM.y, side: -1 };
+const TRACK_Z = -276.6;
+/**
+ * Where the train stops at Museum (the middle of her), in the world: she's headed south, on into the tunnel at the
+ * bottom end (`dir`), and her doors open onto the platform on her -z side, as she's built (`side`: see Ride)
+ */
+export const MUSEUM_STOP = (() => {
+  const [x, z] = toWorld(579, TRACK_Z);
+  return { x, z, y: PLATFORM.y, dir: [0, -1], side: -1 };
+})();
 /** the tunnels at either end of the cutting: x where the way in is (the train goes on through the far one, +x) */
 const PORTALS = [CUT.x0, CUT.x1];
 
-// what's about in the park: a mound among the figs near the gate, a few bins, ibises, and rats (round the bins, and down
-// on the platform)
-export const HYDE_MOUND = [487, -300];
-export const HYDE_BINS = [['red', 511.5, -296.2, 0], ['green', 536.5, -333.5, Math.PI / 2], ['red', 553.5, -291, Math.PI], ['yellow', 498, -340.5, -Math.PI / 2]];
-export const HYDE_IBISES = [['ibis', 496, -323], ['ibis', 527, -297], ['big', 531, -330], ['ibis', 561, -336], ['ibis', 492, -344], ['giant', 576, -296]];
-export const HYDE_RATS = [[510, -299], [513, -300.5], [508.5, -301.5], [535, -337], [538, -336], [499.5, -337.5], [574, -282], [583, -283.5], [590, -281.5]];
+// what's about in the park: a mound among the figs near the top gates, a few bins, ibises, and rats (round the bins,
+// and down on the platform)
+export const HYDE_MOUND = toWorld(487, -300);
+export const HYDE_BINS = [['red', 511.5, -296.2, 0], ['green', 536.5, -333.5, Math.PI / 2], ['red', 553.5, -291, Math.PI], ['yellow', 498, -340.5, -Math.PI / 2]]
+  .map(([kind, x, z, face]) => [kind, ...toWorld(x, z), face + Math.PI / 2]);
+export const HYDE_IBISES = [['ibis', 496, -323], ['ibis', 527, -297], ['big', 531, -330], ['ibis', 561, -336], ['ibis', 492, -344], ['giant', 576, -296]]
+  .map(([kind, x, z]) => [kind, ...toWorld(x, z)]);
+export const HYDE_RATS = [[510, -299], [513, -300.5], [508.5, -301.5], [535, -337], [538, -336], [499.5, -337.5], [574, -282], [583, -283.5], [590, -281.5]]
+  .map(([x, z]) => toWorld(x, z));
 
 /* ------------------------------------------------------------------ the lie of the land */
 /** the steps down into the station: the ground's height at x, going down them */
 const stairY = (x) => PLATFORM.y * clamp((x - STAIRS.x0) / (STAIRS.x1 - STAIRS.x0), 0, 1);
 
-/** the ground in the park: flat, bar down the stairs into the station, and the cutting it's in */
-export function hydeGround(x, z) {
+/** the ground at (x, z) in the park's frame: flat, bar down the stairs into the station, and the cutting it's in */
+function groundAt(x, z) {
   if (x < CUT.x0 || z < CUT.z0 || z > CUT.z1) return 0;
   if (z > PLATFORM.z1) return RAIL_Y; // (the tracks)
   if (x >= PLATFORM.x0) return z >= PLATFORM.z0 ? PLATFORM.y : 0;
   return z >= STAIRS.z0 && z <= STAIRS.z1 ? stairY(x) : 0;
 }
+/** the ground in the park, at (x, z) in the world */
+export function hydeGround(x, z) { return groundAt(...toLocal(x, z)); }
 
-// the lie of the land (see Track): in off the street through the laneway, the park (all one big lawn, either side
-// of the cutting), and down the stairs onto the platform
-export const HYDE_TRACK = {
-  nodes: { lane: [491, -278.6], stairs_top: [552.2, -281.9], stairs_foot: [562.3, -281.9], se: [552.6, -320] },
+// the lie of the land (see Track): in off the footpath through the top gates, the park (all one big lawn, along
+// either side of the cutting), and down the stairs onto the platform. Each room reaches well into the next, so
+// nothing's ever caught at the joins (a point's only in a room once it's its own size in from the edges)
+const LAND = {
+  nodes: { gate: [479.5, AXIS], nw: [520, -288.5], stairs_top: [550.5, -281.9], stairs_foot: [563.5, -281.9] },
   rooms: [
-    { rect: [LANE.x0, -279.4, LANE.x1, -269.5], nodes: ['lane'], ground: 'dirt' },
-    { rect: [PARK.x0, PARK.z0, CUT.x0 + 0.8, PARK.z1], nodes: ['lane', 'stairs_top', 'se'] },
-    { rect: [CUT.x0, PARK.z0, PARK.x1, CUT.z0 - 0.8], nodes: ['se'] },
-    { rect: [CUT.x0 - 0.2, STAIRS.z0 + 0.2, STAIRS.x1 + 0.6, STAIRS.z1 - 0.2], nodes: ['stairs_top', 'stairs_foot'], ground: 'dirt' },
+    { rect: [RECT[0], AXIS - GATE_W + 0.6, PARK.x0 + 3, AXIS + GATE_W - 0.6], nodes: ['gate'] },
+    { rect: [PARK.x0, PARK.z0, PARK.x1, CUT.z0 - 0.8], nodes: ['gate', 'nw'] },
+    { rect: [PARK.x0, CUT.z0 - 4, CUT.x0, PARK.z1], nodes: ['nw', 'stairs_top'] },
+    { rect: [CUT.x0 - 2.5, STAIRS.z0 + 0.2, STAIRS.x1 + 3, STAIRS.z1 - 0.2], nodes: ['stairs_top', 'stairs_foot'], ground: 'dirt' },
     { rect: [PLATFORM.x0, PLATFORM.z0 + 0.2, PLATFORM.x1 - 0.3, PLATFORM.z1 - 0.4], nodes: ['stairs_foot'], ground: 'dirt' },
   ],
+};
+/** the same, in the world */
+export const HYDE_TRACK = {
+  nodes: Object.fromEntries(Object.entries(LAND.nodes).map(([name, [x, z]]) => [name, toWorld(x, z)])),
+  rooms: LAND.rooms.map((r) => ({ ...r, rect: rectToWorld(r.rect) })),
 };
 
 /* ------------------------------------------------------------------ building bits */
 const SAND = 0xd9bc85, SAND2 = 0xc9a874, BRONZE = 0x5f6c55, BRONZE2 = 0x4b5645, IRON = 0x2b2d2e;
 const STONE = new THREE.Color(0xcfc4ad), GRAVEL = new THREE.Color(0xd8c9a2), ROAD = new THREE.Color(0x4a4d52), PATH = new THREE.Color(0xc9c6bd);
+const PLOT = new THREE.Color(0x9a978f); // (the concrete the buildings round about stand on, as in the city)
 const GRASS = [new THREE.Color(0x6fa548), new THREE.Color(0x82b453)], SHADE = new THREE.Color(0x4f7f38);
 
-// the park's paths, as capsules: [ax, az, bx, bz, half their width]
+// the park's gravel paths, as capsules: [ax, az, bx, bz, half their width] (the avenue down the middle, and the
+// paving round the fountain, the pool and the memorial, are stone: see paths)
 const PATHS = [
-  [PARK.x0, AXIS, PARK.x1, AXIS, 4], // (the avenue)
-  [491, PARK.z1, 499, -304, 2.2], // (in from the gate to the fountain)
-  [FOUNTAIN.x, AXIS, FOUNTAIN.x, PARK.z0, 2.4], // (and on to College Street, and St Mary's)
-  [519, -279, 534, -309, 1.6], [522, -347, 534, -317, 1.6],
+  [FOUNTAIN.x, PARK.z1 - 2.4, FOUNTAIN.x, PARK.z0 + 2.4, 2.4], // (across, through the fountain: Elizabeth Street to College Street, and St Mary's)
+  [519, -280, 534, -309, 1.6], [522, -347, 534, -317, 1.6],
   [534, -297, CUT.x0 - 1, -282, 1.8], // (to the station)
   [580, -287.5, 580, AXIS, 1.6],
 ];
-/** how far (x, z) is off the paths (negative: on one), counting the paving round the fountain, the pool and the memorial */
-function offPath(x, z) {
-  let d = Math.hypot(x - FOUNTAIN.x, z - FOUNTAIN.z) - (FOUNTAIN.r + 4);
-  d = Math.min(d, Math.max(Math.abs(x - (POOL.x0 + POOL.x1) / 2) - 11, Math.abs(z - AXIS) - 7.5));
-  d = Math.min(d, Math.max(Math.abs(x - MEMORIAL.x), Math.abs(z - MEMORIAL.z)) - MEMORIAL.half - 4);
-  for (const [ax, az, bx, bz, w] of PATHS) {
-    const vx = bx - ax, vz = bz - az, t = clamp(((x - ax) * vx + (z - az) * vz) / (vx * vx + vz * vz), 0, 1);
-    d = Math.min(d, Math.hypot(x - ax - vx * t, z - az - vz * t) - w);
-  }
-  return d;
+/**
+ * What's on the ground in the square round (x, z), outside the lawns: the roads (Park Street carrying on out either
+ * side of the park), the footpaths along them, and past those, where the buildings are. Null on the lawn
+ */
+function groundKind(x, z) {
+  const road = (z > ELIZABETH[0] && z < ELIZABETH[1]) || (z > COLLEGE[0] && z < COLLEGE[1]) || (x > LIVERPOOL[0] && x < LIVERPOOL[1]) || (x > PARK_ST[0] && x < PARK_ST[1]);
+  if (road) return ROAD;
+  if (x > PARK.x0 && x < PARK.x1 && z > PARK.z0 && z < PARK.z1) return null;
+  return z > COLLEGE[0] - FOOTPATH && z < ELIZABETH[1] + FOOTPATH && x < LIVERPOOL[1] + FOOTPATH ? PATH : PLOT;
 }
 
-/** the colour of the ground at (x, z): lawn (darker under the figs), the paths, and the streets round the outside */
-function groundColour(x, z, trees, c) {
-  if (z > PARK.z1 + 0.5) return c.copy(z > -274 ? ROAD : PATH); // (Elizabeth Street, and its footpath on the park's side)
-  if (x < PARK.x0 - 0.5 || x > PARK.x1 + 0.5 || z < PARK.z0 - 0.5) return c.copy(x < PARK.x0 - 4 || x > PARK.x1 + 4 || z < PARK.z0 - 4 ? ROAD : PATH);
-  if (x > PARK_ST[0] && x < PARK_ST[1]) return c.copy(ROAD);
-  const n = 0.5 + 0.5 * noise(x * 0.09, z * 0.09);
-  c.copy(GRASS[0]).lerp(GRASS[1], n);
-  // (a stripe or two where it's been mown, and shade under the figs)
+/** the lawn's colour at (x, z): mown in stripes, and darker in the shade of the figs (`trees`) */
+function lawnColour(x, z, trees, c) {
+  c.copy(GRASS[0]).lerp(GRASS[1], 0.5 + 0.5 * noise(x * 0.09, z * 0.09));
   c.multiplyScalar(1 + 0.04 * Math.sign(Math.sin((x - PARK.x0) * 0.35)));
   let shade = 0;
   for (const [tx, tz] of trees) shade = Math.max(shade, 1 - smoothstep(2.5, 6.5, Math.hypot(x - tx, z - tz)));
-  c.lerp(SHADE, shade * 0.55);
-  const p = offPath(x, z);
-  if (p < 0.6) c.lerp(Math.abs(z - AXIS) < 4.2 || Math.hypot(x - FOUNTAIN.x, z - FOUNTAIN.z) < FOUNTAIN.r + 4.2 ? STONE : GRAVEL, smoothstep(0.6, -0.4, p));
-  return c;
+  return c.lerp(SHADE, shade * 0.55);
 }
 
+const SHEET = { x0: RECT[0], x1: 616, z0: -368, z1: -246 }; // (the ground, in 2 m squares: the park, and the streets round it)
+const OUTER = { x0: RECT[0], x1: 716, z0: -452, z1: -214 }; // (and past them, plain concrete, as far as you can see)
+
 /**
- * The ground: one sheet of 2 m squares from the street to the far side of the park, bar the cutting the station's in
- * (`trees`: where the figs are, for the shade under them)
+ * The ground: one sheet of 2 m squares over the park and the streets round it, bar the cutting the station's in
+ * (`trees`: where the figs are, for the shade under them), and round that, out to the haze, where the buildings are.
+ * The streets' squares are all the one colour, so their edges are sharp; the lawn's shade from corner to corner
  */
 function groundGeo(trees) {
-  const X0 = 468, X1 = 640, Z0 = -358, Z1 = -264, S = 2, pos = [], col = [], c = new THREE.Color();
-  const corner = (x, z) => { groundColour(x, z, trees, c); pos.push(x, 0, z); col.push(c.r, c.g, c.b); };
-  for (let x = X0; x < X1; x += S) {
-    for (let z = Z0; z < Z1; z += S) {
+  const S = 2, pos = [], col = [], c = new THREE.Color();
+  for (let x = SHEET.x0; x < SHEET.x1; x += S) {
+    for (let z = SHEET.z0; z < SHEET.z1; z += S) {
       if (x >= CUT.x0 && x < CUT.x1 && z >= CUT.z0 && z < CUT.z1) continue;
-      corner(x, z); corner(x, z + S); corner(x + S, z);
-      corner(x + S, z); corner(x, z + S); corner(x + S, z + S);
+      const kind = groundKind(x + S / 2, z + S / 2);
+      for (const [a, b] of [[x, z], [x, z + S], [x + S, z], [x + S, z], [x, z + S], [x + S, z + S]]) {
+        if (kind) c.copy(kind);
+        else lawnColour(a, b, trees, c);
+        pos.push(a, 0, b);
+        col.push(c.r, c.g, c.b);
+      }
     }
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   g.computeVertexNormals();
-  return g;
+  // (the concrete round it all: a sheet with the first one's hole in it, laid out on the shape's y as -z)
+  const out = new THREE.Shape([[OUTER.x0, -OUTER.z0], [OUTER.x1, -OUTER.z0], [OUTER.x1, -OUTER.z1], [OUTER.x0, -OUTER.z1]].map(([a, b]) => new THREE.Vector2(a, b)));
+  out.holes.push(new THREE.Path([[SHEET.x0, -SHEET.z0], [SHEET.x0, -SHEET.z1], [SHEET.x1, -SHEET.z1], [SHEET.x1, -SHEET.z0]].map(([a, b]) => new THREE.Vector2(a, b))));
+  return merge([g, part(new THREE.ShapeGeometry(out).rotateX(-Math.PI / 2), PLOT)]);
 }
 
 /** a flat bit of something on the ground (w along x, d along z) */
 const flat = (w, d, color, x, z, y = 0.02) => part(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2), color, [x, y, z]);
+
+/**
+ * The paths, laid over the lawn: the gravel ones, and over them, the stone avenue down the middle (either side of Park
+ * Street), the paving round the fountain, and round the pool and the memorial
+ */
+function paths(p) {
+  for (const [ax, az, bx, bz, w] of PATHS) {
+    const len = Math.hypot(bx - ax, bz - az), s = new THREE.Shape();
+    // (along from a to b, w either side, round at the ends)
+    s.moveTo(0, -w);
+    s.lineTo(len, -w);
+    s.absarc(len, 0, w, -Math.PI / 2, Math.PI / 2, false);
+    s.lineTo(0, w);
+    s.absarc(0, 0, w, Math.PI / 2, Math.PI * 1.5, false);
+    p.push(part(new THREE.ShapeGeometry(s, 6).rotateX(-Math.PI / 2).rotateY(Math.atan2(az - bz, bx - ax)), GRAVEL, [ax, 0.02, az]));
+  }
+  for (const [a, b] of [[PARK.x0, PARK_ST[0]], [PARK_ST[1], PARK.x1]]) p.push(flat(b - a, 8, STONE, (a + b) / 2, AXIS, 0.04));
+  p.push(flat(PARK_ST[1] - PARK_ST[0], PARK.z1 - PARK.z0, ROAD, (PARK_ST[0] + PARK_ST[1]) / 2, (PARK.z0 + PARK.z1) / 2, 0.03)); // (Park Street, over any path that crosses it)
+  p.push(part(new THREE.CircleGeometry(FOUNTAIN.r + 4, 48).rotateX(-Math.PI / 2), STONE, [FOUNTAIN.x, 0.04, FOUNTAIN.z]));
+  p.push(flat(22, 15, STONE, (POOL.x0 + POOL.x1) / 2, AXIS, 0.04), flat(MEMORIAL.half * 2 + 8, MEMORIAL.half * 2 + 8, STONE, MEMORIAL.x, MEMORIAL.z, 0.04));
+}
 
 /** a sign's face (a plane `w` by `h`, its canvas drawn by `draw`), facing +z */
 export function signFace(w, h, draw, px = 512) {
@@ -170,11 +228,10 @@ function rail(p, ax, az, bx, bz, y = 0) {
 }
 
 /**
- * A bronze figure, standing (built facing +z, its feet at y 0, about `h` tall): in a frock coat or bare, an arm out
- * (`reach`: how far up it's pointing, radians from straight out in front; null for both down by its sides), a hat
- * or not. Returns { parts, head: the top of its head, hand: its outstretched hand }
+ * A bronze figure, standing (built facing +z, its feet at y 0, about `h` tall), its arms down by its sides: one hand
+ * holding a scroll, or a hat. In a frock coat or bare, and a hat on or not. Returns { parts, head: the top of its head }
  */
-function figure(h = 2.3, { coat = true, reach = null, hat = false, color = BRONZE } = {}) {
+function figure(h = 2.3, { coat = true, hat = false, color = BRONZE } = {}) {
   const k = h / 2.3, dark = color === BRONZE ? BRONZE2 : new THREE.Color(color).multiplyScalar(0.8).getHex(), p = [];
   for (const s of [-1, 1]) {
     p.push(limb([s * 0.13 * k, 0.05, 0], [s * 0.12 * k, 1.08 * k, 0], 0.09 * k, 0.12 * k, dark, 7));
@@ -190,15 +247,17 @@ function figure(h = 2.3, { coat = true, reach = null, hat = false, color = BRONZ
     p.push(part(G.cyl(0.11 * k, 0.12 * k, 0.24 * k, 10), dark, [0, 2.4 * k, 0.01]), part(G.cyl(0.2 * k, 0.2 * k, 0.02 * k, 12), dark, [0, 2.29 * k, 0.01]));
     top = 2.52 * k;
   }
-  const sh = [-0.29 * k, 1.9 * k, 0], hand = reach === null ? null : [-0.32 * k, (1.9 + Math.sin(reach) * 0.7) * k, Math.cos(reach) * 0.7 * k];
-  // (one arm down by its side, holding a scroll or a hat; the other out, or down too)
-  p.push(limb([0.29 * k, 1.9 * k, 0], [0.33 * k, 1.2 * k, 0.08 * k], 0.075 * k, 0.06 * k, color, 6), part(G.cyl(0.05 * k, 0.05 * k, 0.32 * k, 8), dark, [0.34 * k, 1.12 * k, 0.12 * k], [0.3, 0, 0]));
-  if (hand) p.push(limb(sh, hand, 0.075 * k, 0.06 * k, color, 6), part(G.sphere(0.07 * k, 8, 6), color, hand));
-  else p.push(limb(sh, [-0.33 * k, 1.2 * k, 0.04 * k], 0.075 * k, 0.06 * k, color, 6));
-  return { parts: p, head: top, hand };
+  // (the arms, upper and fore, hanging easy, a hand at each side: the one holding a rolled-up scroll, or the hat he's not wearing)
+  for (const s of [-1, 1]) {
+    const sh = [s * 0.29 * k, 1.9 * k, 0], el = [s * 0.34 * k, 1.5 * k, -0.02 * k], wr = [s * 0.33 * k, 1.17 * k, 0.07 * k];
+    p.push(limb(sh, el, 0.08 * k, 0.07 * k, color, 6), limb(el, wr, 0.07 * k, 0.055 * k, color, 6), part(G.sphere(0.06 * k, 8, 6), color, wr));
+  }
+  if (hat) p.push(part(G.cyl(0.2 * k, 0.2 * k, 0.03 * k, 12), dark, [0.36 * k, 1.12 * k, 0.12 * k], [0, 0, Math.PI / 2 - 0.15]));
+  else p.push(part(G.cyl(0.05 * k, 0.05 * k, 0.32 * k, 8), dark, [0.34 * k, 1.12 * k, 0.12 * k], [0.3, 0, 0]));
+  return { parts: p, head: top };
 }
 
-/** a statue on its plinth (built facing +z, the plinth's foot at y 0): returns { geo, head, hand } (heights, and where the hand is) */
+/** a statue on its plinth (built facing +z, the plinth's foot at y 0): returns { geo, head } (the height of the top of its head) */
 function statueGeo(spec) {
   const P = 2.3, f = figure(2.3, spec), p = [
     part(G.box(2.2, 0.35, 2.2), SAND2, [0, 0.17, 0]),
@@ -207,14 +266,14 @@ function statueGeo(spec) {
     part(G.box(1.0, 0.36, 0.04), BRONZE2, [0, 1.15, 0.91]), // (the plaque)
   ];
   for (const g of f.parts) p.push(g.translate(0, P, 0));
-  return { geo: merge(p), head: P + f.head, hand: f.hand && [f.hand[0], f.hand[1] + P, f.hand[2]] };
+  return { geo: merge(p), head: P + f.head };
 }
 
 /* ------------------------------------------------------------------ the fountain */
 /**
  * The Archibald Fountain (in its own frame, the middle of the basin at the origin): the basin, Apollo up in the middle on
- * his pedestal with his arm out, and round him in the water, three groups on their rocks (a bull, a stag and a goat-legged
- * fellow, more or less, at this size); the jets come up out of the rim and arc in over the lot
+ * his pedestal, and round him in the water, three groups on their rocks (a bull, a stag and a goat-legged fellow, more
+ * or less, at this size); the jets come up out of the rim and arc in over the lot
  */
 function fountainGeo() {
   const R = FOUNTAIN.r, p = [
@@ -225,7 +284,7 @@ function fountainGeo() {
     part(G.cyl(0.9, 1.2, 2.4, 12), 0xd2c6ad, [0, 2.4, 0]),
     part(G.cyl(1.25, 1.0, 0.35, 12), 0xd8cdb6, [0, 3.7, 0]),
   ];
-  const apollo = figure(2.6, { coat: false, reach: 0.9 });
+  const apollo = figure(2.6, { coat: false });
   for (const g of apollo.parts) p.push(g.translate(0, 3.85, 0));
   // (round him, on their rocks in the water)
   [[0.5, 'bull'], [0.5 + TAU / 3, 'stag'], [0.5 + (2 * TAU) / 3, 'pan']].forEach(([a, kind]) => {
@@ -238,11 +297,11 @@ function fountainGeo() {
       b.push(limb([0, 1.4, 0.6], [0, 1.75, 0.95], 0.16, 0.13, BRONZE, 7), part(G.sphere(0.2, 8, 6), BRONZE, [0, 1.82, 1.08], [0, 0, 0], [0.8, 0.8, 1.3]));
       if (kind === 'bull') for (const s of [-1, 1]) b.push(limb([s * 0.12, 1.95, 1.05], [s * 0.38, 2.15, 1.0], 0.04, 0.015, 0xb8a676, 5));
       else for (const s of [-1, 1]) b.push(limb([s * 0.1, 1.98, 1.02], [s * 0.3, 2.55, 0.9], 0.03, 0.015, BRONZE2, 5), limb([s * 0.22, 2.3, 0.95], [s * 0.42, 2.45, 1.1], 0.02, 0.01, BRONZE2, 4));
-      // (and a figure wrestling it, or after it)
-      const f = figure(2.0, { coat: false, reach: kind === 'bull' ? 0.3 : 1.2 });
+      // (and a figure standing by it)
+      const f = figure(2.0, { coat: false });
       for (const g of f.parts) b.push(g.rotateY(kind === 'bull' ? 0.9 : -0.6).translate(kind === 'bull' ? -0.75 : 0.8, 0.5, -0.2));
     } else {
-      const f = figure(2.1, { coat: false, reach: 1.4 });
+      const f = figure(2.1, { coat: false });
       for (const g of f.parts) b.push(g.translate(0, 0.6, 0));
       b.push(part(G.sphere(1, 10, 8), BRONZE2, [0, 1.0, 0], [0, 0, 0], [0.32, 0.3, 0.28])); // (the shaggy goat legs, roughly)
     }
@@ -274,17 +333,20 @@ function jetsGeo() {
 }
 
 /* ------------------------------------------------------------------ round the outside */
-/** St Mary's, over College Street: a sandstone nave with its buttresses, the tower over the crossing, and two more at the front */
+/**
+ * St Mary's, over College Street: a sandstone nave with its buttresses and its tall windows along the side towards the
+ * park, the tower over the crossing, and the two towers at the end, by Park Street
+ */
 function stMarys(p) {
-  const x0 = 486, x1 = 540, z = -372, w = 16, h = 17;
+  const x0 = 480, x1 = 530, z = -374, w = 16, h = 17, face = z + w / 2;
   p.push(part(G.box(x1 - x0, h, w), SAND, [(x0 + x1) / 2, h / 2, z]));
   p.push(part(G.cyl(1, 1, 1, 3), 0x7d6b55, [(x0 + x1) / 2, h + 3.2, z], [0, 0, Math.PI / 2], [6.4, x1 - x0, w * 0.55])); // (the roof)
   for (let x = x0 + 4; x < x1 - 2; x += 6) {
-    p.push(part(G.box(1.2, h * 0.8, 1.6), SAND2, [x, h * 0.4, z + w / 2 + 0.8]));
-    p.push(part(G.box(1.6, h * 0.55, 0.1), 0x3d3a45, [x + 3, h * 0.55, z + w / 2 + 0.06])); // (the windows: tall and pointed, near enough)
-    p.push(part(G.cone(0.8, 1.4, 4), 0x3d3a45, [x + 3, h * 0.83 + 0.6, z + w / 2 + 0.06], [0, Math.PI / 4, 0], [1, 1, 0.08]));
+    p.push(part(G.box(1.2, h * 0.8, 1.6), SAND2, [x, h * 0.4, face + 0.8]));
+    p.push(part(G.box(1.6, h * 0.55, 0.1), 0x3d3a45, [x + 3, h * 0.55, face + 0.06])); // (the windows: tall and pointed, near enough)
+    p.push(part(G.cone(0.8, 1.4, 4), 0x3d3a45, [x + 3, h * 0.83 + 0.6, face + 0.06], [0, Math.PI / 4, 0], [1, 1, 0.08]));
   }
-  p.push(part(G.box(10, 34, 10), SAND, [506, 17, z]), part(G.cone(5.6, 6, 4), SAND2, [506, 37, z], [0, Math.PI / 4, 0]));
+  p.push(part(G.box(10, 34, 10), SAND, [500, 17, z]), part(G.cone(5.6, 6, 4), SAND2, [500, 37, z], [0, Math.PI / 4, 0]));
   for (const s of [-1, 1]) {
     p.push(part(G.box(7, 33, 7), SAND, [x1 + 2.5, 16.5, z + s * 4.5]), part(G.cone(4.2, 7, 4), SAND2, [x1 + 2.5, 36.5, z + s * 4.5], [0, Math.PI / 4, 0]));
     for (let y = 8; y < 30; y += 7) p.push(part(G.box(0.1, 3.2, 1.6), 0x3d3a45, [x1 + 6.06, y, z + s * 4.5]));
@@ -292,9 +354,9 @@ function stMarys(p) {
   p.push(part(G.box(0.1, 9, 4.5), 0x3d3a45, [x1 + 6.06, 7, z]), part(G.cone(2.4, 3, 4), 0x3d3a45, [x1 + 6.06, 12.4, z], [0, Math.PI / 4, 0], [1, 1, 0.04]));
 }
 
-/** the Australian Museum, at the bottom end of College Street: sandstone, with its columns along the front */
+/** the Australian Museum, further down College Street: sandstone, with its columns along the front */
 function museum(p) {
-  const x0 = 566, x1 = 600, z = -367;
+  const x0 = 566, x1 = 600, z = -377;
   p.push(part(G.box(x1 - x0, 14, 18), SAND, [(x0 + x1) / 2, 7, z]), part(G.box(x1 - x0 + 0.6, 1.2, 18.6), SAND2, [(x0 + x1) / 2, 14.4, z]));
   for (let x = x0 + 3; x < x1 - 1; x += 3.4) p.push(part(G.cyl(0.55, 0.62, 11, 10), 0xe6d2a5, [x, 5.9, z + 9.8]));
   p.push(part(G.box(x1 - x0, 1.4, 1.8), SAND2, [(x0 + x1) / 2, 11.9, z + 9.8]), part(G.box(x1 - x0, 0.8, 2.4), SAND2, [(x0 + x1) / 2, 0.4, z + 10]));
@@ -376,7 +438,7 @@ function station(p) {
 }
 
 /** the station's way in, at the top of the stairs: a sandstone arch over them, with the station's name across it */
-function entrance(world, s) {
+function entrance(s, collide) {
   const x = STAIRS.x0 + 0.4, zc = (STAIRS.z0 + STAIRS.z1) / 2, w = STAIRS.z1 - STAIRS.z0, p = [];
   for (const k of [-1, 1]) {
     p.push(part(G.box(1.2, 4.2, 1.0), SAND, [x, 2.1, zc + k * (w / 2 + 0.5)]), part(G.box(1.4, 0.3, 1.2), SAND2, [x, 4.35, zc + k * (w / 2 + 0.5)]));
@@ -385,7 +447,7 @@ function entrance(world, s) {
   p.push(part(G.box(1.0, 1.0, w + 2.2), SAND, [x, 3.9, zc]));
   const m = vcMesh(merge(p), { cast: true, receive: true });
   s.add(m);
-  for (const k of [-1, 1]) world.colliders.push({ x, z: zc + k * (w / 2 + 0.5), r: 0.7 });
+  for (const k of [-1, 1]) collide(x, zc + k * (w / 2 + 0.5), 0.7);
   const sign = signFace(w + 1.6, 0.7, (c, cw, ch) => {
     c.fillStyle = '#7a2a2a'; c.fillRect(0, 0, cw, ch);
     c.fillStyle = '#f3e7c4'; c.textAlign = 'center'; c.textBaseline = 'middle';
@@ -396,7 +458,7 @@ function entrance(world, s) {
   s.add(sign);
 }
 
-/** the station's name, on the wall behind the platform (and a timetable, and a bench to wait on) */
+/** the station's name, on the wall behind the platform */
 function platformSigns(s) {
   const draw = (c, cw, ch) => {
     c.fillStyle = '#f3e7c4'; c.fillRect(0, 0, cw, ch);
@@ -413,9 +475,18 @@ function platformSigns(s) {
 
 /* ------------------------------------------------------------------ */
 export function buildHyde(world) {
+  // (everything's built in the park's own frame, turned and set down in the world: see toWorld)
   const s = new THREE.Group();
+  s.rotation.y = Math.PI / 2;
+  s.position.set(TX, 0, TZ);
   world.scene.add(s);
+  s.updateMatrixWorld(true);
   const statics = [], round = [];
+  /** something round (radius r) at (x, z) in the park's frame, for everything to bump into */
+  const collide = (x, z, r) => {
+    const [X, Z] = toWorld(x, z);
+    world.colliders.push({ x: X, z: Z, r });
+  };
 
   // --- the figs: an avenue of them down the middle (either side of the pool, too), and more about the lawns
   const trees = [];
@@ -423,34 +494,45 @@ export function buildHyde(world) {
   for (const x of [557, 566, 575]) for (const z of [AXIS + 10.5, AXIS - 10.5]) trees.push([x, z, rand(6, 7.5)]);
   for (const [x, z] of [[482, -287], [489, -343], [500, -285], [519, -343], [530, -284], [550, -341], [562, -293], [592, -292], [593, -341], [482, -330], [512, -330]]) trees.push([x, z, rand(6.5, 8.5)]);
   for (const [x, z, h] of trees) {
-    const m = vcMesh(fig(h));
-    m.position.set(x, 0, z);
+    // (the trees themselves out in the world, not the park's frame: they sway, see World.addSway)
+    const m = vcMesh(fig(h)), [X, Z] = toWorld(x, z);
+    m.position.set(X, 0, Z);
     m.rotation.y = rand(0, TAU);
     m.scale.setScalar(rand(1.05, 1.3)); // (these have had the room to spread)
     world.addSway(m);
     world.scene.add(m);
-    world.colliders.push({ x, z, r: 0.7 });
-    world.treeSpots.push({ x, z, h: h + 2, palette: 'fig', n: 9 });
+    collide(x, z, 0.7);
+    world.treeSpots.push({ x: X, z: Z, h: h + 2, palette: 'fig', n: 9 });
   }
 
-  // --- the ground, and the zebra crossing over Elizabeth Street from the laneway, and over Park Street
+  // --- the ground, and the streets round it: lines down the middle of them, and Park Street's zebra crossings
   s.add(vcMesh(groundGeo(trees), { cast: false, receive: true }));
-  for (let x = LANE.x0 + 0.5; x < LANE.x1; x += 1.1) statics.push(flat(0.55, 3.6, 0xf2f2f2, x, -272, 0.03));
-  for (let z = AXIS - 3.6; z <= AXIS + 3.6; z += 1.1) statics.push(flat(PARK_ST[1] - PARK_ST[0] - 1, 0.55, 0xf2f2f2, (PARK_ST[0] + PARK_ST[1]) / 2, z, 0.03));
+  paths(statics);
+  for (let x = PARK.x0 + 1; x < SHEET.x1 - 1; x += 6) {
+    for (const z of [ELIZABETH, COLLEGE]) if (x < PARK_ST[0] - 1.5 || x > PARK_ST[1] + 1.5) statics.push(flat(3, 0.15, 0xf2f2f2, x + 1.5, (z[0] + z[1]) / 2, 0.03));
+  }
+  for (let z = COLLEGE[1] + 2; z < ELIZABETH[0] - 2; z += 6) if (Math.abs(z - AXIS) > 5) statics.push(flat(0.15, 3, 0xf2f2f2, (PARK_ST[0] + PARK_ST[1]) / 2, z, 0.045));
+  for (let z = AXIS - 3.6; z <= AXIS + 3.6; z += 1.1) statics.push(flat(PARK_ST[1] - PARK_ST[0] - 1, 0.55, 0xf2f2f2, (PARK_ST[0] + PARK_ST[1]) / 2, z, 0.045));
   for (const x of PARK_ST) statics.push(part(G.box(0.25, 0.12, PARK.z1 - PARK.z0), 0xbdb8ab, [x, 0.06, (PARK.z0 + PARK.z1) / 2]));
-  for (let z = PARK.z0 + 2; z < PARK.z1 - 2; z += 6) if (Math.abs(z - AXIS) > 5) statics.push(flat(0.15, 3, 0xf2f2f2, (PARK_ST[0] + PARK_ST[1]) / 2, z, 0.03));
+  // (and the kerbs, all along either side of the streets round it)
+  for (const z of [ELIZABETH[0], ELIZABETH[1], COLLEGE[0], COLLEGE[1]]) {
+    for (const [a, b] of [[RECT[0], PARK_ST[0]], [PARK_ST[1], LIVERPOOL[0]]]) statics.push(part(G.box(b - a, 0.12, 0.25), 0xbdb8ab, [(a + b) / 2, 0.06, z]));
+  }
 
-  // --- the railings round the park (bar the way in from the laneway, and the cutting, which has its own)
+  // --- the railings round the park (bar the top gates, and the cutting, which has its own), and the gates' piers
   const { x0, x1, z0, z1 } = PARK;
-  palisade(statics, x0, z1, LANE.x0, z1);
-  palisade(statics, LANE.x1, z1, CUT.x0, z1);
-  palisade(statics, x0, z0, x0, z1);
+  palisade(statics, x0, z1, CUT.x0, z1);
+  palisade(statics, x0, z0, x0, AXIS - GATE_W);
+  palisade(statics, x0, AXIS + GATE_W, x0, z1);
   palisade(statics, x0, z0, x1, z0);
   palisade(statics, x1, z0, x1, CUT.z0);
+  const pier = (x, z) => statics.push(part(G.box(1.0, 2.8, 1.0), SAND, [x, 1.4, z]), part(G.box(1.2, 0.2, 1.2), SAND2, [x, 2.9, z]), part(G.sphere(0.42, 10, 8), SAND2, [x, 3.35, z]));
   for (const k of [-1, 1]) {
-    const x = k < 0 ? LANE.x0 - 0.4 : LANE.x1 + 0.4;
-    statics.push(part(G.box(0.9, 2.6, 0.9), SAND, [x, 1.3, z1]), part(G.sphere(0.4, 10, 8), SAND2, [x, 2.85, z1]));
+    pier(x0, AXIS + k * GATE_W);
+    collide(x0, AXIS + k * GATE_W, 0.75);
   }
+  // (and Park Street's gates, either side of the park, shut)
+  for (const z of [z0, z1]) for (const x of [PARK_ST[0] - 0.3, PARK_ST[1] + 0.3]) pier(x, z);
 
   // --- the fountain, and the jets, and the paving round it
   const fountain = new THREE.Group();
@@ -466,25 +548,23 @@ export function buildHyde(world) {
     return { at: [c * r, FOUNTAIN.water - 0.22, sn * r], face: Math.atan2(c, sn) + Math.PI + (hash(i, 3) - 0.5), ground: [c * (FOUNTAIN.r + 1.2), sn * (FOUNTAIN.r + 1.2)], hop: [0.45, 0.8] };
   });
 
-  // --- the statues, on the lawns: [x, z, facing, which]
-  const STATUES = [[487, -326, Math.PI / 2, { reach: 0.25, hat: false }], [529, -293, Math.PI, { reach: null, hat: true }], [566, -340, Math.PI / 2, { reach: 0.6, hat: false, coat: true }]];
+  // --- the statues, on the lawns, their arms down by their sides: [x, z, facing, which]
+  const STATUES = [[487, -326, Math.PI / 2, { hat: false }], [529, -293, Math.PI, { hat: true }], [566, -340, Math.PI / 2, { hat: false, coat: true }]];
   const statues = STATUES.map(([x, z, face, spec]) => {
     const st = statueGeo(spec), obj = vcMesh(st.geo, { cast: true, receive: true });
     obj.position.set(x, 0, z);
     obj.rotation.y = face;
     s.add(obj);
-    world.colliders.push({ x, z, r: 1.45 });
-    statics.push(flat(5, 5, 0xcfc4ad, x, z, 0.025));
-    // (up on his head, and one out on his hand, if he's holding it out)
-    const perches = [{ at: [0, st.head - 0.04, 0.02], face: 0, ground: [0, 2.6], hop: [0.75, 1.5] }];
-    if (st.hand) perches.push({ at: [st.hand[0], st.hand[1] + 0.05, st.hand[2]], face: -Math.PI / 2, ground: [-1.2, 2.4], hop: [0.7, 1.3] });
-    return { obj, perches };
+    collide(x, z, 1.45);
+    statics.push(flat(5, 5, 0xcfc4ad, x, z, 0.05));
+    // (up on his head)
+    return { obj, perches: [{ at: [0, st.head - 0.04, 0.02], face: 0, ground: [0, 2.6], hop: [0.75, 1.5] }] };
   });
 
   // --- the pool, the memorial, St Mary's and the Museum, and the lamps and benches along the avenue
   pool(statics);
   for (const [ax, az, bx, bz] of [[POOL.x0, POOL.z0, POOL.x1, POOL.z0], [POOL.x1, POOL.z0, POOL.x1, POOL.z1], [POOL.x1, POOL.z1, POOL.x0, POOL.z1], [POOL.x0, POOL.z1, POOL.x0, POOL.z0]]) {
-    world.addSegment(ax, az, bx, bz, 0.6, false);
+    world.addSegment(...toWorld(ax, az), ...toWorld(bx, bz), 0.6, false);
   }
   memorial(statics);
   round.push([MEMORIAL.x, MEMORIAL.z, MEMORIAL.half + 1]);
@@ -506,12 +586,11 @@ export function buildHyde(world) {
     b.position.set(x, 0, z);
     b.rotation.y = r;
     s.add(b);
-    for (const k of [-0.6, 0.6]) world.colliders.push({ x: x + k * Math.cos(r), z: z - k * Math.sin(r), r: 0.45 });
+    for (const k of [-0.6, 0.6]) collide(x + k * Math.cos(r), z - k * Math.sin(r), 0.45);
     seats.push({ obj: b, perches: backs });
   }
-  bench.dispose();
 
-  // --- the station: the cutting, its way in and its signs, and the railings round the top of it
+  // --- the station: the cutting, its way in and its signs, the railings round the top of it, and benches on the platform
   station(statics);
   const rails = [];
   rail(rails, CUT.x0, CUT.z0, CUT.x1, CUT.z0);
@@ -519,13 +598,15 @@ export function buildHyde(world) {
   rail(rails, CUT.x0, CUT.z1, CUT.x0, PLATFORM.z1);
   rail(rails, CUT.x0 + 0.2, STAIRS.z1 + 0.1, STAIRS.x1, STAIRS.z1 + 0.1, 0);
   rail(rails, CUT.x0 + 0.2, STAIRS.z0 - 0.1, STAIRS.x1, STAIRS.z0 - 0.1, 0);
-  entrance(world, s);
+  entrance(s, collide);
   platformSigns(s);
   for (const x of [574, 592]) {
-    const b = vcMesh(benchGeo(), { cast: true, receive: true });
+    const b = vcMesh(bench.clone(), { cast: true, receive: true });
     b.position.set(x, PLATFORM.y, PLATFORM.z0 + 0.55);
     s.add(b);
+    for (const k of [-0.6, 0.6]) collide(x + k, PLATFORM.z0 + 0.55, 0.45);
   }
+  bench.dispose();
   // (the tunnels' mouths: dark all the way in, so the train's gone once it's in one)
   const dark = new THREE.MeshBasicMaterial({ color: 0x0a0a0c });
   for (const [x, k] of [[PORTALS[0], -1], [PORTALS[1], 1]]) {
@@ -534,26 +615,36 @@ export function buildHyde(world) {
     s.add(m);
   }
 
-  // --- and all round the outside: Elizabeth Street's buildings, St James's end, College Street (St Mary's, the Museum)
-  // and the towers past Liverpool Street, at the bottom end
+  // --- and all round the outside: Elizabeth Street's buildings down the one side (Park Street carrying on through
+  // them), a sandstone block or two either side of St Mary's and the Museum, over College Street, and the towers past
+  // Liverpool Street, at the bottom end
   const cols = [0x8fa9bf, 0x6f8faf, 0xb9c3cb, 0xd9d4c5, 0x9fb3c2, 0xc9c1b0, 0xa7b4a8, 0xc47c5a, 0xd9c49a];
   const tower = (x, z, w, d, h) => {
     const b = building(w, h, d, pick(cols));
     b.position.set(x, h / 2, z);
     s.add(b);
   };
-  for (let x = 526; x < 600; x += 13) tower(x, -258, rand(10, 12.5), 12, rand(18, 40)); // (Elizabeth Street, past the Town Hall)
-  for (let z = -282; z > -352; z -= 13) tower(461, z, 13, rand(10, 12.5), rand(20, 42)); // (St James's end)
-  for (let z = -266; z > -356; z -= 15) tower(616, z, 14, rand(12, 14), rand(26, 50)); // (past Liverpool Street)
-  for (let x = 468; x < 620; x += 16) tower(x, -398, rand(12, 15), 14, rand(30, 60)); // (behind St Mary's, and the Museum)
-  for (let x = 640; x < 700; x += 18) for (let z = -260; z > -380; z -= 20) tower(x + rand(-3, 3), z, 14, 14, rand(36, 70));
+  /** a row of buildings along x from a to b (each about `each` across, `d` deep, between `hs` high) at z */
+  const row = (a, b, z, each, d, hs) => {
+    const n = Math.max(1, Math.round((b - a) / each)), w = (b - a) / n;
+    for (let k = 0; k < n; k++) tower(a + w * (k + 0.5), z, w - 0.4, d, rand(...hs));
+  };
+  for (const [a, b] of [[RECT[0] + 2, PARK_ST[0] - 2], [PARK_ST[1] + 2, LIVERPOOL[1] + 1]]) {
+    row(a, b, ELIZABETH[1] + FOOTPATH + 6.5, 12, 12, [18, 42]); // (Elizabeth Street)
+    row(a, b, ELIZABETH[1] + 30, 16, 14, [34, 70]); // (and behind)
+  }
+  far.push(part(G.box(9, 11, 14), SAND2, [RECT[0] + 6, 5.5, COLLEGE[0] - 12]), part(G.box(9.4, 0.6, 14.4), SAND, [RECT[0] + 6, 11.2, COLLEGE[0] - 12]));
+  far.push(part(G.box(13, 15, 18), SAND2, [556, 7.5, -376]), part(G.box(13.4, 0.6, 18.4), SAND, [556, 15.2, -376]));
+  row(RECT[0], 620, -398, 16, 14, [30, 60]); // (behind St Mary's, and the Museum)
+  for (let z = ELIZABETH[1] + 3; z > COLLEGE[0] - 10; z -= 15) tower(LIVERPOOL[1] + FOOTPATH + 7.5, z - 6, 14, rand(12, 14), rand(26, 50)); // (past Liverpool Street)
+  for (let x = 640; x < 700; x += 18) for (let z = -230; z > -420; z -= 20) tower(x + rand(-3, 3), z, 14, 14, rand(36, 70));
   s.add(vcMesh(merge(statics), { cast: true, receive: true }));
   s.add(vcMesh(merge(rails), { cast: true, receive: false }));
   s.add(vcMesh(merge(far), { cast: true, receive: true }));
-  for (const [x, z, r] of round) world.colliders.push({ x, z, r });
+  for (const [x, z, r] of round) collide(x, z, r);
 
   // the fountain's spray: drifting off the jets, when there's anyone about to see it
-  const spray = new THREE.Vector3(), jetsMat = jets.material;
+  const spray = new THREE.Vector3(), jetsMat = jets.material, [fx, fz] = toWorld(FOUNTAIN.x, FOUNTAIN.z);
   let sprayT = 0;
   return {
     seats, // (the backs of the benches, for turkeys to perch on: see main.js)
@@ -562,10 +653,10 @@ export function buildHyde(world) {
     update(dt, t) {
       jetsMat.opacity = 0.5 + Math.sin(t * 7) * 0.04 + Math.sin(t * 13.1) * 0.03;
       const p = world.game.player.pos;
-      if (Math.hypot(p.x - FOUNTAIN.x, p.z - FOUNTAIN.z) > 40 || (sprayT -= dt) > 0) return;
+      if (Math.hypot(p.x - fx, p.z - fz) > 40 || (sprayT -= dt) > 0) return;
       sprayT = 0.12;
       const a = rand(0, TAU), r = rand(FOUNTAIN.r - 3.4, FOUNTAIN.r - 2.6);
-      spray.set(FOUNTAIN.x + Math.cos(a) * r, FOUNTAIN.water + 0.1, FOUNTAIN.z + Math.sin(a) * r);
+      spray.set(fx + Math.cos(a) * r, FOUNTAIN.water + 0.1, fz + Math.sin(a) * r);
       world.game.fx.burst(spray, { glow: true, n: 2, colors: [0xffffff, 0xdff6ff], speed: [0.2, 0.8], up: [0.8, 1.8], grav: 6, size: [0.03, 0.05], life: [0.3, 0.6] });
     },
   };

@@ -22,7 +22,7 @@ export const OX = -1000; // (how far along x from the rest of the world it all i
 const PLAT = { x0: -22, x1: 22, z0: -2.6, z1: 3.2, y: 6 }; // the platform, up on the viaduct
 const TRACK_Z = -4.5, RAIL_Y = PLAT.y - 1.1; // (the line, along the front of it, and the tops of its rails)
 /** where the train stops at Milsons Point (the middle of her): her doors open onto the platform, on her +z side */
-export const MILSONS_STOP = { x: OX, z: TRACK_Z, y: PLAT.y, side: 1 };
+export const MILSONS_STOP = { x: OX, z: TRACK_Z, y: PLAT.y, dir: [1, 0], side: 1 };
 const STAIRS = { x0: -32, x1: -22, z0: -1.6, z1: 2.4, n: 24 }; // down off the east end of the platform, to the street (the foot's at x0)
 const FORE = { x0: -45, x1: -31.5, z0: -9, z1: 7 }; // the forecourt at the foot of the stairs, and the way under the line
 const DECK = { x0: -54, z0: -6.5, z1: -2.6 }; // the viaduct the line's on (its top at RAIL_Y), from the Bridge's approach to the hill

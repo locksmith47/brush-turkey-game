@@ -8,8 +8,11 @@ import { MILSONS_STOP } from './props/milsons.js';
  * The train, from Museum to Milsons Point. She waits at the platform at Museum with her doors open: walk up to them
  * and press F, and you hop on, and your squad piles in after you (through whichever doors are nearest). The doors
  * chime and close, and off she goes into the tunnel, the camera staying put on the platform to watch her go; it all
- * goes dark, and comes back up at Milsons Point, with her in at the platform there, the doors opening and everyone
- * hopping off. Then she's off again, on into the hill towards North Sydney, and gone.
+ * goes dark, and comes back up at Milsons Point, on the platform there, with her coming in off the Bridge, the doors
+ * opening and everyone hopping off. Then she's off again, on up the line towards North Sydney, into the tunnel, and gone.
+ *
+ * Each stop (see MUSEUM_STOP) says where the middle of her is, which way's the way on (`dir`: she's built along x,
+ * and goes off along +x), and which side of her the platform's on (`side`: her -z or her +z).
  *
  * Like going down the tunnels (see Travel), it's hands off while it lasts; any of the squad still on their way in
  * when the doors shut are taken along anyway.
@@ -28,9 +31,18 @@ const LIGHT_T = 1.4; // coming back up at Milsons Point
 const OPEN_AT = 0.6, OFF_AT = 1.3; // (seconds in, her doors open, and you hop off)
 const POP_GAP = [0.25, 0.07, 1.6]; // (and the squad after you: when the first's off, the gap after each, and all off by)
 const LEAVE_AT = 2.2; // seconds after the last of you is off that she shuts up and goes
-const WATCH = { ahead: 11, across: 0.5 }; // (the camera, watching her off at Museum: m along the track it looks, and radians round from straight down it)
+const ROLL = 42, ROLL_T = 5; // coming in at Milsons Point: m back along the line she's first seen, and seconds to pull up from there
+// (the camera, watching her off at Museum, and in at Milsons Point: m along the line from her middle it looks, and
+// radians round from straight along it, from over the platform)
+const WATCH = { off: 11, in: -6, across: 0.5 };
 const GONE = 70; // m along before she's out of sight, and back off to Museum to wait for you again
 const _v = new THREE.Vector3(), _w = new THREE.Vector3();
+
+/** how she lies at a stop: her heading (`yaw`), and in the world, along her the way on (`a`), and out from her onto the platform (`n`) */
+function lie(stop) {
+  const [dx, dz] = stop.dir, yaw = Math.atan2(-dz, dx);
+  return { yaw, a: [dx, dz], n: [stop.side * Math.sin(yaw), stop.side * Math.cos(yaw)] };
+}
 
 /* ------------------------------------------------------------------ her looks */
 /** a carriage (lying along x, the rails at y 0): stainless steel, two decks of windows, the doors' frames, the bogies */
@@ -93,8 +105,8 @@ class Doorway {
 
   /** the spot on the platform in front of it, for one coming from p (`pad` further out) */
   edgePoint(p, out, pad = 0) {
-    const s = this.ride.stop.side;
-    return out.set(this.pos.x + clamp(p.x - this.pos.x, -0.45, 0.45), this.pos.y, this.pos.z + s * (0.9 + pad));
+    const { a, n } = this.ride.lie, k = clamp((p.x - this.pos.x) * a[0] + (p.z - this.pos.z) * a[1], -0.45, 0.45), off = 0.9 + pad;
+    return out.set(this.pos.x + a[0] * k + n[0] * off, this.pos.y, this.pos.z + a[1] * k + n[1] * off);
   }
 
   splash() {}
@@ -130,10 +142,8 @@ export class Ride {
     this.stage = null; // 'board' (hopping on), 'shut', 'leave' (off into the tunnel), 'dark', 'arrive' (in at Milsons Point), 'depart'
     this.t = 0;
     this.open = 1; // (how far open her doors are, 0..1)
+    this.watchAt = new THREE.Vector3(); // (where the camera looks, watching her: see watching)
     this.wait(MUSEUM_STOP);
-    // (watching her go: the camera looks at a spot along the track towards the tunnel, from back along the platform)
-    this.watchAt = new THREE.Vector3(MUSEUM_STOP.x + WATCH.ahead, MUSEUM_STOP.y + 1, MUSEUM_STOP.z);
-    this.watchYaw = Math.atan2(-Math.cos(WATCH.across), MUSEUM_STOP.side * Math.sin(WATCH.across));
   }
 
   get active() { return this.stage !== null && this.stage !== 'depart'; }
@@ -141,13 +151,27 @@ export class Ride {
   /** in at `stop`, at a standstill (her doors open, if it's Museum, where she waits for you) */
   wait(stop) {
     this.stop = stop;
+    this.lie = lie(stop);
     this.along = 0;
     this.speed = 0;
-    this.train.position.set(stop.x, stop.y - FLOOR, stop.z);
+    this.train.rotation.y = this.lie.yaw;
+    this.place();
     this.train.visible = true;
-    this.train.updateMatrixWorld(true);
     for (const d of this.doors) d.place(stop, this.train);
     this.setOpen(stop === MUSEUM_STOP ? 1 : 0);
+    // (watching her: at Museum, a spot along the line towards the tunnel she's off into; at Milsons Point, back along
+    // it towards the Bridge she's coming in off. Either way, from back along the platform, looking along it)
+    const off = stop === MUSEUM_STOP, k = off ? 1 : -1, along = off ? WATCH.off : WATCH.in, { a, n } = this.lie;
+    const c = Math.cos(WATCH.across) * k, s = Math.sin(WATCH.across);
+    this.watchAt.set(stop.x + a[0] * along, stop.y + 1, stop.z + a[1] * along);
+    this.watchYaw = Math.atan2(-(a[0] * c - n[0] * s), -(a[1] * c - n[1] * s));
+  }
+
+  /** where she's got to: `along` the line from her stop (the way on; coming in, she's back along it) */
+  place() {
+    const { x, y, z } = this.stop, [dx, dz] = this.lie.a;
+    this.train.position.set(x + dx * this.along, y - FLOOR, z + dz * this.along);
+    this.train.updateMatrixWorld(true);
   }
 
   setOpen(k) {
@@ -208,14 +232,17 @@ export class Ride {
 
   /** where a save made in the middle of all this should put you: on the platform you're getting on at, or off at */
   comeBack() {
-    const s = this.stage === 'arrive' || this.stage === 'depart' || this.arrived ? MILSONS_STOP : MUSEUM_STOP;
-    return _w.set(s.x + DOORS[1], s.y, s.z + s.side * (W / 2 + 1.6));
+    const s = this.stage === 'arrive' || this.stage === 'depart' || this.arrived ? MILSONS_STOP : MUSEUM_STOP, { a, n } = lie(s), off = W / 2 + 1.6;
+    return _w.set(s.x + a[0] * DOORS[1] + n[0] * off, s.y, s.z + a[1] * DOORS[1] + n[1] * off);
   }
 
   get zoom() { return this.game.cam.zoom; }
 
-  /** is the camera down on the platform at Museum, watching her go? (and if so, from where: see watchAt) */
-  get watching() { return this.stop === MUSEUM_STOP && (this.stage === 'shut' || this.stage === 'leave' || this.stage === 'dark'); }
+  /** is the camera down on the platform, watching her go at Museum, or come in at Milsons Point? (and if so, at what: see watchAt) */
+  get watching() {
+    if (this.stop === MUSEUM_STOP) return this.stage === 'shut' || this.stage === 'leave' || this.stage === 'dark';
+    return this.stage === 'arrive' && this.t < ROLL_T + OFF_AT;
+  }
 
   update(dt) {
     const g = this.game;
@@ -243,13 +270,21 @@ export class Ride {
       if (t >= DARK_T) this.arrive();
     } else if (this.stage === 'arrive') {
       this.look(1 - smoothstep(0, LIGHT_T, t));
-      this.setOpen(smoothstep(OPEN_AT, OPEN_AT + 0.8, t));
-      if (t >= OPEN_AT && !this.opened) { this.opened = true; g.audio.chime(true); }
-      if (t >= OFF_AT && p.life === 'aboard') p.alight(this.from, this.offSpot(this.nearestDoor(p.pos).door, 0, _v).clone());
+      // (in off the Bridge, slowing all the way, to a stop at the platform)
+      if (t < ROLL_T) {
+        this.along = -ROLL * (1 - t / ROLL_T) ** 2;
+        this.place();
+        return;
+      }
+      if (this.along) { this.along = 0; this.place(); }
+      const r = t - ROLL_T;
+      this.setOpen(smoothstep(OPEN_AT, OPEN_AT + 0.8, r));
+      if (r >= OPEN_AT && !this.opened) { this.opened = true; g.audio.chime(true); }
+      if (r >= OFF_AT && p.life === 'aboard') p.alight(this.from, this.offSpot(this.nearestDoor(p.pos).door, 0, _v).clone());
       // (and the squad hops off after you, out of whichever doors are nearest them)
       const [first, each, last] = POP_GAP;
-      while (this.popped < this.crew.length && t >= OFF_AT + first + Math.min(this.popped * each, last)) this.hopOff(this.crew[this.popped], this.popped++);
-      if (this.popped >= this.crew.length && p.life === 'ok' && t >= OFF_AT + 0.6) {
+      while (this.popped < this.crew.length && r >= OFF_AT + first + Math.min(this.popped * each, last)) this.hopOff(this.crew[this.popped], this.popped++);
+      if (this.popped >= this.crew.length && p.life === 'ok' && r >= OFF_AT + 0.6) {
         // you're all off: and after a moment, she's off again
         this.stage = 'depart';
         this.t = 0;
@@ -266,15 +301,15 @@ export class Ride {
     }
   }
 
-  /** pulling away, faster and faster, along +x (where she's going on to, wherever she is) */
+  /** pulling away, faster and faster, the way on (wherever she is) */
   go(dt) {
     this.speed += PULL * dt;
     this.along += this.speed * dt;
-    this.train.position.x = this.stop.x + this.along;
+    this.place();
     if (this.along > GONE) this.train.visible = false;
   }
 
-  /** it's all gone black: you're on her at Milsons Point, at the platform there, the squad aboard with you */
+  /** it's all gone black: you're on her, coming in at Milsons Point, the squad aboard with you */
   arrive() {
     const g = this.game, p = g.player, cam = g.cam;
     this.stage = 'arrive';
@@ -290,16 +325,19 @@ export class Ride {
     this.crew = this.crew.filter((c) => c.state === S.TUNNEL && c.tunnel === 'under');
     for (const c of this.crew) { c.hole = door; c.pos.copy(door.pos); }
     this.popped = 0;
-    // (the camera: straight round to look down the way on from here, and out over the harbour)
+    // (and she's back along the line, on her way in off the Bridge; the camera's on the platform, watching for her)
+    this.along = -ROLL;
+    this.place();
     cam.snapTo(this.offSpot(door, 0, _w));
-    cam.target.set(this.from.x, this.from.y + 1, this.from.z + MILSONS_STOP.side * 1.5);
-    cam.vista = 1;
+    cam.watch = 1;
+    cam.target.set(this.watchAt.x, this.watchAt.y + 0.8, this.watchAt.z);
+    g.audio.trainIn(ROLL_T);
   }
 
   /** a spot on the platform out of `door`, for the i-th one off it (spread out along it, and back from the edge) */
   offSpot(door, i, out) {
-    const s = this.stop.side, row = Math.floor(i / 4), col = (i % 4) - 1.5;
-    return out.set(door.pos.x + col * 0.7 + rand(-0.15, 0.15), this.stop.y, door.pos.z + s * (1.5 + 0.5 + row * 0.7));
+    const { a, n } = this.lie, k = ((i % 4) - 1.5) * 0.7 + rand(-0.15, 0.15), off = 2 + Math.floor(i / 4) * 0.7;
+    return out.set(door.pos.x + a[0] * k + n[0] * off, this.stop.y, door.pos.z + a[1] * k + n[1] * off);
   }
 
   /** one of the squad, off: out of the nearest door, in a hop, onto the platform, and after you again */

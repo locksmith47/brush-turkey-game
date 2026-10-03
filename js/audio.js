@@ -660,4 +660,13 @@ export class Audio {
     this.tone({ freq: 180, freq2: 660, dur: 4.5, vol: 0.025 * vol, type: 'square', attack: 0.6 });
     this.noise({ dur: 5, vol: 0.12 * vol, type: 'lowpass', f1: 180, f2: 420, attack: 0.8 });
   }
+
+  /** her coming in: the rumble of her on the rails, her motors winding down, and the brakes hissing as she stops (over `dur` s) */
+  trainIn(dur = 5, vol = 1) {
+    if (!this.ok('trainIn', 1000)) return;
+    this.tone({ freq: 330, freq2: 90, dur, vol: 0.05 * vol, type: 'sawtooth', attack: 0.2 });
+    this.tone({ freq: 660, freq2: 180, dur, vol: 0.02 * vol, type: 'square', attack: 0.3 });
+    this.noise({ dur: dur + 0.3, vol: 0.12 * vol, type: 'lowpass', f1: 420, f2: 160, attack: 0.2 });
+    this.noise({ dur: 1.1, vol: 0.05 * vol, type: 'highpass', f1: 2600, f2: 1600, attack: 0.08, delay: dur - 0.6 });
+  }
 }
