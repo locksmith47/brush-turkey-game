@@ -4,7 +4,7 @@ export class HUD {
   constructor(game) {
     this.game = game;
     this.el = {};
-    for (const id of ['health', 'hp-fill', 'hp-lag', 'hurt', 'hud', 'help', 'toast', 'c-squad', 'c-stages', 'c-s0', 'c-s1', 'c-s2', 'c-padded', 'c-beach', 'c-s0-box', 'c-s1-box', 'c-s2-box', 'c-padded-box', 'c-beach-box', 'c-about', 'c-sprouts', 'throw-name', 't-hatched', 't-mounds', 't-lost', 'boss', 'boss-name', 'boss-hp', 'boss-lag', 'banner', 'banner-text', 'zone-title', 'zone-name', 'boss-grip', 'boss-grip-fill', 'boss-grip-time', 'tk-normal', 'tk-padded', 'tk-beach', 'throw-type', 'throw-kind', 'help-tab', 'saved', 'paused', 'muted']) {
+    for (const id of ['health', 'hp-fill', 'hp-lag', 'hurt', 'hud', 'help', 'toast', 'c-squad', 'c-stages', 'c-s0', 'c-s1', 'c-s2', 'c-padded', 'c-beach', 'c-s0-box', 'c-s1-box', 'c-s2-box', 'c-padded-box', 'c-beach-box', 'c-about', 'c-sprouts', 'throw-name', 't-hatched', 't-mounds', 't-lost', 'boss', 'boss-name', 'boss-hp', 'boss-lag', 'banner', 'banner-text', 'zone-title', 'zone-name', 'boss-grip', 'boss-grip-fill', 'boss-grip-time', 'tk-normal', 'tk-padded', 'tk-beach', 'throw-type', 'throw-kind', 'help-tab', 'saved', 'paused', 'muted', 'credits', 'credits-btn']) {
       this.el[id] = document.getElementById(id);
     }
     this.told = new Set(); // (the things you've been told the once: see toastOnce)
@@ -15,6 +15,7 @@ export class HUD {
     this.tick = 0;
     this.cache = {};
     this.hurtK = 0; // (the red round the edges of the screen, flashing up when you're hurt)
+    this.el['credits-btn'].addEventListener('click', (e) => { this.credits(); e.currentTarget.blur(); }); // (not Space's to press after)
   }
 
   show() { this.el.hud.classList.remove('hidden'); }
@@ -27,6 +28,13 @@ export class HUD {
     if (on) this.helpWas = !this.el.help.classList.contains('hidden');
     this.el.help.classList.toggle('hidden', !on && !this.helpWas);
     if (on) this.tally();
+    else this.credits(false);
+  }
+
+  /** where the bird calls came from, under the tally on the pause screen: opened (or shut again) with its button */
+  credits(on = this.el.credits.classList.contains('hidden')) {
+    this.el.credits.classList.toggle('hidden', !on);
+    this.el['credits-btn'].classList.toggle('on', on);
   }
 
   /** how you're going, on the pause screen */

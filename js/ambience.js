@@ -6,9 +6,9 @@ import { BEACH, WHARF, FERRY, OPERA } from './world.js';
  * The sound of each place, under everything else that's going on. There's a bed of sound that's always there:
  * a breeze through the bush, the hum of the suburbs, a crowd at the oval, the surf at Manly, the harbour
  * slopping about under the wharf, the ferry's engine, the city's traffic. Over the top of it comes the odd call:
- * a kookaburra having a laugh, a whipbird cracking, a magpie warbling, a crow, somebody mowing a few streets
- * over, the crowd going up, gulls, a car going by, the crossing going off. All synthesized, like the rest (see
- * Audio).
+ * a kookaburra having a laugh, a whipbird cracking, a magpie warbling, a crow, a mob of cockies, galahs,
+ * somebody mowing a few streets over, the crowd going up, gulls, a car going by, the crossing going off. All
+ * synthesized, like the rest (see Audio), bar the cockies, the galahs and the gulls: they're the real thing.
  * Walk through a gate and one place fades into the next.
  */
 const LEVEL = 1; // the lot of it, against the rest of the game's sounds
@@ -39,9 +39,9 @@ const BEDS = [
 
 // and the calls over the top: how often (seconds between, give or take), and what, how likely each one is
 const CALLS = [
-  { every: [7, 16], calls: { kooka: 2, whipbird: 3, bellbirds: 3, crow: 1 } }, // the bush
-  { every: [8, 18], calls: { magpie: 3, mower: 2, dog: 2, crow: 1 } }, // the backyards
-  { every: [7, 15], calls: { cheer: 2, tock: 2, magpie: 2 } }, // the oval
+  { every: [7, 16], calls: { kooka: 2, whipbird: 3, bellbirds: 3, crow: 1, cockies: 1.5 } }, // the bush
+  { every: [8, 18], calls: { magpie: 3, mower: 2, dog: 2, crow: 1, cockies: 1, galahs: 1 } }, // the backyards
+  { every: [7, 15], calls: { cheer: 2, tock: 2, magpie: 2, galahs: 1.5 } }, // the oval
   { every: [6, 14], calls: { gulls: 1 } }, // the beach (and the waves: see update)
   { every: [5, 12], calls: { gulls: 2, creak: 2, bell: 1 } }, // the wharf (and the water slapping at the pilings)
   { every: [5, 11], calls: { gulls: 3, bell: 1 } }, // the ferry (and the water slapping at the hull)
@@ -265,7 +265,20 @@ export class Ambience {
     });
   }
 
+  /** a mob of sulphur-crested cockies up a tree somewhere, screeching their heads off (if they're in: see Audio) */
+  cockies(pan) {
+    this.game.audio.bird('cockatoos', { rate: rand(0.95, 1.05), out: this.out(pan, 3500) });
+  }
+
   /* ---------------------------------------------------------------- the backyards (and the oval) */
+  /** a galah or two, off across the way (if they're in) */
+  galahs(pan) {
+    const a = this.game.audio;
+    for (let i = 0, n = 1 + ((Math.random() * 2) | 0), t = 0; i < n; i++, t += rand(0.7, 1.5)) {
+      a.bird('galah', { rate: rand(0.95, 1.05), vol: 0.6, delay: t, out: this.out(pan + rand(-0.2, 0.2), 5000) });
+    }
+  }
+
   /** a magpie carolling, and another one joining in: a warbling tumble of notes, like a gargle of flutes */
   magpie(pan) {
     const a = this.game.audio, notes = [587, 659, 784, 880, 988, 1175, 1319, 1568];
@@ -356,6 +369,13 @@ export class Ambience {
   /** a gull or two: kee-ow, kee-ow (`k`: louder, for the ones going right over you) */
   gulls(pan, k = 1) {
     const a = this.game.audio;
+    if (a.has('silvergull')) {
+      // (the real thing: a squabble or two)
+      for (let i = 0, n = 1 + ((Math.random() * 2) | 0), t = 0; i < n; i++, t += rand(0.35, 0.8)) {
+        a.bird('silvergull', { rate: rand(0.9, 1.1), vol: 0.8 * k, delay: t, out: this.out(pan + rand(-0.25, 0.25), 4500) });
+      }
+      return;
+    }
     for (let i = 0, n = 2 + ((Math.random() * 3) | 0), t = 0; i < n; i++, t += rand(0.4, 0.65)) {
       const f = rand(1150, 1400), out = this.out(pan + rand(-0.2, 0.2), 4500);
       a.tone({ freq: f, freq2: f * 1.5, type: 'sawtooth', dur: 0.08, vol: 0.07 * k, attack: 0.02, delay: t, vib: 60, vibHz: 38, out });
@@ -382,6 +402,7 @@ export class Ambience {
     if (a.quiet || !this.ready()) return;
     if (kind === 'gull') { this.gulls(pan, 1.4); return; }
     const out = this.out(pan);
+    if (a.bird(kind === 'cockatoo' ? 'cockatoo' : 'galah', { rate: rand(0.95, 1.05), out })) return; // (the real thing, if it's in)
     if (kind === 'cockatoo') {
       const f = rand(850, 1000);
       a.tone({ freq: f, freq2: f * 1.4, type: 'sawtooth', dur: 0.55, vol: 0.15, attack: 0.03, vib: 300, vibHz: 75, out });

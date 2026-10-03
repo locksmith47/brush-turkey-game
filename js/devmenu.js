@@ -26,6 +26,7 @@ export class DevMenu {
         <button data-a="hatch">Hatch nearest mound</button>
         <button data-a="invincible" class="toggle">Invincible: off</button>
         <button data-a="flyover">Send some birds over</button>
+        <button data-a="showOff">Get a male showing off</button>
         <button data-a="cuttlefish">Summon the cuttlefish</button>
       </div>
       <div class="dev-lbl">You</div>
