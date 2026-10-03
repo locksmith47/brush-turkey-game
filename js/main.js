@@ -125,10 +125,10 @@ for (const [x, z] of [[-4, -79], OVAL_SPIDER]) enemies.spawn('spider', x, z);
 enemies.spawn('keeper', 0, -142);
 // and at Manly Wharf, Captain Gull, standing guard by the gangway with the ferry keys in his beak
 enemies.spawn('captain', ...CAPTAIN_POST, CAPTAIN_POST);
-// on the oval: its own mound, with some of the team's kit in it already; a pair of plovers to each nest,
-// swooping anything that comes near (a taste of Big Kev); the stumps to dig up, and the cricket gear left
-// lying about
-mounds.add(...OVAL_MOUND).startWith(4, 'cricket', ['bat', 'helmet']);
+// on the oval: the padded mound, with some of the team's kit in it already (everything out of it comes out
+// padded up, while there's kit to go round); a pair of plovers to each nest, swooping anything that comes near
+// (a taste of Big Kev); the stumps to dig up, and the cricket gear left lying about, to bring it more kit
+mounds.add(...OVAL_MOUND).startWith(4, 'cricket').padUp();
 for (const [x, z] of PLOVER_NESTS) {
   const [a, b] = [-1, 1].map((s) => enemies.spawn('plover', x + s * 1.3, z + 0.7, [x, z]));
   a.mate = b;
@@ -477,6 +477,11 @@ const nearClearing = (name, pad = 6) => {
 const beachSquad = () => turkeys.list.some((t) => t.kind === 'beach' && t.state === 'follow');
 /** or one padded up in its cricket kit? */
 const paddedSquad = () => turkeys.list.some((t) => t.state === 'follow' && turkeys.kindOf(t) === 'padded');
+/** by the padded mound, with kit left in it, and turkeys with you it could pad up? */
+const byPadded = () => {
+  const pad = mounds.list.find((m) => m.padded);
+  return pad && pad.gear > 0 && Math.hypot(player.pos.x - pad.pos.x, player.pos.z - pad.pos.z) < 12 && turkeys.list.some((t) => t.state === 'follow' && turkeys.kindOf(t) !== 'padded');
+};
 // how things are done, each said the once (see HUD.toastOnce), when it's first needed: whichever's due first goes
 // up, then there's a breather before the next. One you've no need of (you've worked it out, or it's been and gone)
 // is never said at all
@@ -499,7 +504,8 @@ const tips = [
   // (or the beach mound tells you, if you find out for yourself: see Mound.convert)
   { key: 'convert', when: () => zoneNow() === BEACH && turkeys.list.some((t) => t.kind === 'beach'), text: 'Out of beach gear? Throw normal turkeys into a beach mound to turn them into beach turkeys' },
   // (and a word as you first get to each of the places that need one)
-  { key: 'oval', when: () => zoneNow() === OVAL, text: "The oval's mound has cricket gear in it already. Throw turkeys at the gear lying about and they'll carry it in" },
+  { key: 'oval', when: () => zoneNow() === OVAL, text: "The padded mound's chicks come out in cricket kit, while it's got any. Throw turkeys at the cricket gear lying about and they'll carry it in" },
+  { key: 'repad', when: byPadded, text: 'Throw a turkey into the padded mound and out it comes padded up' },
   { key: 'lever', when: () => zoneNow() === FERRY && game.ferry.state === 'docked' && !game.ferry.call, text: "Pull the lever on her deck with F and she'll set sail" },
   { key: 'ferry', when: () => zoneNow() === FERRY && game.ferry.state === 'sailing', text: 'Sit back and enjoy the view! Z and C swing the camera round' },
   { key: 'quay', when: () => zoneNow() === CITY, text: 'Circular Quay! The King Ibis holds court at the Town Hall, at the end of the bin alley' },
@@ -521,7 +527,7 @@ function updateTips(dt) {
 
 /* ------------------------------------------------------------------ dev menu (~) */
 // (just through the gate into each; and on the ferry, on her deck, wherever she's got to)
-const ZONE_SPAWN = [[START.x, START.z], [6, -44], [-8, -104], [-16, -184], [76, -188], null, [362, -224], [352, -249.5], [491, -276], [OX - 10, 1], [OX + 56, -36]];
+const ZONE_SPAWN = [[START.x, START.z], [6, -44], [-34, -103], [-16, -184], [76, -188], null, [362, -224], [352, -249.5], [491, -276], [OX - 10, 1], [OX + 56, -36]];
 new DevMenu(game, {
   goto(v) {
     const zi = +v;

@@ -51,7 +51,7 @@ export const OVAL = 2, BEACH = 3, WHARF = 4, FERRY = 5, CITY = 6, OPERA = 7, HYD
  */
 export const FENCES = [
   { x: 6, z: -38, d: [0, -1], kind: 'wood' },
-  { x: -8, z: -98, d: [0, -1], kind: 'wire' },
+  { x: -34, z: -98, d: [0, -1], kind: 'wire' }, // (lined up with the padded mound, on the oval)
   { x: -16, z: -178, d: [0, -1], kind: 'rail' },
   { x: 70, z: -188, d: [1, 0], kind: 'rail', span: [-249, -175] },
   { x: 140, z: -224, d: [1, 0], kind: 'rail', span: [-246, -182], ferry: true },

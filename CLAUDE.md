@@ -106,7 +106,8 @@ continued" (`ending.js`). Off the way on, through a gap in the railing at the en
   each with its own pose. `dead`/`grounded` getters let foes target him like a turkey. `wasted.js` runs going
   down: WASTED, respawn at `mounds.refuge()`, the turkeys digging him out, popping out.
 - **Mounds** (`mound.js`) fill with leaves and hatch chicks. A new one is scratched up by a crew of
-  `BUILD_CREW` turkeys. `walk()`, `nearestReachable()` and `refuge()` find ones you can get to.
+  `BUILD_CREW` turkeys. The oval's is the padded mound (`padUp()`): what comes out of it comes out padded while
+  it's got kit in it (`gear`), and cricket gear carried to it tops that up. `walk()`, `nearestReachable()` and `refuge()` find ones you can get to.
 - **Saves** (`save.js`) are a snapshot of what's changed since a new game, with foes keyed by name and home.
   - Bump `VERSION` when the map changes.
   - Progress flags go through main.js's `Saves` get/set with defaults, so old saves still load.

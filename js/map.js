@@ -227,10 +227,10 @@ export class TravelMap {
   pin() {
     this.pins = this.mounds.map((m) => {
       const at = toMap(m.pos.x, m.pos.z, _m), s = this.toScreen(at.x, at.z), el = document.createElement('div');
-      el.className = `pin${m.beach ? ' beach' : ''}${m === this.from ? ' here' : ''}`;
+      el.className = `pin${m.beach ? ' beach' : m.padded ? ' padded' : ''}${m === this.from ? ' here' : ''}`;
       el.style.left = `${s.x}px`;
       el.style.top = `${s.y}px`;
-      el.innerHTML = `<i>${m.beach ? '🏖️' : '🍂'}</i>${m === this.from ? '<span class="cap">You\'re here</span>' : ''}`;
+      el.innerHTML = `<i>${m.beach ? '🏖️' : m.padded ? '🏏' : '🍂'}</i>${m === this.from ? '<span class="cap">You\'re here</span>' : ''}`;
       // (picked out as the mouse moves over it: not just for turning up under it, where it was as the map came up)
       el.addEventListener('pointermove', () => { if (this.up && !this.picked) this.select(m); });
       el.addEventListener('click', () => this.go(m));
