@@ -59,11 +59,12 @@ const ARCS = [
 ];
 // the padded mound, straight ahead of you as you come in (it's got a bit of the kit in it already: see Mound.padUp)
 export const OVAL_MOUND = [-34, -110];
-// the stumps at either end of the pitch (turkeys can dig them up); snakes in the grass on the way round to the
-// right (and one up behind the grandstand); a funnel-web's burrow out past the way out; and cricket gear left
-// lying about: plenty by the mound, bits and pieces all over, and the team's kit piled up at the end of the
-// grandstand
+// the stumps at either end of the pitch (turkeys can dig them up); a couple of ibises picking about on the way
+// round to the right (each with a plover up on its back), and snakes in the grass there too (and one up behind
+// the grandstand); a funnel-web's burrow out past the way out; and cricket gear left lying about: plenty by the
+// mound, bits and pieces all over, and the team's kit piled up at the end of the grandstand
 export const STUMPS = [[CX, CZ - 9.2], [CX, CZ + 9.2]];
+export const OVAL_IBISES = [[6, -109], [22, -118]];
 export const OVAL_SNAKES = [[21, -103], [39.5, -124]];
 export const OVAL_SPIDER = [-36, -168];
 export const CRICKET_KIT = [
