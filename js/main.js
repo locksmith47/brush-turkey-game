@@ -106,17 +106,13 @@ for (const a of ARENAS) {
 // the locals: ibises everywhere (one to most of the backyards, and round the Quay and up and down the city's
 // street and back alley), giants by the key in the backyards and down the alley, a gang of them big and small
 // picking over the bins down the bin alley, and at the end of it the King, on his throne of bins in front of
-// the Town Hall: the end of the line. Some of them have a plover riding on their backs, keeping a lookout
-// (one in the bush, a couple in the backyards, and a few more round the Quay and the city), and in each area
-// they take it in turns to swoop (see Plover.crewBusy)
+// the Town Hall: the end of the line. Over the harbour, some of them have a plover riding on their backs,
+// keeping a lookout (round the Quay, up the street and down the alleys), and they take it in turns to swoop
+// (see Plover.crewBusy)
+for (const [x, z] of [[4, -58], [-28, -52], [26, -78], [4, -90]]) enemies.spawn('ibis', x, z);
+enemies.spawn('giant', -30, -80);
 const plovers = [];
 const ridden = (ibis) => plovers.push(enemies.spawn('plover', ibis.pos.x, ibis.pos.z).ride(ibis));
-ridden(barricade.ibises.guards[1]);
-for (const [x, z, plover] of [[4, -58], [-28, -52], [26, -78, true], [4, -90]]) {
-  const e = enemies.spawn('ibis', x, z);
-  if (plover) ridden(e);
-}
-ridden(enemies.spawn('giant', -30, -80));
 for (const [kind, x, z, plover, roam] of [...CITY_IBISES, ...ALLEY_IBISES.map((a) => [...a, 2.5])]) { // (the alley's lot don't stray far from their bins)
   const e = enemies.spawn(kind, x, z, roam);
   if (plover) ridden(e);
