@@ -60,7 +60,7 @@ const ARCS = [
 // the padded mound, straight ahead of you as you come in (it's got a bit of the kit in it already: see Mound.padUp)
 export const OVAL_MOUND = [-34, -110];
 // the stumps at either end of the pitch (turkeys can dig them up); a couple of ibises picking about on the way
-// round to the right (each with a plover up on its back), and snakes in the grass there too (and one up behind
+// round to the right (each with a pair of plovers), and snakes in the grass there too (and one up behind
 // the grandstand); a funnel-web's burrow out past the way out; and cricket gear left lying about: plenty by the
 // mound, bits and pieces all over, and the team's kit piled up at the end of the grandstand
 export const STUMPS = [[CX, CZ - 9.2], [CX, CZ + 9.2]];

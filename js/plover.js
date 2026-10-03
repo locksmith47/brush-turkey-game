@@ -3,13 +3,14 @@ import { Foe } from './foe.js';
 import { part, merge, vcMesh, G, limb, rand, damp, dampAngle, TAU } from './util.js';
 
 /*
- * Masked lapwings: plovers, to any Aussie. They've thrown in with the ibis: some of the ibises have one riding
- * about on their backs, keeping a lookout, and it swoops anything that comes near: it spots a turkey, sounds
- * off (kek-kek-kek!), takes off, gets up high and comes screaming down at it, yellow spurs out. A red circle
- * marks where it'll come through: clear out of it, or lose a turkey (a helmet saves one). Then it climbs away
- * and comes down by its ibis for a breather (and once the coast's clear, it hops back up on). Up in the air
- * there's no touching it, but land a turkey on it on the ground and it's pinned: it can't take off with one
- * hanging off, and down it goes, seeing stars. (The gulls at the wharf go about it the same way: see Gull.)
+ * Masked lapwings: plovers, to any Aussie. They've thrown in with the ibis: some of the ibises have a pair of them,
+ * one riding about on its back keeping a lookout and its mate tagging along on foot, and they take it in turns to
+ * swoop anything that comes near: one spots a turkey, sounds off (kek-kek-kek!), takes off, gets up high and comes
+ * screaming down at it, yellow spurs out. A red circle marks where it'll come through: clear out of it, or lose a
+ * turkey (a helmet saves one). Then it climbs away and comes down by its ibis for a breather (and once the coast's
+ * clear, if its mate's not up there already, it hops back up on). Up in the air there's no touching it, but land a
+ * turkey on it on the ground and it's pinned: it can't take off with one hanging off, and down it goes, seeing
+ * stars. (The gulls at the wharf go about it the same way: see Gull.)
  */
 // (what it's told when one gets away, and when one's dragged down: the same trick works on the gulls, so they share it)
 export const PINNED = {
@@ -194,9 +195,13 @@ export class Plover extends Foe {
     this.calm = 0; // (how long the coast's been clear, down off its ibis)
   }
 
-  /** up on `ibis`'s back, riding about with it, keeping a lookout: anyone who comes near, and it's off after them */
+  /**
+   * Up on `ibis`'s back, riding about with it, keeping a lookout: anyone who comes near, and it's off after them.
+   * (Or, with its mate up there already, keeping by the ibis on foot: they take it in turns up top)
+   */
   ride(ibis) {
     this.carrier = ibis;
+    if (ibis.rider) return this;
     this.perch();
     this.slump = this.tuck = 1;
     this.cool = rand(0.5, 1.5);
@@ -232,6 +237,7 @@ export class Plover extends Foe {
 
   onDeath() {
     const g = this.game;
+    this.leaveSeat();
     this.airborne = this.aboard = false;
     this.alt = 0;
     this.warn?.hide();
@@ -320,9 +326,9 @@ export class Plover extends Foe {
         this.walk(this.wanderTo.x, this.wanderTo.z, d.speed, dt, 0.3, 9);
         // (grabbed hold of, it tries to get away with them: see lift)
         if (this.latched.length) { this.sound(this.intruder(), true); break; }
-        // (the coast clear for a bit, and its ibis back to pottering about? back up on its back)
+        // (the coast clear for a bit, its ibis back to pottering about, and nobody up on it? up it hops)
         if (c?.alive) {
-          this.calm = this.intruder() || c.state !== 'wander' ? 0 : this.calm + dt;
+          this.calm = c.rider || c.state !== 'wander' || this.intruder() ? 0 : this.calm + dt;
           if (this.calm >= CALM_T) { this.hopOn(); break; }
         }
         if (this.cool <= 0 && !this.crewBusy()) this.sound(this.intruder());
@@ -339,7 +345,7 @@ export class Plover extends Foe {
         }
         break;
       case 'board':
-        if (!c.alive) { this.fly('return', ...this.landingSpot(), 0, 0.6, (k) => k); break; }
+        if (!c.alive) { this.leaveSeat(); this.fly('return', ...this.landingSpot(), 0, 0.6, (k) => k); break; }
         if (this.t >= BOARD_T) this.perch();
         break;
       case 'lift': {
@@ -424,6 +430,7 @@ export class Plover extends Foe {
     const d = this.def, ax = this.pos.x - tg.pos.x, az = this.pos.z - tg.pos.z, ad = Math.hypot(ax, az) || 1;
     this.airborne = true;
     this.aboard = false;
+    this.leaveSeat();
     this.fly('rise', this.pos.x + (ax / ad) * 2.2, this.pos.z + (az / ad) * 2.2, d.alt ?? ALT, RISE_T, (k) => 1 - (1 - k) * (1 - k));
     this.game.audio.whoosh();
   }
@@ -445,6 +452,7 @@ export class Plover extends Foe {
 
   /** settled on its ibis's back (wings folded, legs tucked under) */
   perch() {
+    this.carrier.rider = this;
     this.aboard = true;
     this.airborne = true; // (up off the ground, out of reach)
     this.state = 'ride';
@@ -453,8 +461,9 @@ export class Plover extends Foe {
     this.sitOn();
   }
 
-  /** a hop and a flap, back up onto its ibis */
+  /** a hop and a flap, back up onto its ibis (bagsing the seat on the way, so its mate doesn't) */
   hopOn() {
+    this.carrier.rider = this;
     this.airborne = true;
     this.calm = 0;
     this.fly('board', this.pos.x, this.pos.z, this.alt, BOARD_T, (k) => 1 - (1 - k) * (1 - k));
@@ -463,7 +472,13 @@ export class Plover extends Foe {
   /** its ibis is beaten: down it hops, and it keeps watch over it from the ground */
   hopOff() {
     this.aboard = false;
+    this.leaveSeat();
     this.fly('return', ...this.landingSpot(), 0, 0.6, (k) => k);
+  }
+
+  /** off its ibis's back (or not getting on it after all): the seat's free for its mate */
+  leaveSeat() {
+    if (this.carrier?.rider === this) this.carrier.rider = null;
   }
 
   /* ---------------------------------------------------------------- held down */

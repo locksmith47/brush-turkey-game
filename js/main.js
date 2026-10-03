@@ -106,19 +106,21 @@ for (const a of ARENAS) {
 // the locals: ibises everywhere (one to most of the backyards, and round the Quay and up and down the city's
 // street and back alley), giants by the key in the backyards and down the alley, a gang of them big and small
 // picking over the bins down the bin alley, and at the end of it the King, on his throne of bins in front of
-// the Town Hall: the end of the line. From the oval on, some of them have a plover riding on their backs,
-// keeping a lookout (a couple on the oval, on the way round, and round the Quay, up the street and down the
-// alleys), and in each place they take it in turns to swoop (see Plover.crewBusy)
+// the Town Hall: the end of the line. From the oval on, some of them have a pair of plovers with them (a
+// couple on the oval, on the way round, and round the Quay, up the street and down the alleys): one riding on
+// the ibis's back, keeping a lookout, and its mate alongside on foot, taking it in turns to swoop (see
+// Plover.crewBusy)
 for (const [x, z] of [[4, -58], [-28, -52], [26, -78], [4, -90]]) enemies.spawn('ibis', x, z);
 enemies.spawn('giant', -30, -80);
-const plovers = [];
-const ridden = (ibis) => plovers.push(enemies.spawn('plover', ibis.pos.x, ibis.pos.z).ride(ibis));
+const ridden = (ibis) => {
+  const pair = [0, 1.6].map((dx) => enemies.spawn('plover', ibis.pos.x + dx, ibis.pos.z).ride(ibis));
+  for (const p of pair) p.crew = pair;
+};
 for (const [x, z] of OVAL_IBISES) ridden(enemies.spawn('ibis', x, z, 4));
 for (const [kind, x, z, plover, roam] of [...CITY_IBISES, ...ALLEY_IBISES.map((a) => [...a, 2.5])]) { // (the alley's lot don't stray far from their bins)
   const e = enemies.spawn(kind, x, z, roam);
   if (plover) ridden(e);
 }
-for (const p of plovers) p.crew = plovers.filter((q) => q.zone === p.zone);
 enemies.spawn('king', world.throne.down.x, world.throne.down.z);
 // snakes lurking in the litter (and on the way round the oval), funnel-webs in their burrows (one out past
 // the way out of the oval), and Big Kev on his oval, raking it with the oval's key (a key rake)
