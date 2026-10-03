@@ -3,7 +3,7 @@ import { vcMat, vcMesh, toonMat, part, merge, G, rand, pick, TAU, clamp, smooths
 import { PALETTES, JUNK, LEAF_SPLIT, litterGeo } from './leaves.js';
 import { flagMesh } from './items.js';
 import { stumpsMesh, kitTrophy } from './cricket.js';
-import { OVAL, FERRY } from './world.js';
+import { FERRY } from './world.js';
 
 // the heap: how finely it's made (round it, and out from the middle to its foot), how tall it stands (of its
 // radius), how far out the rim of the caldera on top is (of the way to its foot) and how deep that is (of its
@@ -30,7 +30,11 @@ const BUILD_WORK = 60; // turkey-seconds of scratching it takes (ten turkeys: si
 // leaves' worth it takes to fill a mound and hatch a batch of chicks: more for the big home mound, and
 // a bit more again after every hatching (up to a point)
 const HATCH_AT = { home: 12, other: 9, more: 3, max: 24 };
-const PADDED = 0.5; // chance a chick hatched on the oval comes out padded up for cricket (helmet and leg guards)
+// the padded mound's kit (see padUp), in sets of it (a set pads up one turkey: helmet and leg guards): how many it'll
+// hold, how many it starts with (a quarter full), and how much cricket gear brought in makes a set (see cricket.js)
+const GEAR = { max: 12, start: 3, set: 3 };
+const KIT_SHOWN = 8; // (pieces of it stuck in the top when it's full: fewer as it runs low, and none when it's out)
+const KIT_LOOK = ['helmet', 'pads', 'bat', 'gloves', 'cap', 'stumps']; // (what's stuck in it: what was brought in, or else these in turn)
 const _c = new THREE.Color(), _v = new THREE.Vector3(), _p = new THREE.Vector3(), _wp = new THREE.Vector3(), _n = new THREE.Vector3();
 
 /*
@@ -134,6 +138,8 @@ export class Mound {
     this.convertT = 0;
     this.trophies = []; // lifesaving flags (and stumps, and bits of cricket kit) planted in it
     this.junkN = 0; // (how much rubbish is sticking out of it)
+    this.padded = false; // the padded mound: out of it they come in cricket kit, while it's got any (see padUp)
+    this.gear = 0; // (sets of it)
 
     if (!LEAF) {
       const s = new THREE.Shape();
@@ -414,6 +420,55 @@ export class Mound {
     this.placeTrophies();
   }
 
+  /** pull out the last thing planted in it (into thin air, with a puff of dirt) */
+  dropTrophy() {
+    const t = this.trophies.pop();
+    if (!t) return;
+    this.kit.remove(t.group);
+    t.group.getWorldPosition(_p);
+    this.game.fx.dirt(_p, 6, 0.6);
+  }
+
+  /* ---------------------------------------------------------------- the padded mound */
+  /**
+   * Make it the padded mound, with `gear` sets of cricket kit in it (see GEAR): while it's got any, everything that
+   * comes out of it, hatched or thrown in, comes out padded up, a set to each, and the kit stuck in its top goes as it does
+   */
+  padUp(gear = GEAR.start) {
+    this.padded = true;
+    this.gear = gear;
+    this.dial.also('kit');
+    this.showKit();
+    this.refreshLabel();
+    return this;
+  }
+
+  /** a bit of cricket kit's been brought in (`kind`, worth `value`): that's more to pad them up with (any other mound just plants the stumps in its top) */
+  kitIn(kind, value) {
+    if (!this.padded) { if (kind === 'stumps') this.addTrophy('stumps'); return; }
+    this.gear = Math.min(GEAR.max, this.gear + value / GEAR.set);
+    this.showKit(kind);
+    this.refreshLabel();
+  }
+
+  /** a set of kit for one coming out, if there's any left (there's only so much to go round) */
+  takeKit() {
+    if (!this.padded || this.gear <= 0.01) return null;
+    this.gear = Math.max(0, this.gear - 1);
+    this.showKit();
+    this.refreshLabel();
+    return { helmet: true, pads: true };
+  }
+
+  /** as much kit stuck in its top as it's got in it: the piece just brought in (`kind`), and more of the usual, or fewer */
+  showKit(kind) {
+    const n = Math.ceil((this.gear / GEAR.max) * KIT_SHOWN - 1e-6);
+    while (this.trophies.length > n) this.dropTrophy();
+    for (let i = 0; this.trophies.length < n; i++) {
+      this.addTrophy(i === 0 && KIT_LOOK.includes(kind) ? kind : KIT_LOOK[this.trophies.length % KIT_LOOK.length]);
+    }
+  }
+
   placeTrophies() {
     const q = new THREE.Quaternion(), q2 = new THREE.Quaternion(), axis = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
     for (const t of this.trophies) {
@@ -476,7 +531,8 @@ export class Mound {
 
   /**
    * A turkey dived in: it pops back out a moment later as a sprout of this mound's kind, the same size,
-   * and grows some more while it's in the ground (normal into a beach mound: beach turkey, and back).
+   * and grows some more while it's in the ground (normal into a beach mound: beach turkey, and back; and out
+   * of the padded mound, padded up, while it's got the kit).
    */
   convert(t) {
     const g = this.game, same = (t.kind === 'beach') === this.beach;
@@ -522,9 +578,10 @@ export class Mound {
       return;
     }
     const hatching = this.state !== 'idle';
-    d.icon(this.beach ? '🏖️' : '🍂');
+    d.icon(this.beach ? '🏖️' : this.padded ? '🏏' : '🍂');
     d.note('');
-    d.set(hatching ? 1 : this.fill / this.threshold, 0, hatching ? 'hot' : '');
+    // (and round the outside of the padded mound's, how much kit it's got left)
+    d.set(hatching ? 1 : this.fill / this.threshold, this.padded ? this.gear / GEAR.max : 0, hatching ? 'hot' : '');
   }
 
   /* ---------------------------------------------------------------- saving */
@@ -534,7 +591,7 @@ export class Mound {
     return {
       x: r(this.pos.x), z: r(this.pos.z), home: this.home, kind: this.kind, build: r(this.buildK),
       total: r(this.total), fill: r(this.fill), threshold: this.threshold, hatches: this.hatches, purple: r(this.purple), junk: this.junkN,
-      trophies: this.trophies.map((t) => t.kind), state: this.state, toLaunch: this.toLaunch,
+      trophies: this.trophies.map((t) => t.kind), state: this.state, toLaunch: this.toLaunch, gear: this.padded ? r(this.gear) : undefined,
       converts: this.converts.map((c) => [c.stage, c.hen ? 1 : 0, (c.gear?.helmet ? 1 : 0) + (c.gear?.pads ? 2 : 0)]),
     };
   }
@@ -554,6 +611,7 @@ export class Mound {
     this.recolor();
     this.resize();
     this.refreshLabel();
+    return this;
   }
 
   dispose() {
@@ -678,13 +736,13 @@ export class Mound {
     }
     // (never into the scrub, where you couldn't get to it)
     if (!w.isFree(tx, tz, 0.6)) { w.resolve(_v.set(tx, 0, tz), 0.6, this.game.mounds.colliders); tx = _v.x; tz = _v.z; }
-    // on the oval, some come out padded up for a game of cricket (a turkey coming back out keeps its kit,
-    // bar out of a beach mound: boardshorts and a snorkel don't go with a helmet)
+    // out of the padded mound, they come out padded up, while there's kit to go round (a turkey coming back out
+    // keeps its kit, bar out of a beach mound: boardshorts and a snorkel don't go with a helmet)
     let gear = back?.gear && (back.gear.helmet || back.gear.pads) ? back.gear : null;
-    if (!gear && w.zoneOf(this.pos.x, this.pos.z) === OVAL && Math.random() < PADDED) gear = { helmet: true, pads: true };
+    gear ??= this.takeKit();
     if (this.beach) gear = null;
     this.game.turkeys.launchChick(top, tx, tz, this.beach ? 'beach' : 'normal', back?.stage ?? 0, back?.hen, gear);
-    if (gear && !back) g.hud.toastOnce('padded', 'Padded up! Chicks hatched on the oval come out in cricket kit, and it takes the first hit for them', 5);
+    if (gear && this.padded) g.hud.toastOnce('padded', 'Padded up! The kit takes the first hit for them', 4);
     const converted = !!back;
     if (!converted) this.game.stats.hatched++;
     this.game.audio.fwoop();
@@ -723,9 +781,13 @@ export class Mounds {
 
   /** the mounds a save had, in place of the ones a new game starts with */
   restore(list) {
+    const pad = this.list.find((m) => m.padded); // (the padded mound's still the padded mound: a save from before it was, too)
     for (const m of this.list) m.dispose();
     this.list.length = 0;
-    for (const d of list) this.add(d.x, d.z, d.home, d.kind, d.build < 1).loadState(d);
+    for (const d of list) {
+      const m = this.add(d.x, d.z, d.home, d.kind, d.build < 1).loadState(d);
+      if (pad && d.x === pad.pos.x && d.z === pad.pos.z) m.padUp(d.gear ?? pad.gear);
+    }
   }
 
   /** a mound being built nearby that could use another pair of feet */
@@ -764,8 +826,13 @@ export class Mounds {
     return Infinity;
   }
 
-  /** nearest mound you can walk to from pos (through open gates), or null */
+  /** nearest mound you can walk to from pos (through open gates), or null ('padded': the padded mound, if there's a way there, or else the nearest leaf mound) */
   nearestReachable(pos, kind = 'leaf') {
+    if (kind === 'padded') {
+      const pad = this.list.find((m) => m.padded);
+      if (pad && this.walk(pos, pad) < Infinity) return pad;
+      kind = 'leaf';
+    }
     let best = null, bd = Infinity;
     for (const m of this.list) {
       if (m.kind !== kind || m.building) continue;
