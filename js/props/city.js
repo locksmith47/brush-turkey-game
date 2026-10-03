@@ -166,17 +166,17 @@ export const CITY_BAGS = [
 ].map(([x, z]) => toWorld(x, z));
 // ...and the ones the ibises have been into already
 const TORN_BAGS = [[-22.6, -176.4], [-17.8, -180.2], [-21.4, -186.8], [-18.3, -193.8], [-23.8, -197.1], [-2.8, -216.1]];
-// ...and the ibises loitering round them, picking them over: [kind, x, z]
+// ...and the ibises loitering round them, picking them over: [kind, x, z, with a pair of plovers?]
 export const ALLEY_IBISES = [
-  ['ibis', -23.2, -176.2], ['big', -17.2, -179.2], ['ibis', -22.8, -183.2],
+  ['ibis', -23.2, -176.2], ['big', -17.2, -179.2, true], ['ibis', -22.8, -183.2],
   ['ibis', -16.9, -186.6], ['big', -22.4, -192.6], ['ibis', -17.1, -194.4],
-].map(([kind, x, z]) => [kind, ...toWorld(x, z)]);
+].map(([kind, x, z, plover]) => [kind, ...toWorld(x, z), !!plover]);
 // ...and the rest of the locals: a couple on the Quay, more up and down the street and round the plaza, and a
-// giant down the back alley
+// giant down the back alley (a few of them with a pair of plovers)
 export const CITY_IBISES = [
-  ['ibis', -30, -84], ['ibis', 27, -82], ['ibis', -22, -108], ['ibis', 16, -110], ['ibis', 12, -133], ['ibis', 38, -133],
-  ['ibis', 22, -153], ['giant', -32, -133],
-].map(([kind, x, z]) => [kind, ...toWorld(x, z)]);
+  ['ibis', -30, -84], ['ibis', 27, -82, true], ['ibis', -22, -108, true], ['ibis', 16, -110], ['ibis', 12, -133], ['ibis', 38, -133, true],
+  ['ibis', 22, -153], ['giant', -32, -133, true],
+].map(([kind, x, z, plover]) => [kind, ...toWorld(x, z), !!plover]);
 // a mound on the Quay (for the fish the giant cuttlefish churns up, out on the harbour: see Cuttle)
 export const QUAY_MOUND = toWorld(16, -84.5);
 // and a couple of gulls on the Quay, after the tourists' chips: [x, z, how many]
