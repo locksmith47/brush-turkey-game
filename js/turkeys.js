@@ -12,6 +12,7 @@ const KINDS = ['normal', 'padded', 'beach'];
 // about you (this close, metres) has a go every so often (seconds, on average), and never two within so many
 // seconds of each other
 const SHOW_STILL = 2, SHOW_EVERY = 10, SHOW_GAP = 20, SHOW_NEAR = 14;
+const GRUB_AIM = 3; // m: a throw this close to a grub is a throw at it (as close as a turkey that's landed goes looking for one)
 const _v = new THREE.Vector3();
 
 /* Owns every turkey: squad logic, throwing, whistling, plucking and personal space. */
@@ -23,7 +24,7 @@ export class Turkeys {
     this.blobR = 1;
     this.hash = new SpatialHash(1.0);
     this.nbrs = [];
-    this.preferred = 'normal'; // which kind Tab has picked to throw (the biggest of that kind always goes first)
+    this.preferred = 'normal'; // which kind Tab has picked to throw (the biggest of that kind goes first, bar at a mound or a grub)
     this.candidate = null;
     this.counts = { squad: 0, field: 0, sprouts: 0, stages: [0, 0, 0], normal: 0, padded: 0, beach: 0 }; // (stages: the plain normal ones only)
     this.stillT = 0; this.showCool = 0; this.lastShow = null; // (how long you've stood still, till a male can show off again, and who did last)
@@ -84,26 +85,36 @@ export class Turkeys {
   kindOf(t) { return t.kind === 'beach' ? 'beach' : t.gear?.helmet || t.gear?.pads ? 'padded' : 'normal'; }
 
   /**
-   * Who gets thrown next: the biggest turkey of the chosen kind (nearest first among equals).
-   * If there are none of that kind with you, another kind stands in, unless `strict`.
+   * Who gets thrown next: the biggest turkey of the chosen kind (nearest first among equals), or the youngest if
+   * `young`. If there are none of that kind with you, another kind stands in, unless `strict`.
    */
-  findCandidate(kind = this.preferred, strict = false) {
+  findCandidate(kind = this.preferred, strict = false, young = false) {
     const p = this.game.player.pos;
     let best = null, bs = -Infinity, alt = null, as = -Infinity;
     for (const t of this.list) {
       if (t.state !== S.FOLLOW) continue;
       const d = Math.hypot(t.pos.x - p.x, t.pos.z - p.z);
       if (d > 9) continue;
-      const score = t.stage * 100 - d;
+      const score = (young ? -t.stage : t.stage) * 100 - d;
       if (this.kindOf(t) === kind) { if (score > bs) { bs = score; best = t; } }
       else if (score > as) { as = score; alt = t; }
     }
     return best ?? (strict ? null : alt);
   }
 
+  /**
+   * Aimed at a mound or a grub, the youngest go first: the little ones are the ones that eat grubs, and a mound's
+   * where they come back up to grow some more
+   */
+  youngFirst(at) {
+    const g = this.game;
+    return g.mounds.list.some((m) => !m.building && Math.hypot(at.x - m.pos.x, at.z - m.pos.z) < m.r) || !!g.grubs.nearestFree(at, GRUB_AIM);
+  }
+
   /** throw the next turkey at target; `kind` = only that kind (holding the button keeps to one kind) */
   throwAt(target, kind = null) {
-    const t = kind ? this.findCandidate(kind, true) : this.findCandidate();
+    const young = this.youngFirst(target);
+    const t = kind ? this.findCandidate(kind, true, young) : this.findCandidate(this.preferred, false, young);
     if (!t) return null;
     const from = this.game.player.handPos(_v);
     t.throwTo(from, target);
@@ -198,7 +209,7 @@ export class Turkeys {
     if (this.list.some((t) => t.removed)) this.list = this.list.filter((t) => !t.removed);
 
     this.separate();
-    this.candidate = this.findCandidate();
+    this.candidate = this.findCandidate(this.preferred, false, !!g.aimTarget && this.youngFirst(g.aimTarget));
     this.showingOff(dt);
   }
 

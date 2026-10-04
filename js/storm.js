@@ -19,10 +19,9 @@ const EVERY = [2.2, 6]; // s between lightning strikes, at the height of it
 const BOLT_H = 95, BOLT_T = 0.3; // m the bolts come down from, and s one's there for
 const BOW = { dist: 230, r: 95, up: 42, band: 3.2, max: 0.32, in: 4, hold: 16, out: 7 }; // the rainbow after: m away, m across (half), m up at the top of it, m a band, how see-through at most, and s to come, stay and go
 const BOW_COLS = [0xff4d4d, 0xff9e3d, 0xffe14f, 0x6fd46f, 0x4fa5ff, 0x5b5ce0, 0x9b5ce0]; // (outside to in)
-const BED = [ // the sound of it (see Ambience.bed): rain hissing down, drumming on the deck, the wind howling, and the sea roaring
+const BED = [ // the sound of it (see Ambience.bed): rain hissing down, drumming on the deck, and the sea roaring
   { type: 'highpass', f: 2600, vol: 0.05, wobble: [[0.3, 0.13]] },
   { type: 'bandpass', f: 1100, q: 0.45, vol: 0.07, wobble: [[0.25, 0.31]] },
-  { type: 'bandpass', f: 380, q: 3.5, vol: 0.06, wobble: [[0.65, 0.09], [0.4, 0.23]] },
   { type: 'lowpass', f: 150, vol: 0.14, wobble: [[0.4, 0.07]] },
 ];
 const _c = new THREE.Color();
@@ -234,7 +233,7 @@ export class Storm {
     if (t > BOW.in + BOW.hold + BOW.out || this.on) { this.bow.visible = false; this.bowT = -1; }
   }
 
-  /** the rain and the wind, under everything else, as loud as it's stormy (see Ambience); put away once it's fine */
+  /** the rain, under everything else, as loud as it's stormy (see Ambience); put away once it's fine */
   updateSound(dt) {
     const g = this.game, amb = g.ambience;
     if (!this.k && !this.bed) return;
