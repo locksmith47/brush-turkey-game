@@ -1,6 +1,7 @@
 import { S } from './turkey.js';
 import { OUTSIDE, inMouth } from './props/milsons.js';
 import { smoothstep } from './util.js';
+import { LUNA } from './world.js';
 
 /*
  * As far as it goes, for now: in through Luna Park's mouth, a few steps along the way in, it all goes black, and up come
@@ -30,7 +31,7 @@ export class Ending {
   update(real) {
     const g = this.game, p = g.player, input = g.input;
     if (!this.stage) {
-      if (g.started && p.life === 'ok' && !g.ride.active && inMouth(p.pos.x, p.pos.z)) {
+      if (g.started && p.life === 'ok' && !g.ride.active && inMouth(p.pos.x, p.pos.z) && g.world.zoneOf(p.pos.x, p.pos.z) === LUNA) { // (the mouth's lined up with a strip right across the map: the bush's gate's on it)
         this.stage = 'dark';
         this.t = 0;
       }
