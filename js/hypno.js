@@ -7,13 +7,13 @@ import { canvasTexture, smoothstep, TAU } from './util.js';
  * plovers, the crabs, the rats, the snakes, the funnel-webs and the giant cuttlefish (not the ibis, who were never
  * anyone's but the Emperor's, and not Benny, who's nobody's but his own).
  *
- * They're caps over each eye, bigger than it and bulging out of it, all sharing the one spiral, which spins (see spin).
+ * They're the eyes themselves: a ball in place of each (the creature's own are gone, or hidden while they're showing),
+ * the spiral wound round the front of it and ringed dark round the sides, all sharing the one spiral, which spins (see spin).
  */
 const SPIN = 4.5; // radians a second
-const BIG = 1.5; // (how much bigger than the eye it's over a spiral is: they bulge, cartoon-style)
-const BULGE = 0.9; // (how far round a ball each one's a cap of, in radians: the bigger, the more they bulge)
+const BIG = 1.08; // (how much bigger than the eye it stands in for a spiral one is: just enough to cover it)
 
-let TEX = null, MAT = null, DISC = null;
+let TEX = null, BALL_TEX = null, MAT = null, BALL = null;
 /** the spiral: purple, wound out from the middle of a pale lilac eye, ringed dark */
 function texture() {
   TEX ??= canvasTexture(128, 128, (c, w) => {
@@ -41,9 +41,20 @@ function texture() {
   return TEX;
 }
 
+/** the same, for an eyeball: dark out to the corners (round the sides of the ball), so nothing's see-through */
+function ballTexture() {
+  BALL_TEX ??= canvasTexture(128, 128, (c, w) => {
+    c.fillStyle = '#3c1361';
+    c.fillRect(0, 0, w, w);
+    c.drawImage(texture().image, 0, 0, w, w);
+  });
+  BALL_TEX.center.set(0.5, 0.5);
+  return BALL_TEX;
+}
+
 /** the material for a spiral eye (one for the lot) */
 export function spiralMat() {
-  MAT ??= new THREE.MeshBasicMaterial({ map: texture(), transparent: true, alphaTest: 0.5 });
+  MAT ??= new THREE.MeshBasicMaterial({ map: ballTexture() });
   return MAT;
 }
 
@@ -53,42 +64,43 @@ export const spiralTex = texture;
 /** every frame: round they go, all together */
 export function spin(time) {
   if (TEX) TEX.rotation = -time * SPIN;
+  if (BALL_TEX) BALL_TEX.rotation = -time * SPIN;
 }
 
-/** a spiral's shape: a shallow cap off a ball, its rim 1 round at z = 0 and bulging out along +z, the spiral laid flat across it */
-function capGeo() {
-  const g = new THREE.SphereGeometry(1, 20, 6, 0, TAU, 0, BULGE).rotateX(Math.PI / 2);
-  const rim = Math.sin(BULGE), p = g.attributes.position, uv = g.attributes.uv;
-  g.translate(0, 0, -Math.cos(BULGE)).scale(1 / rim, 1 / rim, 1 / rim);
+/** an eyeball, 1 round, looking out along +z: the spiral laid straight on from the front (and round the back, not that it shows) */
+function ballGeo() {
+  const g = new THREE.SphereGeometry(1, 20, 14), p = g.attributes.position, uv = g.attributes.uv;
   for (let i = 0; i < p.count; i++) uv.setXY(i, 0.5 + p.getX(i) / 2, 0.5 + p.getY(i) / 2);
   return g;
 }
 
 const _n = new THREE.Vector3(), _z = new THREE.Vector3(0, 0, 1);
 /**
- * Spirals over a pair of eyes, on `parent` (a head, say): each eye at `at` (its middle, in the parent's space), `r` round,
- * looking out along `out`, with the spiral laid over the front of it. `s` mirrors x for the other eye. Returns their group,
- * to scale up as they go spiral (see Opening), or to hide
+ * Spiral eyes, a pair, on `parent` (a head, say): each in place of an eye at `at` (its middle, in the parent's space, x
+ * mirrored for the other), `r` round, looking out along `out`. `own`: the creature's own eyes, if it's still got them
+ * (hidden while the spirals are showing: see swirlIn). Returns their group, to swell up as they go spiral (see Opening)
  */
-export function spiralEyes(parent, at, out, r, lift = r) {
-  DISC ??= capGeo();
+export function spiralEyes(parent, at, out, r, own = null) {
+  BALL ??= ballGeo();
   const g = new THREE.Group();
   for (const s of [-1, 1]) {
-    const m = new THREE.Mesh(DISC, spiralMat());
+    const m = new THREE.Mesh(BALL, spiralMat());
     _n.set(out[0] * s, out[1], out[2]).normalize();
-    m.position.set(at[0] * s, at[1], at[2]).addScaledVector(_n, lift);
+    m.position.set(at[0] * s, at[1], at[2]);
     m.quaternion.setFromUnitVectors(_z, _n);
-    m.scale.setScalar(r * BIG);
     m.castShadow = false;
     g.add(m);
   }
+  g.userData = { r: r * BIG, own };
   parent.add(g);
+  swirlIn(g, 1);
   return g;
 }
 
-/** how big they are, `k` of the way to going spiral (0..1): they swell up over the eye, a touch too far, and settle */
+/** how far they've gone spiral (0..1): out of the middle of the eye they swell, over it, a touch too far, and settle */
 export function swirlIn(g, k) {
-  const s = k <= 0 ? 0 : smoothstep(0, 0.6, k) * (1 + 0.35 * Math.sin(smoothstep(0.3, 1, k) * Math.PI));
+  const { r, own } = g.userData, s = k <= 0 ? 0 : smoothstep(0, 0.6, k) * (1 + 0.35 * Math.sin(smoothstep(0.3, 1, k) * Math.PI));
   g.visible = s > 0;
-  g.scale.setScalar(s || 1e-3);
+  for (const m of g.children) m.scale.setScalar(Math.max(s, 1e-3) * r);
+  if (own) own.visible = s < 0.8; // (its own eyes, till the spirals are over them)
 }

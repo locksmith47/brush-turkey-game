@@ -106,8 +106,6 @@ function geos() {
   ];
   for (let i = 0; i < 6; i++) body.push(part(G.sphere(0.022, 6, 5), 0x66ccff, [(i % 3 - 1) * 0.05, 0.47 + Math.floor(i / 3) * 0.02, 0.3 - Math.floor(i / 3) * 0.02]));
   for (const s of [-1, 1]) {
-    body.push(part(G.sphere(0.055, 8, 6), 0xfff4d6, [s * 0.09, 0.45, 0.33]));
-    body.push(part(G.sphere(0.032, 6, 5), 0xc0172b, [s * 0.1, 0.45, 0.375]));
     body.push(part(G.box(0.1, 0.022, 0.03), 0x000000, [s * 0.09, 0.51, 0.34], [0, 0, s * -0.45]));
   }
   BODY = merge(body);
@@ -132,7 +130,7 @@ export class Spider extends Foe {
     const bodyPivot = new THREE.Group();
     root.add(bodyPivot);
     bodyPivot.add(vcMesh(BODY));
-    spiralEyes(bodyPivot, [0.09, 0.45, 0.33], [0.2, 0.05, 1], 0.055, 0.052);
+    spiralEyes(bodyPivot, [0.09, 0.45, 0.335], [0.2, 0.05, 1], 0.062); // (its big front pair)
     this.fangs = vcMesh(FANGS);
     this.fangs.position.set(0, 0.36, 0.38);
     bodyPivot.add(this.fangs);

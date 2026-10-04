@@ -32,8 +32,6 @@ function geos() {
     part(G.sphere(1, 10, 8), 0xd8373a, [0, -0.035, 0.07], [0, 0, 0], [0.13, 0.05, 0.18]),
   ];
   for (const s of [-1, 1]) {
-    head.push(part(G.sphere(0.04, 8, 6), 0xfff4d6, [s * 0.085, 0.07, 0.1]));
-    head.push(part(G.sphere(0.022, 6, 5), 0x111111, [s * 0.1, 0.075, 0.115]));
     head.push(part(G.box(0.07, 0.016, 0.02), 0x3a3a3a, [s * 0.08, 0.11, 0.1], [0, 0, s * -0.4]));
   }
   HEAD = merge(head);
@@ -52,7 +50,7 @@ export class Snake extends Foe {
     this.headMesh = vcMesh(HEAD);
     this.headMesh.rotation.order = 'YXZ';
     this.headMesh.scale.setScalar(1.35);
-    spiralEyes(this.headMesh, [0.085, 0.07, 0.1], [0.7, 0.25, 0.65], 0.04, 0.036);
+    spiralEyes(this.headMesh, [0.088, 0.07, 0.103], [0.7, 0.25, 0.65], 0.045); // (its eyes)
     this.tongue = vcMesh(TONGUE, { cast: false });
     this.tongue.position.set(0, -0.01, 0.22);
     this.headMesh.add(this.tongue);

@@ -111,10 +111,11 @@ export function gullRig(scale, captain) {
   head.position.set(0, 0.12, 0.035);
   head.add(vcMesh(geos.head));
   if (captain) head.add(vcMesh(geos.cap));
-  const eyes = vcMesh(geos.eyes, { cast: false }), deadEyes = vcMesh(geos.dead, { cast: false });
+  const eyes = new THREE.Group(), own = vcMesh(geos.eyes, { cast: false }), deadEyes = vcMesh(geos.dead, { cast: false });
+  eyes.add(own);
   deadEyes.visible = false;
   head.add(eyes, deadEyes);
-  const spirals = spiralEyes(eyes, [0.05, 0.014, 0.034], [1, 0.1, 0.4], 0.016, 0.0145); // (in its eyes: they go when it does)
+  const spirals = spiralEyes(eyes, [0.052, 0.014, 0.035], [1, 0.1, 0.4], 0.019, own); // (in place of its own: they go when it does)
   neck.add(head);
   const legL = new THREE.Group(), legR = new THREE.Group();
   legL.position.set(0.05, 0.34, 0);

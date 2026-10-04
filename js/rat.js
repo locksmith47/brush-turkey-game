@@ -16,7 +16,7 @@ const DEF = {
   aggro: 7, leash: 9, maxLatch: 3, value: 4, weight: 1, carryR: 0.45, slots: 4, palette: 'rubbish',
   speed: 5.2, wander: 1.4, reach: 0.75, wind: 0.42, nip: 7, bolt: [0.8, 1.4], rest: [0.9, 1.6],
 };
-const FUR = 0x6e655c, FUR2 = 0x857b70, BELLY = 0xa89c8c, PINK = 0xd99a9a, BLACK = 0x161412;
+const FUR = 0x6e655c, FUR2 = 0x857b70, BELLY = 0xa89c8c, PINK = 0xd99a9a;
 const _v = new THREE.Vector3();
 
 let GEO = null;
@@ -34,7 +34,6 @@ function geos() {
   ];
   for (const s of [-1, 1]) {
     head.push(part(G.sphere(1, 8, 6), PINK, [s * 0.065, 0.075, 0.02], [0, s * 0.4, 0], [0.045, 0.05, 0.015])); // (its ears)
-    head.push(part(G.sphere(0.016, 6, 5), BLACK, [s * 0.05, 0.03, 0.12]));
     for (const y of [-0.005, -0.025]) head.push(part(G.box(0.12, 0.003, 0.003), 0xd8d2c8, [s * 0.06, y, 0.21], [0, s * 0.25, 0])); // (whiskers)
   }
   const tail = [];
@@ -51,7 +50,7 @@ function ratRig() {
   const head = new THREE.Group();
   head.position.set(0, 0.2, 0.2);
   head.add(vcMesh(g.head));
-  spiralEyes(head, [0.05, 0.03, 0.12], [0.75, 0.25, 0.6], 0.022, 0.012);
+  spiralEyes(head, [0.052, 0.03, 0.12], [0.75, 0.25, 0.6], 0.024); // (its eyes)
   bodyPivot.add(head);
   const tail = new THREE.Group();
   tail.position.set(0, 0.13, -0.26);
