@@ -278,7 +278,7 @@ export class Turkeys {
     for (const t of this.list) {
       if (!t.grounded) continue;
       g.world.resolve(t.pos, t.radius, g.mounds.colliders);
-      g.world.resolve(t.pos, t.radius, g.enemies.colliders);
+      g.world.resolve(t.pos, t.radius, g.enemies.standing); // (anything lying dead, they hop over: see settle)
       t.settle(); // on the ground, or afloat
       t.rig.root.position.copy(t.pos);
     }

@@ -8,12 +8,16 @@ import { Plover } from './plover.js';
 import { Gull, CaptainGull } from './gull.js';
 import { Rat } from './rat.js';
 
+const HOP = 0.9, HOP_MAX = 1.1; // turkeys hopping over anything lying dead: m up per m across it (from the middle), and m up at most
+
 /* Owns every foe (and every carcass / leaf bag waiting to be hauled). */
 export class Enemies {
   constructor(game) {
     this.game = game;
     this.list = [];
-    this.colliders = [];
+    this.colliders = []; // (everything in the way: whatever's standing, and anything big lying about)
+    this.standing = []; // (just what's standing: turkeys hop over whatever's lying dead, see hopOver)
+    this.lying = [];
     this._v = new THREE.Vector3();
   }
 
@@ -88,14 +92,27 @@ export class Enemies {
   }
 
   update(dt, camera) {
-    this.colliders.length = 0;
+    this.colliders.length = this.standing.length = this.lying.length = 0;
     for (const e of this.list) {
       e.update(dt);
       if (e.gone) continue;
       e.updateLabel(camera, this._v);
       const r = e.colliderR();
-      if (r) this.colliders.push({ x: e.pos.x, z: e.pos.z, r });
+      if (!r) continue;
+      const c = { x: e.pos.x, z: e.pos.z, r };
+      this.colliders.push(c);
+      (e.state === 'carcass' ? this.lying : this.standing).push(c);
     }
     if (this.list.some((e) => e.gone)) this.list = this.list.filter((e) => !e.gone);
+  }
+
+  /** how high a turkey `r` across at (x, z) is, hopping over whatever's lying dead there (m; 0 if it's clear) */
+  hopOver(x, z, r) {
+    let h = 0;
+    for (const c of this.lying) {
+      const R = c.r + r * 0.5, d2 = (x - c.x) ** 2 + (z - c.z) ** 2;
+      if (d2 < R * R) h = Math.max(h, Math.min(HOP_MAX, HOP * c.r) * Math.sqrt(1 - d2 / (R * R)));
+    }
+    return h;
   }
 }
