@@ -45,6 +45,8 @@ const HENCH = { n: 15, s: 1.15, huge: [3, 7, 11], hs: 2.5, every: 0.12, run: 11 
 // rounded up to, at the middle of it), then pushing you back into the pile; and how far round it goes either side of north
 const RING = { from: [245, -140.5, 8], to: [245, -145.6, 6], spread: 1.75 };
 const BACK = 1.5; // m/s: backing off from them, into the pile
+// (where the flock's stood, round you, from when the camera's up on the roof with him: from the middle of the ring)
+const HUDDLE = [[-1.6, 1.2], [1.5, 1], [-2.4, -0.6], [2.3, -0.4], [-0.8, -1.8], [0.9, -1.9]];
 // the catapult: how long its arm is, the angles it rests at (bucket down, behind) and stops at (up and over, in front), how
 // long it takes to swing up, and where along that everything in the bucket's let go
 const ARM = { L: 4.2, rest: -0.365, stop: 1.9, swing: 0.32, let: 1.15, pivot: [0, 2.0, 0.6] };
@@ -58,7 +60,7 @@ const LEAVES = [0x8a5a2b, 0xa8692f, 0xc58b3a, 0x6b4a2a, 0xb9773a, 0x7d6a34, 0xd0
 const LAUNCH = { T: 4.6, h: 150, far: 300 }; // out of it: seconds in the air (they're gone before they're down), how high, how far north
 const DROP = { h: [32, 55], T: [1.3, 1.8], you: 46, youT: 1.55 }; // and down into the bush: how high they come down from, and how long it takes them (and you)
 export const SPROUTS = [[-1.6, -4.6, 0], [1.4, -4.2, 0], [0, -5.6, 0], [-2.9, -3.1, 0], [2.8, -2.9, 1], [-0.3, -3.1, 2]]; // (where they come down, round where you do: see main.js)
-const GOLD = 0xf2c230, GOLD2 = 0xffe27a, VELVET = 0x5b1a8c, PURPLE = 0x7d2ae8, ERMINE = 0xfbfaf4, WHITE = 0xf3f1ea, BLACK = 0x1e1e1e;
+const GOLD = 0xf2c230, GOLD2 = 0xffe27a, VELVET = 0x5b1a8c, ERMINE = 0xfbfaf4, WHITE = 0xf3f1ea, BLACK = 0x1e1e1e;
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _q = new THREE.Vector3();
 
 /** (x, z) in Milsons Point's frame, in the world */
@@ -73,7 +75,7 @@ const ease = (k) => 1 - (1 - k) ** 2;
  * stay folded away, see ibisModel.js)
  */
 function emperorRig() {
-  const r = createIbisRig(EMPEROR);
+  const r = createIbisRig(EMPEROR, false, false); // (his own collar and chain, no neckerchief)
   r.root.rotation.order = 'YXZ';
   // the crown
   const crown = [
@@ -137,14 +139,10 @@ function emperorRig() {
 }
 
 
-/** one of his ibis (`s`: how big): an ibis like any other, but in his colours, a purple neckerchief */
+/** one of his ibis (`s`: how big): an ibis like any other (in his colours, like any other: see ibisModel.js) */
 function henchRig(s) {
   const r = createIbisRig(s);
   r.root.rotation.order = 'YXZ';
-  r.neck.add(vcMesh(merge([
-    part(G.torus(0.062, 0.022, 5, 14), PURPLE, [0, 0.045, 0.01], [Math.PI / 2 + 0.3, 0, 0]),
-    part(G.cone(0.07, 0.13, 3), PURPLE, [0, -0.02, 0.085], [Math.PI + 0.35, 0, 0], [1, 1, 0.35]),
-  ])));
   return r;
 }
 
@@ -207,19 +205,16 @@ function pileGeo() {
   const { rx, rz, h } = PILE, p = [part(G.sphere(1, 26, 10), 0x7a5530, [0, -0.1, 0], [0, 0, 0], [rx, h, rz])];
   const top = (x, z) => h * Math.sqrt(Math.max(0, 1 - (x / rx) ** 2 - (z / rz) ** 2)) - 0.1;
   const on = (r) => { const a = rand(0, TAU); return [Math.sin(a) * r * rx, Math.cos(a) * r * rz]; };
-  // (lumps of it, here and there)
-  for (let i = 0; i < 16; i++) {
-    const [x, z] = on(Math.sqrt(rand(0, 0.7)));
-    p.push(part(G.sphere(1, 10, 7), pick(LEAVES), [x, top(x, z) - 0.32, z], [0, rand(0, TAU), 0], [rand(0.9, 1.6), rand(0.4, 0.6), rand(1, 1.9)]));
-  }
-  // and the leaves on top, every which way, and a stick or two
-  for (let i = 0; i < 150; i++) {
-    const [x, z] = on(Math.sqrt(rand(0, 0.96)));
+  // the leaves on top, every which way
+  for (let i = 0; i < 260; i++) {
+    const [x, z] = on(Math.sqrt(rand(0, 0.97)));
     p.push(part(G.box(0.26, 0.02, 0.15), pick(LEAVES), [x, top(x, z) + 0.04, z], [rand(-0.5, 0.5), rand(0, TAU), rand(-0.5, 0.5)]));
   }
-  for (let i = 0; i < 9; i++) {
-    const [x, z] = on(rand(0.2, 0.8)), b = rand(0, TAU), l = rand(0.5, 1.1), dx = Math.sin(b) * l, dz = Math.cos(b) * l;
-    p.push(limb([x - dx, top(x - dx, z - dz) + 0.02, z - dz], [x + dx, top(x + dx, z + dz) + 0.02, z + dz], 0.035, 0.025, 0x5e4026, 4));
+  // and sticks all through it, poking out every which way (a branch or two among them)
+  for (let i = 0; i < 46; i++) {
+    const [x, z] = on(Math.sqrt(rand(0.02, 0.9))), b = rand(0, TAU), l = i < 6 ? rand(1.1, 1.6) : rand(0.35, 0.9), dx = Math.sin(b) * l, dz = Math.cos(b) * l;
+    const y0 = top(x - dx, z - dz) - rand(0, 0.2), y1 = top(x + dx, z + dz) + rand(-0.05, 0.35), w = i < 6 ? 0.06 : rand(0.025, 0.04);
+    p.push(limb([x - dx, Math.max(0, y0), z - dz], [x + dx, Math.max(0.05, y1), z + dz], w, w * 0.7, pick([0x5e4026, 0x6f4e30, 0x4e3520, 0x7d5b3a]), 4));
   }
   return merge(p);
 }
@@ -575,6 +570,7 @@ export class Opening {
     }
     if (hit('honk')) { g.audio.honk(EMPEROR, true); g.shake(0.5); e.honkT = 0; }
     if (hit('peck')) e.peckT = 0;
+    if (hit('turn')) this.huddle(); // (while it's all on him, up there)
     if (hit('power')) { g.audio.clonk(); g.audio.powerUp(); }
     bp.power = smoothstep(BEAT.power, BEAT.power + 2.2, s);
     // the gulls, as it gets to them (one after another)
@@ -666,6 +662,27 @@ export class Opening {
     if (s >= BEAT.white) this.whiten(s < BEAT.bush ? smoothstep(BEAT.white, BEAT.bush - 0.1, s) : 1);
     if (hit('bush')) { this.landInBush(); return; }
     this.shoot(s);
+  }
+
+  /** you and the flock, off whatever you were at and stood together in front of the Tower, where his lot will ring you */
+  huddle() {
+    const g = this.game, p = g.player, [cx, cz] = RING.from;
+    const [x, z] = at(cx, cz);
+    p.pos.set(x, this.lawnY, z);
+    p.vel.set(0, 0, 0);
+    p.heading = 0;
+    this.flock.forEach((t, i) => {
+      if (t.dead) return;
+      const [dx, dz] = HUDDLE[i % HUDDLE.length];
+      t.dropEverything();
+      t.flight = null;
+      t.bounces = 0;
+      t.bounceRejoin = false;
+      t.sunT = t.showT = 0;
+      t.pos.set(x + dx, this.lawnY, z + dz);
+      t.heading = rand(-0.5, 0.5);
+      t.setState(S.FOLLOW);
+    });
   }
 
   /** one of his ibis, out of the Tower's lobby, `wait` seconds from now, and off to its place in the ring */

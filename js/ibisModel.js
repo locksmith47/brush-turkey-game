@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import { part, merge, vcMesh, G, limb, TAU } from './util.js';
 
 /* Australian white ibis ("bin chicken"): white body, bare black head & neck,
-   long down-curved black bill, lacy black tail plumes. Built at regular size; scaled per kind. */
-const WHITE = 0xf3f1ea, WHITE2 = 0xe4e0d4, BLACK = 0x1e1e1e, LEG = 0x2e2a2a;
+   long down-curved black bill, lacy black tail plumes. Built at regular size; scaled per kind.
+   And every one of them's the Emperor's, in his colours: a purple neckerchief (see opening.js). */
+const WHITE = 0xf3f1ea, WHITE2 = 0xe4e0d4, BLACK = 0x1e1e1e, LEG = 0x2e2a2a, PURPLE = 0x7d2ae8;
 
 let geos = null;
 function build() {
@@ -64,13 +65,20 @@ function build() {
   }
   crown.push(part(G.torus(0.068, 0.008, 4, 16), 0xffe066, [0, -0.022, 0], [Math.PI / 2, 0, 0]));
 
+  // the neckerchief, knotted round the bottom of the neck, its point down the front
+  const kerchief = [
+    part(G.torus(0.062, 0.022, 5, 14), PURPLE, [0, 0.045, 0.01], [Math.PI / 2 + 0.3, 0, 0]),
+    part(G.cone(0.07, 0.13, 3), PURPLE, [0, -0.02, 0.085], [Math.PI + 0.35, 0, 0], [1, 1, 0.35]),
+  ];
+
   geos = {
     body: merge(body), neck: merge(neck), head: merge(head), eyes: merge(eyes), dead: merge(dead),
-    leg: merge(leg), crown: merge(crown), billTip: new THREE.Vector3(...bill[bill.length - 1]),
+    leg: merge(leg), crown: merge(crown), kerchief: merge(kerchief), billTip: new THREE.Vector3(...bill[bill.length - 1]),
   };
 }
 
-export function createIbisRig(scale, crowned = false) {
+/** an ibis rig, `scale` times life size (`crowned`: the King; `kerchief`: in the Emperor's colours, as all but he are) */
+export function createIbisRig(scale, crowned = false, kerchief = true) {
   if (!geos) build();
   const root = new THREE.Group();
   const bodyPivot = new THREE.Group();
@@ -80,6 +88,7 @@ export function createIbisRig(scale, crowned = false) {
   const neck = new THREE.Group();
   neck.position.set(0, 0.9, 0.26);
   neck.add(vcMesh(geos.neck));
+  if (kerchief) neck.add(vcMesh(geos.kerchief));
   bodyPivot.add(neck);
 
   const head = new THREE.Group();
