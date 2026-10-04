@@ -21,9 +21,10 @@ continued" (`ending.js`). Off the way on, through a gap in the railing at the en
 
 A new game starts before all that, at home on Blues Point (`props/blues.js`, out past Luna Park in Milsons Point's frame,
 on a leg of its own looking east at the Bridge): the flock at play round the Tower, till the Emperor Ibis lands on its roof,
-switches on the dish he's put up there, and has his ibis fling the lot of you north into the bush out of a catapult
-(`opening.js`). From then on the Tower and its signal are on the horizon everywhere (`beacon.js`), and everything that's
-turned on the turkeys, bar the ibis, has spiral eyes (`hypno.js`). There's no getting back to Blues Point, for now.
+switches on the dish he's put up there, and has his ibis back the lot of you into a pile of leaves over the pit their
+catapult's waiting in, to fling you north into the bush (`opening.js`). From then on the Tower and its signal are on the
+horizon everywhere (`beacon.js`), and everything that's turned on the turkeys, bar the ibis, has spiral eyes (`hypno.js`).
+There's no getting back to Blues Point, for now.
 
 ## Commands
 

@@ -312,7 +312,8 @@ export class Player {
     }
 
     const aimYaw = Math.atan2(aim.x - this.pos.x, aim.z - this.pos.z);
-    if (this.speed > 0.4) this.heading = dampAngle(this.heading, Math.atan2(this.vel.x, this.vel.z), 12, dt);
+    if (this.facing !== undefined) this.heading = dampAngle(this.heading, this.facing, 8, dt); // (made to face a certain way, whichever way he's going: see Opening)
+    else if (this.speed > 0.4) this.heading = dampAngle(this.heading, Math.atan2(this.vel.x, this.vel.z), 12, dt);
     else if (this.whistling || this.throwT < 1) this.heading = dampAngle(this.heading, aimYaw, 10, dt);
 
     this.animate(dt, aimYaw);
@@ -610,7 +611,7 @@ export class Player {
   animate(dt, aimYaw) {
     const r = this.rig;
     const k = clamp(this.speed / this.maxSpeed, 0, 1);
-    this.phase += dt * (3 + this.speed * 1.55);
+    this.phase += dt * (3 + this.speed * 1.55) * (this.facing === undefined ? 1 : -1); // (backwards, backing along)
     const s = Math.sin(this.phase), c = Math.cos(this.phase);
 
     // (just landed on his feet: a squash; flickering while nothing can touch him, just after he's been dug out)

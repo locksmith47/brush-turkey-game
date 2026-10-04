@@ -1138,7 +1138,8 @@ export class Turkey {
       g.world.resolve(this.pos, this.radius, g.mounds.colliders);
       const v2 = this.vel.x * this.vel.x + this.vel.z * this.vel.z;
       // (fighting, raking, building and digging turkeys see to which way they face themselves)
-      if (v2 > 0.04 && this.state !== S.ATTACK && this.state !== S.RAKE && this.state !== S.BUILD && this.state !== S.DIGOUT) this.turnTo(Math.atan2(this.vel.x, this.vel.z), dt, 9);
+      // (and one made to face a certain way, whichever way it's going, backs along: see Opening)
+      if (v2 > 0.04 && this.state !== S.ATTACK && this.state !== S.RAKE && this.state !== S.BUILD && this.state !== S.DIGOUT) this.turnTo(this.facing ?? Math.atan2(this.vel.x, this.vel.z), dt, 9);
       const w2 = g.world.waterAt(this.pos.x, this.pos.z);
       if (!this.canSwim) {
         // a landlubber that wanders out of its depth starts to drown (a whistled one gets a few seconds' grace)
@@ -1699,7 +1700,7 @@ export class Turkey {
     const speed = Math.hypot(this.vel.x, this.vel.z);
     const walking = this.grounded;
     const k = walking ? clamp(speed / 1.2, 0, 1) : 0;
-    this.phase += dt * (4 + speed * 4.5) * (walking ? 1 : 0);
+    this.phase += dt * (4 + speed * 4.5) * (walking ? 1 : 0) * (this.facing === undefined ? 1 : -1); // (backwards, backing along)
     this.squash = Math.max(0, this.squash - dt * 4);
     const time = this.game.time;
 

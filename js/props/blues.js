@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { part, merge, vcMesh, G, limb, rand, pick, noise, smoothstep, TAU } from '../util.js';
 import { fig } from './city.js';
 import { benchGeo, lampGeo } from './hyde.js';
-import { OX, BLUES } from './milsons.js';
+import { OX, BLUES, PIT } from './milsons.js';
 
 /*
  * Blues Point, where it all starts: the turkeys' home. The reserve's lawn, out on the end of the point, with the harbour
@@ -42,17 +42,18 @@ export const ROOF = { y: BLUES.y + TOP + 0.65, x: TOWER.x + OX, z: TOWER.z - 5.6
 
 const at = (x, z) => [x + OX, z];
 // where everything goes (see main.js and Opening): the playground, the flock's mound, where you and the flock start out,
-// the gulls about the lawn, and the catapult the Emperor's lot have hidden under a tarp down the end of it, aimed north
+// the gulls about the lawn, and the pit the Emperor's lot have dug down the end of it (in the world), the catapult in it
 export const BLUES_SPOTS = {
-  swing: [...at(256, -112), -Math.PI / 2], // (swinging out towards the Bridge)
+  swing: [...at(250, -113), -Math.PI / 2], // (swinging out towards the Bridge)
   trampoline: at(236, -124),
-  seesaw: at(255, -129),
-  ball: at(246, -133),
+  seesaw: at(251, -129),
+  ball: at(244, -127),
   mound: at(232.5, -110),
-  you: [...at(246, -121), Math.PI / 2],
+  you: [...at(259, -121), -Math.PI / 2], // (out the back of the lot of them, looking out at the Bridge)
   flock: [[241, -117], [252, -120], [238, -129], [251, -136], [243, -140], [233, -118]].map(([x, z]) => at(x, z)),
-  gulls: [[237, -144], [257, -142], [229, -131]].map(([x, z]) => at(x, z)),
-  catapult: at(245, -151),
+  gulls: [[236, -134], [257, -125], [229, -131]].map(([x, z]) => at(x, z)),
+  pit: { x0: PIT.x0 + OX, x1: PIT.x1 + OX, z0: PIT.z0, z1: PIT.z1 },
+  catapult: at(245, -150),
 };
 /** is (x, z) in the sandpit? (a suntrap: see World.sunTrap) */
 export const inSandpit = (x, z) => Math.abs(x - OX - SANDPIT.x) < SANDPIT.w / 2 - 0.2 && Math.abs(z - SANDPIT.z) < SANDPIT.d / 2 - 0.2;
@@ -153,11 +154,12 @@ function groundColour(x, z, c) {
   return c.lerp(SHADE, shade * 0.55);
 }
 
-/** the reserve, in 1 m squares (the path's a step down the edge of it, all the way round bar the hill end) */
+/** the reserve, in 1 m squares (the path's a step down the edge of it, all the way round bar the hill end), bar the pit */
 function groundGeo() {
   const S = 1, pos = [], col = [], c = new THREE.Color();
   for (let x = BLUES.x0; x < BLUES.x1; x += S) {
     for (let z = BLUES.z0; z < BLUES.z1; z += S) {
+      if (x >= PIT.x0 && x < PIT.x1 && z >= PIT.z0 && z < PIT.z1) continue; // (no lawn over the pit: see Opening)
       groundColour(x + S / 2, z + S / 2, c);
       for (const [dx, dz] of [[0, 0], [0, S], [S, 0], [S, 0], [0, S], [S, S]]) {
         pos.push(x + dx, BLUES.y, z + dz);

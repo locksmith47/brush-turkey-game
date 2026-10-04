@@ -49,6 +49,8 @@ const OPERA = [-152, -246]; // (the Opera House, on Bennelong Point)
  * on the lines between the land's squares: see terrainH), with the Tower on the end of it nearest the hill (see blues.js)
  */
 export const BLUES = { x0: 224, x1: 266, z0: -160, z1: -88, y: 1.2 };
+// the pit the Emperor's lot have dug down the end of its lawn, the catapult down it (see Opening)
+export const PIT = { x0: 243, x1: 247, z0: -154, z1: -145 };
 
 export const MILSONS_RECT = [LINE.x - 2 + OX, -58, 50 + OX, PLAT.z1 + 2];
 export const LUNA_RECT = [50 + OX, -60, FACE.x + MOUTH.deep + 1 + OX, HILL.z];
@@ -134,6 +136,8 @@ const portalH = (x, z) => PORTAL.y * smoothstep(PORTAL.x0 - 12, PORTAL.x0, x) * 
 /** the height of the land all round: the flat (just under it: it's got its own ground), the hills, and the rest */
 function terrainH(x, z) {
   // (Blues Point's reserve: just under its lawn, and the harbour right up to its seawall)
+  // (bar the pit dug in it: well down, from the corners of the 6 m squares round it, under the lawn, see terrainGeo)
+  if (x > PIT.x0 - 1.1 && x < PIT.x1 + 1.1 && z > PIT.z0 - 0.1 && z < PIT.z1 + 3.1) return -6;
   if (x >= BLUES.x0 && x <= BLUES.x1 && z >= BLUES.z0 && z <= BLUES.z1) return BLUES.y - 0.05;
   const out = Math.hypot(Math.max(SHEET.x0 - x, 0, x - SHEET.x1), Math.max(SHEET.z0 - z, 0, z - SHEET.z1));
   if (x >= HILL.x + 6 - 0.1 && z >= HILL.z + 6 - 0.1) return hillH(x, z);

@@ -703,4 +703,26 @@ export class Audio {
     this.tone({ freq: 190, freq2: 120, dur: 0.6, vol: 0.06, type: 'sawtooth', vib: 14, vibHz: 22, delay: 0.14 });
     this.noise({ dur: 1.3, vol: 0.14, type: 'bandpass', f1: 500, f2: 2600, q: 0.8, attack: 0.15, delay: 0.1 });
   }
+
+  /** the pile of leaves giving way under you: a crunching, rustling whump, and the lot sliding in after you */
+  cavein() {
+    if (!this.ok('cavein', 800)) return;
+    this.noise({ dur: 0.5, vol: 0.3, type: 'highpass', f1: 2400, f2: 1200, q: 0.5, attack: 0.01 });
+    this.noise({ dur: 0.35, vol: 0.3, type: 'lowpass', f1: 500, f2: 120, attack: 0.005 });
+    this.tone({ freq: 95, freq2: 45, dur: 0.4, vol: 0.25, type: 'sine', attack: 0.005 });
+    this.noise({ dur: 1.1, vol: 0.12, type: 'bandpass', f1: 3200, f2: 1500, q: 0.8, attack: 0.1, delay: 0.25 });
+  }
+
+  /** the Emperor, laughing at the lot of you: a run of big honks, tumbling down, with a rumble under it */
+  cackle() {
+    if (!this.ok('cackle', 1200)) return;
+    const f = 300;
+    for (let i = 0; i < 7; i++) {
+      const delay = i * 0.16 + (i > 2 ? 0.06 : 0), k = 1.3 - i * 0.07;
+      this.tone({ freq: f * k * 1.15, freq2: f * k * 0.85, dur: 0.14, vol: 0.2, type: 'sawtooth', vib: f * 0.05, vibHz: 28, attack: 0.01, delay });
+      this.tone({ freq: f * k * 1.7, freq2: f * k * 1.3, dur: 0.12, vol: 0.08, type: 'square', attack: 0.01, delay });
+      this.noise({ dur: 0.12, vol: 0.06, type: 'bandpass', f1: f * k * 2.6, q: 3, delay });
+    }
+    this.tone({ freq: 70, freq2: 40, dur: 1.4, vol: 0.2, type: 'sine', attack: 0.05 });
+  }
 }
