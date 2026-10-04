@@ -11,7 +11,7 @@ import { Footprints } from './footprints.js';
 import { Leaves } from './leaves.js';
 import { Grubs } from './grubs.js';
 import { Mounds } from './mound.js';
-import { Turkeys } from './turkeys.js';
+import { Turkeys, MAX_TURKEYS } from './turkeys.js';
 import { Player, MAX_HP } from './player.js';
 import { Input } from './input.js';
 import { Cursor } from './cursor.js';
@@ -51,6 +51,7 @@ import { clamp, damp, rand, smoothstep, lerp, angleDiff, TAU } from './util.js';
 const THROW_RANGE = 11;
 const WHISTLE_RANGE = 15;
 const WHISTLE_MAX_R = 5.5;
+const PLUCK = { reach: 2.3, near: 1.2, every: 0.3, far: 14, stuck: 0.8 }; // holding E: m he plucks from, m he walks up to, s between plucks, m he'll go for the next one, and s he'll keep at one he can't get to
 
 /* ------------------------------------------------------------------ setup */
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -400,13 +401,44 @@ function doThrow(manual) {
 }
 
 function tryPluck() {
-  const t = turkeys.pluckNearest(player.pos);
+  const t = turkeys.pluckNearest(player.pos, PLUCK.reach);
   if (t) {
     player.playPluck();
     player.heading = Math.atan2(t.pos.x - player.pos.x, t.pos.z - player.pos.z);
     game.stats.plucked++;
   }
   return t;
+}
+
+let pluckNext = null, pluckBest = 0, pluckStuck = 0;
+const pluckSkip = new Set(); // (ones he couldn't get to, this go)
+/**
+ * E held: he goes from one turkey in the ground to the next, nearest first, and plucks each (bar ones he can't see,
+ * over in the next place, or with the flock full). Steer yourself (`steering`) and he plucks whatever's in reach
+ */
+function pluckOn(dt, steering) {
+  pluckHold += dt;
+  if (player.pluckT < 1 || turkeys.plucked >= MAX_TURKEYS) return; // (mid-yank; or there's no room for any more)
+  const p = player.pos, zone = zoneNow();
+  let next = null, bd = PLUCK.far;
+  for (const t of turkeys.list) {
+    if (t.state !== 'sprout' || pluckSkip.has(t)) continue;
+    const d = Math.hypot(t.pos.x - p.x, t.pos.z - p.z);
+    if (d < bd && world.zoneOf(t.pos.x, t.pos.z) === zone && world.canSee(p.x, p.z, t.pos.x, t.pos.z)) { bd = d; next = t; }
+  }
+  if (!next) return;
+  if (next !== pluckNext) { pluckNext = next; pluckBest = bd; pluckStuck = 0; }
+  // (he walks right up to it first, unless you're steering; or he can't get any closer)
+  const stuck = steering || bd < pluckBest - 0.05 ? (pluckStuck = 0) : (pluckStuck += dt) > PLUCK.stuck;
+  pluckBest = Math.min(pluckBest, bd);
+  if (bd < (steering || stuck ? PLUCK.reach : PLUCK.near)) {
+    if (pluckHold > PLUCK.every) { pluckHold = 0; tryPluck(); }
+    return;
+  }
+  if (stuck) { pluckSkip.add(next); pluckNext = null; return; } // (something's in the way: leave that one be)
+  if (steering) return;
+  move.x = (next.pos.x - p.x) / bd;
+  move.z = (next.pos.z - p.z) / bd;
 }
 
 /** M: mark out a new mound, and send a crew of turkeys to scratch it up (it takes at least BUILD_CREW) */
@@ -470,12 +502,9 @@ function handleInput(dt) {
     if (n) fx.sparkle(whistle.center, Math.min(6, n * 2), [0xffd21f]);
   }
 
-  // plucking (hold E to keep plucking)
-  if (input.pressed('KeyE')) { tryPluck(); pluckHold = 0; }
-  else if (input.isDown('KeyE')) {
-    pluckHold += dt;
-    if (pluckHold > 0.32) { pluckHold = 0; tryPluck(); }
-  }
+  // plucking (hold E to keep plucking, and he goes from one to the next)
+  if (input.pressed('KeyE')) { tryPluck(); pluckHold = 0; pluckSkip.clear(); pluckNext = null; }
+  else if (input.isDown('KeyE')) pluckOn(dt, f || r);
 
   if (input.pressed('KeyX') && turkeys.dismiss()) audio.peep(2, true);
   if (input.pressed('Tab')) {
@@ -508,7 +537,7 @@ const byPadded = () => {
 // up, then there's a breather before the next. One you've no need of (you've worked it out, or it's been and gone)
 // is never said at all
 const tips = [
-  { key: 'pluck', when: () => !game.stats.plucked, text: 'Walk up to a turkey poking out of the ground and press E to pluck it' },
+  { key: 'pluck', when: () => !game.stats.plucked, text: 'Walk up to a turkey poking out of the ground and press E to pluck it. Hold E to go on to the next' },
   { key: 'throw', when: () => game.stats.plucked >= 2 && !game.stats.thrown, text: 'Aim at leaf litter and left-click to throw a turkey' },
   { key: 'whistle', when: () => game.stats.thrown >= 2, text: 'Turkeys rake the leaves back to the mound with their feet. Hold right-click to whistle them back' },
   { key: 'fill', when: () => game.stats.leaves >= 4 && !game.stats.hatched, text: 'Fill the mound to hatch more chicks!' },

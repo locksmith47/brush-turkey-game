@@ -4,8 +4,8 @@ import { BEACH, WHARF, FERRY, OPERA, MILSONS, LUNA, BLUES } from './world.js';
 
 /*
  * The sound of each place, under everything else that's going on. There's a bed of sound that's always there:
- * a breeze through the bush, the hum of the suburbs, a crowd at the oval, the surf at Manly, the harbour
- * slopping about under the wharf, the ferry's engine, the city's traffic. Over the top of it comes the odd call:
+ * the hum of the suburbs, a crowd at the oval, the surf at Manly, the harbour slopping about under the wharf,
+ * the ferry's engine, the city's traffic (and no wind: it drowned the lot out). Over the top of it comes the odd call:
  * a kookaburra having a laugh, a whipbird cracking, a magpie warbling, a crow, a mob of cockies, galahs,
  * somebody mowing a few streets over, the crowd going up, gulls, a car going by, the crossing going off. All
  * synthesized, like the rest (see Audio), bar the cockies, the galahs and the gulls: they're the real thing.
@@ -19,30 +19,30 @@ const ENGINE_V = 7.5; // m/s: the ferry going flat out, when her engine's at its
 
 // each place's bed: layers of filtered noise, each with a slow swell and ebb to it (wobble: [how much, how often]...)
 const BEDS = [
-  // the bush: a breeze through the leaves, coming and going, over a low murmur of the trees
-  [{ type: 'bandpass', f: 1100, q: 0.5, vol: 0.06, wobble: [[0.55, 0.07], [0.3, 0.19]] }, { type: 'lowpass', f: 300, vol: 0.1 }],
-  // the backyards: the far-off hum of the suburbs, and a lighter breeze
-  [{ type: 'lowpass', f: 420, vol: 0.12, wobble: [[0.25, 0.05]] }, { type: 'bandpass', f: 1600, q: 0.6, vol: 0.03, wobble: [[0.5, 0.09], [0.3, 0.23]] }],
-  // the oval: a crowd (from the game at the ground next door), murmuring away, and the breeze across the field
-  [{ type: 'bandpass', f: 480, q: 1.4, vol: 0.11, wobble: [[0.3, 0.21], [0.2, 0.37]] }, { type: 'bandpass', f: 1150, q: 2, vol: 0.05, wobble: [[0.4, 0.29], [0.3, 0.53]] }, { type: 'lowpass', f: 500, vol: 0.06 }],
+  // the bush: nothing under it (it's all birds)
+  [],
+  // the backyards: the far-off hum of the suburbs
+  [{ type: 'lowpass', f: 420, vol: 0.12, wobble: [[0.25, 0.05]] }],
+  // the oval: a crowd (from the game at the ground next door), murmuring away
+  [{ type: 'bandpass', f: 480, q: 1.4, vol: 0.11, wobble: [[0.3, 0.21], [0.2, 0.37]] }, { type: 'bandpass', f: 1150, q: 2, vol: 0.05, wobble: [[0.4, 0.29], [0.3, 0.53]] }],
   // the beach: the roar of the surf, and the hiss of the foam (the waves themselves come in: see wave)
   [{ type: 'lowpass', f: 520, vol: 0.16, wobble: [[0.2, 0.05]] }, { type: 'highpass', f: 3500, vol: 0.007, wobble: [[0.5, 0.12]] }],
-  // the wharf: the harbour slopping about under it, and a bit of a breeze off the water
-  [{ type: 'lowpass', f: 380, vol: 0.15, wobble: [[0.5, 0.8], [0.3, 1.3]] }, { type: 'bandpass', f: 2000, q: 0.5, vol: 0.012 }],
-  // the ferry: the engine thrumming away under the deck, the water rushing past the hull, and the wind
-  [{ type: 'lowpass', f: 110, vol: 0.34, wobble: [[0.35, 4.2], [0.15, 0.3]] }, { type: 'bandpass', f: 900, q: 0.5, vol: 0.05, wobble: [[0.4, 0.23]] }, { type: 'highpass', f: 2800, vol: 0.008, wobble: [[0.6, 0.11]] }],
+  // the wharf: the harbour slopping about under it
+  [{ type: 'lowpass', f: 380, vol: 0.15, wobble: [[0.5, 0.8], [0.3, 1.3]] }],
+  // the ferry: the engine thrumming away under the deck, and the water rushing past the hull
+  [{ type: 'lowpass', f: 110, vol: 0.34, wobble: [[0.35, 4.2], [0.15, 0.3]] }, { type: 'bandpass', f: 900, q: 0.5, vol: 0.05, wobble: [[0.4, 0.23]] }],
   // the city: the rumble of traffic, and tyres on the road
   [{ type: 'lowpass', f: 220, vol: 0.3, wobble: [[0.3, 0.06], [0.2, 0.17]] }, { type: 'bandpass', f: 750, q: 0.7, vol: 0.05, wobble: [[0.4, 0.11]] }],
-  // the Opera House: the harbour slopping at the sea wall, a breeze off the water, and the bar, chattering away
-  [{ type: 'lowpass', f: 380, vol: 0.13, wobble: [[0.5, 0.7], [0.3, 1.1]] }, { type: 'bandpass', f: 2000, q: 0.5, vol: 0.012 }, { type: 'bandpass', f: 520, q: 1.6, vol: 0.03, wobble: [[0.3, 0.27], [0.2, 0.41]] }],
-  // Hyde Park: the city's traffic, further off, the breeze in the figs, and the fountain going
-  [{ type: 'lowpass', f: 220, vol: 0.16, wobble: [[0.3, 0.06]] }, { type: 'bandpass', f: 1100, q: 0.5, vol: 0.04, wobble: [[0.5, 0.08], [0.3, 0.21]] }, { type: 'highpass', f: 3000, vol: 0.006, wobble: [[0.2, 0.5]] }],
-  // Milsons Point: the harbour slopping at the sea wall, a breeze off the water, and the Bridge's traffic, way up
-  [{ type: 'lowpass', f: 380, vol: 0.12, wobble: [[0.5, 0.7], [0.3, 1.1]] }, { type: 'bandpass', f: 2000, q: 0.5, vol: 0.012 }, { type: 'lowpass', f: 160, vol: 0.12, wobble: [[0.3, 0.05]] }],
+  // the Opera House: the harbour slopping at the sea wall, and the bar, chattering away
+  [{ type: 'lowpass', f: 380, vol: 0.13, wobble: [[0.5, 0.7], [0.3, 1.1]] }, { type: 'bandpass', f: 520, q: 1.6, vol: 0.03, wobble: [[0.3, 0.27], [0.2, 0.41]] }],
+  // Hyde Park: the city's traffic, further off, and the fountain going
+  [{ type: 'lowpass', f: 220, vol: 0.16, wobble: [[0.3, 0.06]] }, { type: 'highpass', f: 3000, vol: 0.006, wobble: [[0.2, 0.5]] }],
+  // Milsons Point: the harbour slopping at the sea wall, and the Bridge's traffic, way up
+  [{ type: 'lowpass', f: 380, vol: 0.12, wobble: [[0.5, 0.7], [0.3, 1.1]] }, { type: 'lowpass', f: 160, vol: 0.12, wobble: [[0.3, 0.05]] }],
   // Luna Park: the water under the boardwalk, and a crowd inside, somewhere, having a good time
   [{ type: 'lowpass', f: 380, vol: 0.12, wobble: [[0.5, 0.7], [0.3, 1.1]] }, { type: 'bandpass', f: 620, q: 1.4, vol: 0.06, wobble: [[0.3, 0.23], [0.2, 0.39]] }],
-  // Blues Point: the harbour slopping at the sea wall, the breeze in the figs, and the Bridge's traffic, across the water
-  [{ type: 'lowpass', f: 380, vol: 0.12, wobble: [[0.5, 0.7], [0.3, 1.1]] }, { type: 'bandpass', f: 1100, q: 0.5, vol: 0.04, wobble: [[0.5, 0.08], [0.3, 0.21]] }, { type: 'lowpass', f: 160, vol: 0.06, wobble: [[0.3, 0.05]] }],
+  // Blues Point: the harbour slopping at the sea wall, and the Bridge's traffic, across the water
+  [{ type: 'lowpass', f: 380, vol: 0.12, wobble: [[0.5, 0.7], [0.3, 1.1]] }, { type: 'lowpass', f: 160, vol: 0.06, wobble: [[0.3, 0.05]] }],
 ];
 
 // and the calls over the top: how often (seconds between, give or take), and what, how likely each one is

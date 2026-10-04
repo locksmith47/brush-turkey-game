@@ -1163,7 +1163,7 @@ export class Turkey {
     if (this.swimming) {
       const bob = Math.sin(this.game.time * 3.1 + this.id) * 0.022;
       y = Math.max(y, world.surfaceY(w, this.pos.x, this.pos.z) - 0.28 * this.scale + bob);
-    }
+    } else y += this.game.enemies?.hopOver(this.pos.x, this.pos.z, this.radius) ?? 0; // (up and over anything lying dead)
     this.pos.y = y;
   }
 
@@ -1424,7 +1424,7 @@ export class Turkey {
     out.set(c.x - dir.x * back - dir.z * side, 0, c.z - dir.z * back + dir.x * side);
     for (let i = 0; i < 4 && !this.canSwim && w.waterDepth(out.x, out.z) === 2; i++) out.set((out.x + c.x) / 2, 0, (out.z + c.z) / 2);
     w.resolve(out, this.radius + 0.03, this.game.mounds.colliders); // (out of the rocks, trees and fences)
-    w.resolve(out, this.radius + 0.03, this.game.enemies.colliders); // (and whatever's lying about, like a tipped-over bin)
+    w.resolve(out, this.radius + 0.03, this.game.enemies.standing); // (and whatever's lying about, like a tipped-over bin)
     return out;
   }
 
