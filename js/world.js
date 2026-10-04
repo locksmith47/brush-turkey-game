@@ -11,6 +11,7 @@ import { buildCity, STREETS, quayGround } from './props/city.js';
 import { buildOpera, operaGround, onSteps, OPERA_TRACK } from './props/opera.js';
 import { buildHyde, hydeGround, HYDE_TRACK, HYDE_RECT, HYDE_GATE } from './props/hyde.js';
 import { buildMilsons, milsonsGround, MILSONS_TRACK, LUNA_TRACK, MILSONS_RECT, LUNA_RECT, LUNA_GAP } from './props/milsons.js';
+import { buildBlues, bluesGround, BLUES_RECT, inSandpit } from './props/blues.js';
 
 /*
  * The map runs the way the turkeys came, north to south: out of the bush, through the backyards and across
@@ -21,11 +22,14 @@ import { buildMilsons, milsonsGround, MILSONS_TRACK, LUNA_TRACK, MILSONS_RECT, L
  * Through the end of the King's court is Hyde Park, looking down the first leg again, and at the far end of
  * it, Museum station: the train from there goes under the city and over the Bridge to Milsons Point, which is
  * off on its own, well away from the rest (there's no walking there: see Ride), with Luna Park round the corner
- * from it.
+ * from it. And round past Luna Park, out on the end of the next point along, Blues Point: where it all starts, the
+ * turkeys' home, looking east at the Bridge down a leg of its own (and there's no getting back there, for now: see
+ * Opening).
  */
 export const LEGS = [
   { yaw: 0, dir: [0, -1] },
   { yaw: -Math.PI / 2, dir: [1, 0] },
+  { yaw: Math.PI / 2, dir: [-1, 0] }, // (at Blues Point, looking out at the Bridge)
 ];
 /** the areas, in order: what's in each ([x0, z0, x1, z1]: its bounds) and which leg it's on */
 export const ZONES = [
@@ -40,8 +44,9 @@ export const ZONES = [
   { name: 'Hyde Park', rect: HYDE_RECT, leg: 0 },
   { name: 'Milsons Point', rect: MILSONS_RECT, leg: 0 },
   { name: 'Luna Park', rect: LUNA_RECT, leg: 1 },
+  { name: 'Blues Point', rect: BLUES_RECT, leg: 2 },
 ];
-export const OVAL = 2, BEACH = 3, WHARF = 4, FERRY = 5, CITY = 6, OPERA = 7, HYDE = 8, MILSONS = 9, LUNA = 10;
+export const OVAL = 2, BEACH = 3, WHARF = 4, FERRY = 5, CITY = 6, OPERA = 7, HYDE = 8, MILSONS = 9, LUNA = 10, BLUES = 11;
 /**
  * The fences between them, each with a gate in it at (x, z), going through which (along `d`) takes you on from
  * area `from` to area `to` (the next one along, unless it says). `span`: how far the fence runs either way along
@@ -100,7 +105,7 @@ export class World {
     // each zone's lie of the land (where there's any to speak of: the beach is wide open, and the ferry's all deck)
     this.tracks = [
       this.track, this.zoneTrack(1, BACKYARDS), this.zoneTrack(2, FIELD), null, null, null, this.zoneTrack(CITY, STREETS), this.zoneTrack(OPERA, OPERA_TRACK),
-      this.zoneTrack(HYDE, HYDE_TRACK), this.zoneTrack(MILSONS, MILSONS_TRACK), this.zoneTrack(LUNA, LUNA_TRACK),
+      this.zoneTrack(HYDE, HYDE_TRACK), this.zoneTrack(MILSONS, MILSONS_TRACK), this.zoneTrack(LUNA, LUNA_TRACK), null,
     ];
 
     this.buildSky();
@@ -116,6 +121,7 @@ export class World {
     this.opera = buildOpera(this); // (and Benny's steps, for turkeys to lie about on: see main.js)
     this.hyde = buildHyde(this); // (the fountain and the statues, for turkeys to wash in and sit on, and Museum station)
     this.milsons = buildMilsons(this); // (Milsons Point station, and Luna Park round the corner)
+    this.blues = buildBlues(this); // (the turkeys' playground, and the Tower, with the Emperor's dish on its roof)
   }
 
   /** zone i's track (see Track), with room to get through the gates in and out of it */
@@ -163,6 +169,7 @@ export class World {
     if (zone === OPERA) return operaGround(x, z);
     if (zone === HYDE) return hydeGround(x, z);
     if (zone === MILSONS || zone === LUNA) return milsonsGround(x, z);
+    if (zone === BLUES) return bluesGround(x, z);
     return this.bushHeight(x, z);
   }
 
@@ -304,8 +311,11 @@ export class World {
   surfaceY(w, x, z) { return w.sea ? w.level + seaWave(x, z, this.game.time) : w.level; }
   shoreDir(x, z, out) { return shoreDir(x, z, out); }
   isSand(x, z) { return isSand(x, z); }
-  /** somewhere turkeys can't help but lie down in the sun: the sand at the beach, and the steps down to Benny */
-  sunTrap(x, z) { return isSand(x, z) || (this.zoneOf(x, z) === OPERA && onSteps(x, z)); }
+  /** somewhere turkeys can't help but lie down in the sun: the sand at the beach, the steps down to Benny, and the sandpit at home */
+  sunTrap(x, z) {
+    const zone = this.zoneOf(x, z);
+    return isSand(x, z) || (zone === OPERA && onSteps(x, z)) || (zone === BLUES && inSandpit(x, z));
+  }
 
   addSway(mesh) { this.swayers.push({ m: mesh, ph: Math.random() * 6.28 }); }
 
@@ -501,6 +511,7 @@ export class World {
     this.opera.update(dt, t);
     this.hyde.update(dt, t);
     this.milsons.update(dt, t);
+    this.blues.update(dt, t);
     for (const s of this.swayers) {
       s.m.rotation.z = Math.sin(t * 0.7 + s.ph) * 0.012;
       s.m.rotation.x = Math.cos(t * 0.53 + s.ph) * 0.01;

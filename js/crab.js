@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Foe } from './foe.js';
 import { part, merge, vcMesh, G, limb, rand, pick, damp, dampAngle, clamp, TAU } from './util.js';
 import { POOLS, shoreZ } from './props/beach.js';
+import { spiralEyes } from './hypno.js';
 
 /*
  * Crabs scuttle sideways, snip up a turkey in each claw and drag them into the sea.
@@ -75,6 +76,7 @@ function createCrabRig(kind) {
   const bodyPivot = new THREE.Group();
   root.add(bodyPivot);
   bodyPivot.add(vcMesh(g.body));
+  spiralEyes(bodyPivot, [0.15, 0.66, 0.35], [0.1, 0.15, 1], 0.06, 0.058); // (up on its stalks)
   const legs = [];
   const zs = [0.16, 0.03, -0.1, -0.23];
   for (const side of [1, -1]) {

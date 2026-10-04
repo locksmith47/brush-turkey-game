@@ -73,13 +73,13 @@ export class Saves {
   /** every EVERY seconds while you play (and whenever you leave the page: see main.js) */
   update(dt) {
     const g = this.game;
-    if (!this.on || g.wasted.active || g.travel.active || g.ride.active || g.ending.active || (this.t -= dt) > 0) return; // (not while you're down, down the tunnels or on the train: see snapshot)
+    if (!this.on || g.opening.blocksSave || g.wasted.active || g.travel.active || g.ride.active || g.ending.active || (this.t -= dt) > 0) return; // (not while you're down, down the tunnels or on the train: see snapshot; nor before the game's properly started, see Opening)
     this.t = EVERY;
     this.write();
   }
 
   write() {
-    if (!this.on) return false;
+    if (!this.on || this.game.opening.blocksSave) return false;
     try {
       localStorage.setItem(KEY, JSON.stringify(this.snapshot()));
       this.game.hud.saved();

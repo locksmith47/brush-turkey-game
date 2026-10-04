@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Plover, PINNED } from './plover.js';
 import { ferryKeyGeo } from './key.js';
 import { part, merge, vcMesh, G, limb } from './util.js';
+import { spiralEyes } from './hypno.js';
 
 /*
  * Silver gulls: seagulls, chip thieves, the terror of every wharf. They loaf about round a spilt packet of
@@ -94,8 +95,8 @@ function build() {
   };
 }
 
-/** a gull (laid out like a plover's, so it flies and swoops the same: see Plover's pose), in the Captain's cap or not */
-function gullRig(scale, captain) {
+/** a gull (laid out like a plover's, so it flies and swoops the same: see Plover's pose), in the Captain's cap or not, spirals in its eyes (see hypno.js) */
+export function gullRig(scale, captain) {
   if (!geos) build();
   const root = new THREE.Group();
   root.rotation.order = 'YXZ';
@@ -113,6 +114,7 @@ function gullRig(scale, captain) {
   const eyes = vcMesh(geos.eyes, { cast: false }), deadEyes = vcMesh(geos.dead, { cast: false });
   deadEyes.visible = false;
   head.add(eyes, deadEyes);
+  const spirals = spiralEyes(eyes, [0.05, 0.014, 0.034], [1, 0.1, 0.4], 0.016, 0.0145); // (in its eyes: they go when it does)
   neck.add(head);
   const legL = new THREE.Group(), legR = new THREE.Group();
   legL.position.set(0.05, 0.34, 0);
@@ -129,7 +131,7 @@ function gullRig(scale, captain) {
   wingR.add(wr);
   bodyPivot.add(wingL, wingR);
   root.scale.setScalar(scale);
-  return { root, bodyPivot, neck, head, eyes, deadEyes, legL, legR, wingL, wingR };
+  return { root, bodyPivot, neck, head, eyes, deadEyes, spirals, legL, legR, wingL, wingR };
 }
 
 export class Gull extends Plover {

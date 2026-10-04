@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Foe } from './foe.js';
 import { part, merge, vcMesh, G, limb, rand, pick, damp, dampAngle, canvasTexture, TAU } from './util.js';
+import { spiralEyes } from './hypno.js';
 
 /*
  * Sydney funnel-web spider.
@@ -131,6 +132,7 @@ export class Spider extends Foe {
     const bodyPivot = new THREE.Group();
     root.add(bodyPivot);
     bodyPivot.add(vcMesh(BODY));
+    spiralEyes(bodyPivot, [0.09, 0.45, 0.33], [0.2, 0.05, 1], 0.055, 0.052);
     this.fangs = vcMesh(FANGS);
     this.fangs.position.set(0, 0.36, 0.38);
     bodyPivot.add(this.fangs);

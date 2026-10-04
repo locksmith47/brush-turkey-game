@@ -669,4 +669,38 @@ export class Audio {
     this.noise({ dur: dur + 0.3, vol: 0.12 * vol, type: 'lowpass', f1: 420, f2: 160, attack: 0.2 });
     this.noise({ dur: 1.1, vol: 0.05 * vol, type: 'highpass', f1: 2600, f2: 1600, attack: 0.08, delay: dur - 0.6 });
   }
+
+  /* ---------------------------------------------------------------- Blues Point, and the Emperor */
+  /** the Emperor's dish coming on: a whine winding up, and the hum of it under that */
+  powerUp() {
+    if (!this.ok('powerUp', 1500)) return;
+    this.tone({ freq: 70, freq2: 520, dur: 2.2, vol: 0.07, type: 'sawtooth', attack: 0.3, vib: 6, vibHz: 7 });
+    this.tone({ freq: 140, freq2: 1040, dur: 2.2, vol: 0.03, type: 'square', attack: 0.4 });
+    this.tone({ freq: 55, dur: 3, vol: 0.12, type: 'sine', attack: 1.2, delay: 1.2, vib: 3, vibHz: 4 });
+  }
+
+  /** a pulse of the signal going out: a wobbling wub (`vol`: further off) */
+  pulse(vol = 1) {
+    if (!this.ok('pulse', 800)) return;
+    this.tone({ freq: 420, freq2: 95, dur: 1.1, vol: 0.09 * vol, type: 'sine', attack: 0.02, vib: 40, vibHz: 9 });
+    this.tone({ freq: 840, freq2: 190, dur: 0.8, vol: 0.03 * vol, type: 'triangle', attack: 0.02, vib: 60, vibHz: 9 });
+    this.noise({ dur: 0.6, vol: 0.04 * vol, type: 'bandpass', f1: 1800, f2: 400, q: 4 });
+  }
+
+  /** something's eyes going round and round: a woozy, warbling slide down */
+  hypno() {
+    if (!this.ok('hypno', 300)) return;
+    this.tone({ freq: 900, freq2: 260, dur: 0.9, vol: 0.06, type: 'triangle', vib: 70, vibHz: 6, attack: 0.05 });
+    this.tone({ freq: 1350, freq2: 390, dur: 0.9, vol: 0.025, type: 'sine', vib: 90, vibHz: 6, attack: 0.05, delay: 0.06 });
+  }
+
+  /** the catapult's arm let go: a crack, the thump of it hitting the stop, and the lot whooshing off */
+  twang() {
+    if (!this.ok('twang', 500)) return;
+    this.noise({ dur: 0.08, vol: 0.3, type: 'highpass', f1: 2200, attack: 0.002 });
+    this.tone({ freq: 110, freq2: 48, dur: 0.35, vol: 0.32, type: 'sine', attack: 0.003, delay: 0.12 });
+    this.noise({ dur: 0.3, vol: 0.2, type: 'lowpass', f1: 700, f2: 150, attack: 0.004, delay: 0.12 });
+    this.tone({ freq: 190, freq2: 120, dur: 0.6, vol: 0.06, type: 'sawtooth', vib: 14, vibHz: 22, delay: 0.14 });
+    this.noise({ dur: 1.3, vol: 0.14, type: 'bandpass', f1: 500, f2: 2600, q: 0.8, attack: 0.15, delay: 0.1 });
+  }
 }

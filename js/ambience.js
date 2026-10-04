@@ -1,6 +1,6 @@
 import { rand, clamp } from './util.js';
 import { shoreZ } from './props/beach.js';
-import { BEACH, WHARF, FERRY, OPERA, MILSONS, LUNA } from './world.js';
+import { BEACH, WHARF, FERRY, OPERA, MILSONS, LUNA, BLUES } from './world.js';
 
 /*
  * The sound of each place, under everything else that's going on. There's a bed of sound that's always there:
@@ -41,6 +41,8 @@ const BEDS = [
   [{ type: 'lowpass', f: 380, vol: 0.12, wobble: [[0.5, 0.7], [0.3, 1.1]] }, { type: 'bandpass', f: 2000, q: 0.5, vol: 0.012 }, { type: 'lowpass', f: 160, vol: 0.12, wobble: [[0.3, 0.05]] }],
   // Luna Park: the water under the boardwalk, and a crowd inside, somewhere, having a good time
   [{ type: 'lowpass', f: 380, vol: 0.12, wobble: [[0.5, 0.7], [0.3, 1.1]] }, { type: 'bandpass', f: 620, q: 1.4, vol: 0.06, wobble: [[0.3, 0.23], [0.2, 0.39]] }],
+  // Blues Point: the harbour slopping at the sea wall, the breeze in the figs, and the Bridge's traffic, across the water
+  [{ type: 'lowpass', f: 380, vol: 0.12, wobble: [[0.5, 0.7], [0.3, 1.1]] }, { type: 'bandpass', f: 1100, q: 0.5, vol: 0.04, wobble: [[0.5, 0.08], [0.3, 0.21]] }, { type: 'lowpass', f: 160, vol: 0.06, wobble: [[0.3, 0.05]] }],
 ];
 
 // and the calls over the top: how often (seconds between, give or take), and what, how likely each one is
@@ -56,6 +58,7 @@ const CALLS = [
   { every: [6, 14], calls: { magpie: 3, car: 2, crow: 1 } }, // Hyde Park
   { every: [5, 12], calls: { gulls: 3, bell: 1, car: 1 } }, // Milsons Point (and the water slapping at the sea wall)
   { every: [5, 11], calls: { gulls: 2, cheer: 2 } }, // Luna Park
+  { every: [6, 13], calls: { magpie: 2, gulls: 2, bell: 1 } }, // Blues Point (and the water slapping at the sea wall)
 ];
 
 export class Ambience {
@@ -115,7 +118,7 @@ export class Ambience {
 
     // the waves rolling in at the beach, and the water slapping at the wharf's pilings (and the ferry's hull, and
     // the sea wall round the Opera House)
-    if ((zone === BEACH || zone === WHARF || zone === FERRY || zone === OPERA || zone === MILSONS || zone === LUNA) && (this.waveT -= dt) <= 0) {
+    if ((zone === BEACH || zone === WHARF || zone === FERRY || zone === OPERA || zone === MILSONS || zone === LUNA || zone === BLUES) && (this.waveT -= dt) <= 0) {
       if (zone === BEACH) { this.wave(surf); this.waveT = rand(4.5, 7.5); }
       else { this.slap(); this.waveT = rand(0.6, 1.9); }
     }

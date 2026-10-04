@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Foe } from './foe.js';
 import { part, merge, vcMesh, G, tint, rand, clamp, damp, dampAngle, TAU } from './util.js';
+import { spiralEyes } from './hypno.js';
 
 /*
  * Red-bellied black snake.
@@ -51,6 +52,7 @@ export class Snake extends Foe {
     this.headMesh = vcMesh(HEAD);
     this.headMesh.rotation.order = 'YXZ';
     this.headMesh.scale.setScalar(1.35);
+    spiralEyes(this.headMesh, [0.085, 0.07, 0.1], [0.7, 0.25, 0.65], 0.04, 0.036);
     this.tongue = vcMesh(TONGUE, { cast: false });
     this.tongue.position.set(0, -0.01, 0.22);
     this.headMesh.add(this.tongue);

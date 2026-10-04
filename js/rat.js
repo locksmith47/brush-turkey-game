@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Foe } from './foe.js';
 import { part, merge, vcMesh, G, limb, rand, damp, TAU } from './util.js';
+import { spiralEyes } from './hypno.js';
 
 /*
  * Rats: Hyde Park's after dark lot, out in broad daylight round the bins (and down on the platform at Museum). They
@@ -50,6 +51,7 @@ function ratRig() {
   const head = new THREE.Group();
   head.position.set(0, 0.2, 0.2);
   head.add(vcMesh(g.head));
+  spiralEyes(head, [0.05, 0.03, 0.12], [0.75, 0.25, 0.6], 0.022, 0.012);
   bodyPivot.add(head);
   const tail = new THREE.Group();
   tail.position.set(0, 0.13, -0.26);
