@@ -44,6 +44,13 @@ const FACE = { x: 124, z: -34, y: 7.2, rx: 8.4, ry: 9, d: 3.4 };
 const MOUTH = { hw: 2.7, top: 4.8, corner: [4.3, 5.3], way: 2.9, h: 4.9, deep: 9, lips: 3.5 };
 const BR = { x: -64, z0: -64, z1: -264, rise: 12, hw: 11 }; // the Bridge: down the middle, the pylons at either end, how far up its deck goes over the middle, and how wide (half)
 const OPERA = [-152, -246]; // (the Opera House, on Bennelong Point)
+/**
+ * Blues Point, round past Luna Park and McMahons Point: the reserve's lawn, out on the end of the point (level, `y` up,
+ * on the lines between the land's squares: see terrainH), with the Tower on the end of it nearest the hill (see blues.js)
+ */
+export const BLUES = { x0: 224, x1: 266, z0: -160, z1: -88, y: 1.2 };
+// the pit the Emperor's lot have dug down the end of its lawn, the catapult down it (see Opening)
+export const PIT = { x0: 243, x1: 247, z0: -154, z1: -145 };
 
 export const MILSONS_RECT = [LINE.x - 2 + OX, -58, 50 + OX, PLAT.z1 + 2];
 export const LUNA_RECT = [50 + OX, -60, FACE.x + MOUTH.deep + 1 + OX, HILL.z];
@@ -103,7 +110,7 @@ export const LUNA_TRACK = {
 const LUMPS = [
   [-150, -10, 110, 60, 12, 0.6], [-300, -20, 120, 80, 10, 0.6], [-118, -60, 30, 22, 5, 0.3], // Kirribilli
   [0, 150, 380, 130, 24, 0.85], // North Sydney, up the hill behind
-  [240, -10, 60, 80, 14, 0.5], [245, -112, 26, 50, 7, 0.35], // McMahons Point, and Blues Point, out into the harbour
+  [240, -10, 60, 80, 14, 0.5], [245, -70, 34, 30, 9, 0.5], // McMahons Point, and the neck of Blues Point (the end of it's the reserve: see terrainH)
   [0, -420, 460, 165, 16, 0.75], [-60, -262, 36, 16, 6, 0.35], [-152, -250, 18, 26, 3.5, 0.15], [-230, -252, 50, 30, 6, 0.5], // the city side
 ];
 
@@ -128,6 +135,10 @@ const portalH = (x, z) => PORTAL.y * smoothstep(PORTAL.x0 - 12, PORTAL.x0, x) * 
 
 /** the height of the land all round: the flat (just under it: it's got its own ground), the hills, and the rest */
 function terrainH(x, z) {
+  // (Blues Point's reserve: just under its lawn, and the harbour right up to its seawall)
+  // (bar the pit dug in it: well down, from the corners of the 6 m squares round it, under the lawn, see terrainGeo)
+  if (x > PIT.x0 - 1.1 && x < PIT.x1 + 1.1 && z > PIT.z0 - 0.1 && z < PIT.z1 + 3.1) return -6;
+  if (x >= BLUES.x0 && x <= BLUES.x1 && z >= BLUES.z0 && z <= BLUES.z1) return BLUES.y - 0.05;
   const out = Math.hypot(Math.max(SHEET.x0 - x, 0, x - SHEET.x1), Math.max(SHEET.z0 - z, 0, z - SHEET.z1));
   if (x >= HILL.x + 6 - 0.1 && z >= HILL.z + 6 - 0.1) return hillH(x, z);
   if (out < 0.1) return -0.05;
@@ -569,7 +580,7 @@ function city(p) {
   for (let x = -260; x < 260; x += 34) tower(p, x + rand(-8, 8), y(x, -440) - 2, -440 + rand(-10, 10), rand(16, 26), rand(20, 50), 16, pick(TOWERS));
 }
 
-/** our side: Kirribilli (Admiralty House, and the houses up the hill), North Sydney's towers, McMahons Point and Blues Point Tower */
+/** our side: Kirribilli (Admiralty House, and the houses up the hill), North Sydney's towers and McMahons Point (Blues Point Tower's in blues.js) */
 function northShore(p) {
   for (let i = 0; i < 90; i++) {
     const x = rand(-420, -76), z = rand(-80, 70);
@@ -597,13 +608,8 @@ function northShore(p) {
   // McMahons Point's houses, and out on the end of Blues Point, the Tower, all on its own
   for (let i = 0; i < 40; i++) {
     const x = rand(196, 300), z = rand(-90, 60);
-    if (terrainH(x, z) < 1.2) continue;
+    if (terrainH(x, z) < 1.2 || (x > BLUES.x0 - 8 && x < BLUES.x1 + 8 && z < BLUES.z1 + 10)) continue; // (none up against the Tower)
     house(p, x, z, rand(-0.3, 0.3));
-  }
-  const by = landH(245, -122) - 1;
-  p.push(part(G.box(13, 64, 13), 0xcbb99a, [245, by + 32, -122]));
-  for (let f = 1; f < 25; f++) for (const [dx, dz, w, d] of [[0, 6.55, 13.1, 0.1], [6.55, 0, 0.1, 13.1], [-6.55, 0, 0.1, 13.1], [0, -6.55, 13.1, 0.1]]) {
-    p.push(part(G.box(w, 1.2, d), 0x4a4a48, [245 + dx, by + f * 2.5, -122 + dz]));
   }
 }
 

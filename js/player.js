@@ -13,6 +13,7 @@ const POP_T = 0.8; // bursting out of the top of the mound he's been dug out of
 // diving into a mound, to go somewhere else (see Travel): down into a crouch, up and over, and in, head first
 const CROUCH_T = 0.22, LEAP_T = 0.55, SINK_T = 0.3;
 const HOP_T = 0.4; // hopping on or off the train (see Ride)
+const SPRAWL_T = 1.5, GETUP_T = 0.55; // landing flat on his back out of the sky (see Opening): seconds seeing stars, and getting up
 const MID = 0.98; // (the middle of him, up from his boots: what he turns head over heels about)
 const _v = new THREE.Vector3();
 
@@ -57,7 +58,8 @@ export class Player {
     this.hopV = 0;
     // his health, and how he's doing: 'ok', 'down' (out cold: WASTED), 'diving' (into a mound, to go somewhere
     // else), 'buried' (in a mound, waiting to be dug out) or 'rising' (bursting out of the top of it); or 'aboard' the
-    // train, and 'alighting' from it
+    // train, and 'alighting' from it; or 'flung' out of the Emperor's catapult, 'sprawled' where he came down, and
+    // getting up after ('getup': see Opening)
     this.hp = MAX_HP;
     this.life = 'ok';
     this.lifeT = 0;
@@ -206,6 +208,32 @@ export class Player {
     this.pos.copy(door);
   }
 
+  /**
+   * Into the Emperor's catapult, and flung (see Opening): wherever it puts him (`pos`: the middle of him, `tumble`: how
+   * far head over heels he's gone, `tuck`: how far he's curled up), arms going
+   */
+  fling() {
+    this.life = 'flung';
+    this.lifeT = 0;
+    this.tumble = 0;
+    this.tuck = 0;
+    this.throwT = this.pluckT = 1;
+    this.whistling = false;
+    this.flinch = this.dizzy = this.landK = 0;
+    this.knockVel.set(0, 0, 0);
+    this.vel.set(0, 0, 0);
+    this.speed = this.hop = this.hopV = 0;
+  }
+
+  /** and down he comes, flat on his back, seeing stars, till he gets up and gets his bearings */
+  sprawl() {
+    this.life = 'sprawled';
+    this.lifeT = FALL_T;
+    this.fallFrom = this.fallTo = this.heading;
+    this.landed = true;
+    this.tumble = 0;
+  }
+
   /** dug out: up he pops out of the top of the mound, spinning round once, to land on his feet at `to` */
   popOut(to) {
     this.life = 'rising';
@@ -284,7 +312,8 @@ export class Player {
     }
 
     const aimYaw = Math.atan2(aim.x - this.pos.x, aim.z - this.pos.z);
-    if (this.speed > 0.4) this.heading = dampAngle(this.heading, Math.atan2(this.vel.x, this.vel.z), 12, dt);
+    if (this.facing !== undefined) this.heading = dampAngle(this.heading, this.facing, 8, dt); // (made to face a certain way, whichever way he's going: see Opening)
+    else if (this.speed > 0.4) this.heading = dampAngle(this.heading, Math.atan2(this.vel.x, this.vel.z), 12, dt);
     else if (this.whistling || this.throwT < 1) this.heading = dampAngle(this.heading, aimYaw, 10, dt);
 
     this.animate(dt, aimYaw);
@@ -363,6 +392,23 @@ export class Player {
       this.speed = k < 1 ? this.maxSpeed * 0.5 : 0;
       this.animate(dt, this.heading);
       this.speed = 0;
+    } else if (this.life === 'flung') this.poseFlung(dt);
+    else if (this.life === 'sprawled') {
+      this.pos.y = g.world.groundHeight(this.pos.x, this.pos.z);
+      this.poseDown();
+      if (this.lifeT >= FALL_T + SPRAWL_T) { this.life = 'getup'; this.lifeT = 0; }
+    } else if (this.life === 'getup') {
+      const k = Math.min(1, this.lifeT / GETUP_T);
+      if (k >= 1) {
+        // (on his feet, and a moment's grace to get his bearings)
+        this.life = 'ok';
+        this.iframes = this.blink = GRACE;
+        this.landK = 1;
+        g.audio.land();
+        this.animate(dt, this.heading);
+        return;
+      }
+      this.poseGetUp(k, dt);
     } else {
       const k = Math.min(1, this.lifeT / POP_T);
       this.pos.x = lerp(this.popFrom.x, this.popTo.x, k);
@@ -431,6 +477,49 @@ export class Player {
     // (his hair flops out on the ground round his head as he lands)
     r.hairBack.rotation.set(lerp(this.hair, 2.5, fall * fall), 0, 0);
     this.poseStars(k > 0.6, fall, -(pitch + headX));
+  }
+
+  /** flung: curled up (as far as `tuck` says), going head over heels about the middle of him, his arms going like the clappers */
+  poseFlung(dt) {
+    const r = this.rig, turn = this.tumble, k = this.tuck, flail = Math.sin(this.time * 17) * 0.45;
+    const s = Math.sin(turn);
+    r.root.position.set(this.pos.x - MID * s * Math.sin(this.heading), this.pos.y - MID * Math.cos(turn), this.pos.z - MID * s * Math.cos(this.heading));
+    r.root.rotation.set(turn, this.heading, 0);
+    r.root.scale.setScalar(1);
+    r.torso.rotation.set(0.45 * k, 0, 0);
+    r.torso.scale.set(1, 1, 1);
+    for (const l of [r.legL, r.legR]) {
+      l.hip.rotation.set(-1.25 * k, 0, 0);
+      l.knee.rotation.x = 1.8 * k;
+    }
+    r.armL.shoulder.rotation.set(-0.4, 0, Math.PI / 2 + 0.5 + flail);
+    r.armR.shoulder.rotation.set(-0.4, 0, -(Math.PI / 2 + 0.5 - flail));
+    r.armL.elbow.rotation.x = r.armR.elbow.rotation.x = -0.4;
+    r.head.rotation.set(0.25 * k, 0, 0);
+    this.hair = damp(this.hair, 1.3, 5, dt);
+    r.hairBack.rotation.set(this.hair, 0, 0);
+    this.poseStars(false, 0, 0);
+  }
+
+  /** getting up off his back (k: 0..1 of the way), heaving himself up onto his feet and shaking his head clear */
+  poseGetUp(k, dt) {
+    const r = this.rig, up = smoothstep(0, 1, k), fall = 1 - up, heave = Math.sin(k * Math.PI);
+    r.root.position.set(this.pos.x, this.pos.y + LIE_LIFT * fall, this.pos.z);
+    r.root.rotation.set(-Math.PI / 2 * fall, this.heading, 0);
+    r.root.scale.setScalar(1);
+    r.torso.rotation.set(0.5 * heave, 0, 0);
+    r.torso.scale.set(1, 1, 1);
+    for (const l of [r.legL, r.legR]) {
+      l.hip.rotation.set(-0.9 * heave, 0, 0);
+      l.knee.rotation.x = 1.4 * heave;
+    }
+    r.armL.shoulder.rotation.set(0, 0.3 * fall, (Math.PI / 2 + 0.55) * fall);
+    r.armR.shoulder.rotation.set(0, -0.3 * fall, -(Math.PI / 2 + 0.55) * fall);
+    r.armL.elbow.rotation.x = r.armR.elbow.rotation.x = -0.35 * fall;
+    r.head.rotation.set(-0.25 * fall, Math.sin(k * 16) * 0.3 * (1 - k), 0);
+    this.hair = damp(this.hair, 0.3, 5, dt);
+    r.hairBack.rotation.set(lerp(this.hair, 2.5, fall * fall), 0, 0);
+    this.poseStars(k < 0.6, 0, 0);
   }
 
   /**
@@ -522,7 +611,7 @@ export class Player {
   animate(dt, aimYaw) {
     const r = this.rig;
     const k = clamp(this.speed / this.maxSpeed, 0, 1);
-    this.phase += dt * (3 + this.speed * 1.55);
+    this.phase += dt * (3 + this.speed * 1.55) * (this.facing === undefined ? 1 : -1); // (backwards, backing along)
     const s = Math.sin(this.phase), c = Math.cos(this.phase);
 
     // (just landed on his feet: a squash; flickering while nothing can touch him, just after he's been dug out)

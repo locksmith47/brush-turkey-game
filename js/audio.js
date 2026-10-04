@@ -669,4 +669,60 @@ export class Audio {
     this.noise({ dur: dur + 0.3, vol: 0.12 * vol, type: 'lowpass', f1: 420, f2: 160, attack: 0.2 });
     this.noise({ dur: 1.1, vol: 0.05 * vol, type: 'highpass', f1: 2600, f2: 1600, attack: 0.08, delay: dur - 0.6 });
   }
+
+  /* ---------------------------------------------------------------- Blues Point, and the Emperor */
+  /** the Emperor's dish coming on: a whine winding up, and the hum of it under that */
+  powerUp() {
+    if (!this.ok('powerUp', 1500)) return;
+    this.tone({ freq: 70, freq2: 520, dur: 2.2, vol: 0.07, type: 'sawtooth', attack: 0.3, vib: 6, vibHz: 7 });
+    this.tone({ freq: 140, freq2: 1040, dur: 2.2, vol: 0.03, type: 'square', attack: 0.4 });
+    this.tone({ freq: 55, dur: 3, vol: 0.12, type: 'sine', attack: 1.2, delay: 1.2, vib: 3, vibHz: 4 });
+  }
+
+  /** a pulse of the signal going out: a wobbling wub (`vol`: further off) */
+  pulse(vol = 1) {
+    if (!this.ok('pulse', 800)) return;
+    this.tone({ freq: 420, freq2: 95, dur: 1.1, vol: 0.09 * vol, type: 'sine', attack: 0.02, vib: 40, vibHz: 9 });
+    this.tone({ freq: 840, freq2: 190, dur: 0.8, vol: 0.03 * vol, type: 'triangle', attack: 0.02, vib: 60, vibHz: 9 });
+    this.noise({ dur: 0.6, vol: 0.04 * vol, type: 'bandpass', f1: 1800, f2: 400, q: 4 });
+  }
+
+  /** something's eyes going round and round: a woozy, warbling slide down */
+  hypno() {
+    if (!this.ok('hypno', 300)) return;
+    this.tone({ freq: 900, freq2: 260, dur: 0.9, vol: 0.06, type: 'triangle', vib: 70, vibHz: 6, attack: 0.05 });
+    this.tone({ freq: 1350, freq2: 390, dur: 0.9, vol: 0.025, type: 'sine', vib: 90, vibHz: 6, attack: 0.05, delay: 0.06 });
+  }
+
+  /** the catapult's arm let go: a crack, the thump of it hitting the stop, and the lot whooshing off */
+  twang() {
+    if (!this.ok('twang', 500)) return;
+    this.noise({ dur: 0.08, vol: 0.3, type: 'highpass', f1: 2200, attack: 0.002 });
+    this.tone({ freq: 110, freq2: 48, dur: 0.35, vol: 0.32, type: 'sine', attack: 0.003, delay: 0.12 });
+    this.noise({ dur: 0.3, vol: 0.2, type: 'lowpass', f1: 700, f2: 150, attack: 0.004, delay: 0.12 });
+    this.tone({ freq: 190, freq2: 120, dur: 0.6, vol: 0.06, type: 'sawtooth', vib: 14, vibHz: 22, delay: 0.14 });
+    this.noise({ dur: 1.3, vol: 0.14, type: 'bandpass', f1: 500, f2: 2600, q: 0.8, attack: 0.15, delay: 0.1 });
+  }
+
+  /** the pile of leaves giving way under you: a crunching, rustling whump, and the lot sliding in after you */
+  cavein() {
+    if (!this.ok('cavein', 800)) return;
+    this.noise({ dur: 0.5, vol: 0.3, type: 'highpass', f1: 2400, f2: 1200, q: 0.5, attack: 0.01 });
+    this.noise({ dur: 0.35, vol: 0.3, type: 'lowpass', f1: 500, f2: 120, attack: 0.005 });
+    this.tone({ freq: 95, freq2: 45, dur: 0.4, vol: 0.25, type: 'sine', attack: 0.005 });
+    this.noise({ dur: 1.1, vol: 0.12, type: 'bandpass', f1: 3200, f2: 1500, q: 0.8, attack: 0.1, delay: 0.25 });
+  }
+
+  /** the Emperor, laughing at the lot of you: a run of big honks, tumbling down, with a rumble under it */
+  cackle() {
+    if (!this.ok('cackle', 1200)) return;
+    const f = 300;
+    for (let i = 0; i < 7; i++) {
+      const delay = i * 0.16 + (i > 2 ? 0.06 : 0), k = 1.3 - i * 0.07;
+      this.tone({ freq: f * k * 1.15, freq2: f * k * 0.85, dur: 0.14, vol: 0.2, type: 'sawtooth', vib: f * 0.05, vibHz: 28, attack: 0.01, delay });
+      this.tone({ freq: f * k * 1.7, freq2: f * k * 1.3, dur: 0.12, vol: 0.08, type: 'square', attack: 0.01, delay });
+      this.noise({ dur: 0.12, vol: 0.06, type: 'bandpass', f1: f * k * 2.6, q: 3, delay });
+    }
+    this.tone({ freq: 70, freq2: 40, dur: 1.4, vol: 0.2, type: 'sine', attack: 0.05 });
+  }
 }

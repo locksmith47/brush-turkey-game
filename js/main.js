@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { World, ZONES, LEGS, OVAL, BEACH, FERRY, CITY, OPERA, MILSONS, LUNA } from './world.js';
+import { World, ZONES, LEGS, OVAL, BEACH, FERRY, CITY, OPERA, MILSONS, LUNA, BLUES } from './world.js';
 import { Barriers } from './barriers.js';
 import { Enemies } from './enemies.js';
 import { Ghosts } from './ghosts.js';
@@ -42,6 +42,10 @@ import { Wasted } from './wasted.js';
 import { Travel } from './travel.js';
 import { Ride } from './train.js';
 import { Ending } from './ending.js';
+import { Opening, SPROUTS } from './opening.js';
+import { Beacon } from './beacon.js';
+import { spin } from './hypno.js';
+import { BLUES_SPOTS } from './props/blues.js';
 import { clamp, damp, rand, smoothstep, lerp, angleDiff, TAU } from './util.js';
 
 const THROW_RANGE = 11;
@@ -90,6 +94,7 @@ game.ferry = new Ferry(game); // (tied up at Manly Wharf, going nowhere till the
 game.cuttle = new Cuttle(game); // (and halfway over, the first time you cross, the giant cuttlefish)
 game.ride = new Ride(game); // (the train at Museum, waiting to take you over the Bridge to Milsons Point)
 game.cursor = new Cursor(game);
+game.beacon = new Beacon(game); // (the Emperor's signal, going out from Blues Point Tower, and the Tower itself, off on the horizon)
 window.game = game; // handy for poking around in devtools
 
 const input = new Input();
@@ -212,11 +217,13 @@ mounds.add(...WHARF_MOUND).startWith(3, 'pine');
 // and over the harbour, a mound on the Quay (with a fish or two in it already), for the fish the giant cuttlefish
 // churns up out on the harbour
 mounds.add(...QUAY_MOUND).startWith(3, 'fish');
-// you start out behind the mound, with a few turkeys poking up out of the ground in front of you
-[[-1.6, -4.6, 0], [1.4, -4.2, 0], [0, -5.6, 0], [-2.9, -3.1, 0], [2.8, -2.9, 1], [-0.3, -3.1, 2]]
-  .forEach(([x, z, s]) => { const t = turkeys.spawnSprout(START.x + x, START.z + z, s); t.growT = 0; });
+// you start out behind the mound, with a few turkeys poking up out of the ground in front of you (or that's where you
+// all come down, out of the Emperor's catapult, in a new game: see Opening)
+SPROUTS.forEach(([x, z, s]) => { const t = turkeys.spawnSprout(START.x + x, START.z + z, s); t.growT = 0; });
 game.grubs.spawn(START.x + 4.5, START.z - 2);
 player.pos.set(START.x, world.groundHeight(START.x, START.z), START.z);
+// and over on Blues Point, home: the flock's playground and mound, and the Emperor's lot, waiting (see Opening)
+game.opening = new Opening(game);
 
 // saving your progress (see Saves): all of the above is what a new game starts out with, and a save says
 // what's changed since. (Plus how far along you are: the areas you've been to, the tips you've been given)
@@ -250,9 +257,9 @@ const WATCH = { dist: 16, pitch: 0.3 }; // watching the train off into the tunne
 const SIGHTS = 0.7; // (and how much of that it sits back round the Opera House, to take in the sails)
 const FOG = [scene.fog.near, scene.fog.far], SAIL_FOG = [95, 320]; // metres: where the haze starts, and where there's nothing but (and out on the harbour)
 const VISTA_FOG = [150, 520]; // (and at Milsons Point and Luna Park, looking out over it all to the city)
-/** is zone i over the harbour, at Milsons Point or Luna Park? */
-const onIsle = (i) => i === MILSONS || i === LUNA;
-const focus = new THREE.Vector3();
+/** is zone i over the harbour, at Milsons Point, Luna Park or Blues Point? */
+const onIsle = (i) => i === MILSONS || i === LUNA || i === BLUES;
+const focus = new THREE.Vector3(), cineLook = new THREE.Vector3();
 
 /** swing round to look down leg `leg` (all at once, with `snap`) */
 function turnTo(leg, snap = false) {
@@ -297,7 +304,7 @@ function updateCamera(dt) {
   // (down the bin alley and in the King's court, it looks further ahead: there he is, on his throne at the end)
   cam.ahead = damp(cam.ahead, enemies.king?.alive && onKingsWay(player.pos.x, player.pos.z) ? -0.22 : 0, 1.5, dt);
   cam.pitch = clamp((cam.dist > 11 ? 0.74 + (cam.dist - 11) * 0.012 : lerp(0.74, 0.1, close)) + cam.tilt + cam.ahead - (SAIL.pitch - FIGHT.pitch * cam.fight) * out - WATCH.pitch * cam.watch, 0.04, 1.45);
-  const f = player.focus(focus); // (him, or the middle of him when he's lying there, out cold)
+  const f = game.opening.focus ? focus.copy(game.opening.focus) : player.focus(focus); // (him, or the middle of him when he's lying there, out cold; or where he's coming down)
   if (game.wasted.stage === 'down') {
     // (up the screen a bit, so he's lying there above the WASTED, not hidden behind it)
     const up = cam.dist * 0.25 * game.wasted.lift;
@@ -316,6 +323,12 @@ function updateCamera(dt) {
     cam.target.z + Math.cos(yaw) * h,
   );
   camera.lookAt(cam.target);
+  // (the opening's scene has a camera of its own: see Opening)
+  const cine = game.opening.cine;
+  if (cine.k > 0) {
+    camera.position.lerp(cine.pos, cine.k);
+    camera.lookAt(cineLook.copy(cam.target).lerp(cine.look, cine.k));
+  }
   if (shakeAmt > 0) {
     camera.position.x += rand(-1, 1) * shakeAmt * 0.35;
     camera.position.y += rand(-1, 1) * shakeAmt * 0.35;
@@ -536,11 +549,12 @@ function updateTips(dt) {
 
 /* ------------------------------------------------------------------ dev menu (~) */
 // (just through the gate into each; and on the ferry, on her deck, wherever she's got to)
-const ZONE_SPAWN = [[START.x, START.z], [6, -44], [-34, -103], [-16, -184], [76, -188], null, [362, -224], [352, -249.5], [493, -279], [OX - 40, -30], [OX + 56, -36]];
+const ZONE_SPAWN = [[START.x, START.z], [6, -44], [-34, -103], [-16, -184], [76, -188], null, [362, -224], [352, -249.5], [493, -279], [OX - 40, -30], [OX + 56, -36], BLUES_SPOTS.you];
 new DevMenu(game, {
   goto(v) {
     const zi = +v;
-    for (let i = 0; i < zi; i++) game.barriers.unlock(i, true);
+    if (game.opening.blocksSave) game.opening.skip(); // (the opening's over, if it was still going)
+    for (let i = 0; i < Math.min(zi, game.barriers.gates.length); i++) game.barriers.unlock(i, true);
     const [x, z] = ZONE_SPAWN[zi] ?? [game.ferry.x - 10, LANE + 4];
     player.pos.set(x, world.groundHeight(x, z), z);
     cam.target.set(x, player.pos.y + 1, z);
@@ -607,7 +621,7 @@ const bosses = [
 ];
 function updateZones() {
   const z = zoneNow();
-  if (!visited.has(z)) {
+  if (!visited.has(z) && !game.opening.blocksSave && z !== BLUES) { // (not home: there's no getting back there, for now)
     visited.add(z);
     hud.zoneTitle(ZONES[z].name);
     tipT = Math.max(tipT, 3.5); // (any tip waits for the name of the place to have been and gone)
@@ -645,12 +659,13 @@ function step(real) {
   if (game.travel.frozen) { game.travel.update(real); input.endFrame(); return; }
   const dt = real * game.timeScale;
   game.time += dt;
-  const down = game.wasted.active || game.travel.active || game.ride.active || game.ending.active;
-  if (game.started && !down) { updateAim(); handleInput(dt); updateTips(dt); }
-  else { letGo(); updateAim(); }
+  const down = game.wasted.active || game.travel.active || game.ride.active || game.ending.active || game.opening.active;
+  if (game.started && !down) { updateAim(); handleInput(dt); if (!game.opening.blocksSave) updateTips(dt); }
+  else { letGo(); updateAim(); game.opening.drive(move); }
 
   game.ferry.update(dt); // (she carries everyone aboard before they get moving themselves)
   game.cuttle.update(dt); // (its tentacles come up among the foes)
+  game.opening.update(dt); // (you, flung out of the catapult, before you're posed)
   player.update(dt, move, target);
   updateCamera(dt);
   game.storm.update(dt); // (after the camera: it closes in the haze the camera's just set)
@@ -666,6 +681,8 @@ function step(real) {
   leaves.update(dt);
   game.grubs.update(dt, game.time);
   world.update(dt, game.time);
+  game.beacon.update(dt);
+  spin(game.time); // (the hypnotised lot's eyes, going round)
   game.ambience.update(dt);
   game.flyovers.update(dt);
   game.footprints.update(dt);
@@ -709,7 +726,10 @@ if (save) {
   note.classList.remove('hidden');
 }
 
-function start() {
+/** `fresh`: a new game (it starts at home, on Blues Point: see Opening), or carrying on */
+function start(fresh) {
+  if (fresh) game.opening.begin();
+  else game.opening.skip();
   audio.init();
   document.getElementById('splash').classList.add('hidden');
   hud.show();
@@ -723,7 +743,7 @@ function start() {
 playBtn.addEventListener('click', (e) => {
   e.currentTarget.blur();
   const ok = !save || saves.load(save);
-  start();
+  start(!save);
   if (!ok) hud.toast("Some of your saved game couldn't be loaded", 5);
 });
 
@@ -737,7 +757,7 @@ newBtn.addEventListener('click', (e) => {
     return;
   }
   Saves.clear();
-  start();
+  start(true);
 });
 
 // (and whenever you leave the page, or switch away from it)

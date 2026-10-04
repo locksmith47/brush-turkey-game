@@ -290,6 +290,15 @@ kbd {
 body.wasted #hud, body.wasted #labels, body.wasted #boss, body.wasted #toast, body.wasted #banner,
 body.wasted #zone-title, body.wasted #help, body.wasted #hurt { opacity: 0 !important; transition: opacity .5s; }
 
+/* the opening's scene (see Opening): the HUD out of the way, black bars in, and the white it all goes, flying north */
+body.cine #hud, body.cine #labels, body.cine #boss, body.cine #toast, body.cine #banner, body.cine #help, body.cine #hurt { opacity: 0 !important; transition: opacity .6s; }
+#letterbox { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+#letterbox div { position: absolute; left: 0; right: 0; height: 11vh; background: #000; transition: transform .9s ease-in-out; }
+#letterbox div:first-child { top: 0; transform: translateY(-100%); }
+#letterbox div:last-child { bottom: 0; transform: translateY(100%); }
+body.cine #letterbox div { transform: none; }
+#whiteout { position: fixed; inset: 0; background: #fffdf6; opacity: 0; pointer-events: none; z-index: 9; }
+
 /* paused (Esc): the lot stands still under a dimmer, and the controls come up alongside */
 #paused {
   position: fixed; inset: 0; z-index: 11; display: flex; flex-direction: column; align-items: center; justify-content: center;

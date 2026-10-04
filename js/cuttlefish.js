@@ -5,6 +5,7 @@ import { part, merge, vcMat, toonMat, G, canvasTexture, clamp, lerp, rand, smoot
 import { SEA } from './props/beach.js';
 import { LANE, swell } from './props/harbour.js';
 import { FERRY, CITY } from './world.js';
+import { spiralTex } from './hypno.js';
 
 /*
  * The giant Australian cuttlefish, out in the middle of the harbour. The first time you're halfway over on the
@@ -47,33 +48,6 @@ const C = {
   teal: new THREE.Color(0x1fd1bf), blue: new THREE.Color(0x3d8bff), white: new THREE.Color(0xfff2fb),
   belly: new THREE.Color(0xf4d6e0), pale: new THREE.Color(0xfbf4f8),
 };
-
-/** a big golden eye, with a cuttlefish's W-shaped pupil */
-function eyeTex() {
-  return canvasTexture(128, 128, (c, w, h) => {
-    const g = c.createRadialGradient(64, 64, 6, 64, 64, 64);
-    g.addColorStop(0, '#fff4b8');
-    g.addColorStop(0.5, '#ffc93c');
-    g.addColorStop(0.82, '#d9861c');
-    g.addColorStop(1, '#5a2a10');
-    c.fillStyle = g;
-    c.fillRect(0, 0, w, h);
-    c.strokeStyle = '#140a16';
-    c.lineWidth = 17;
-    c.lineJoin = c.lineCap = 'round';
-    c.beginPath();
-    c.moveTo(20, 48);
-    c.quadraticCurveTo(32, 90, 47, 86);
-    c.quadraticCurveTo(60, 82, 64, 62);
-    c.quadraticCurveTo(68, 82, 81, 86);
-    c.quadraticCurveTo(96, 90, 108, 48);
-    c.stroke();
-    c.fillStyle = 'rgba(255, 255, 255, 0.85)';
-    c.beginPath();
-    c.arc(86, 34, 8, 0, TAU);
-    c.fill();
-  });
-}
 
 /** the cuttlefish's body, head, eyes, fins and arms, and the colours going over them */
 class Body {
@@ -135,7 +109,7 @@ class Body {
       }
       return geo.scale(1, 1, 0.3);
     };
-    const tex = eyeTex(), lidGeo = lens(1.1), eyeGeo = lens(0.88, true);
+    const tex = spiralTex(), lidGeo = lens(1.1), eyeGeo = lens(0.88, true); // (hypnotised, like everything else out there: see hypno.js)
     const lidMat = toonMat({ color: 0x4a1d52 }), eyeMat = toonMat({ map: tex });
     for (const s of [-1, 1]) {
       const zA = new THREE.Vector3(0.28, 0.5, 0.82 * s).normalize(), xA = new THREE.Vector3(0, 1, 0).cross(zA).normalize(), yA = zA.clone().cross(xA);

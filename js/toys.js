@@ -6,6 +6,7 @@ import { S } from './turkey.js';
  * Backyard toys: a trampoline turkeys bounce on, and "rides" they can sit on: a swing set,
  * the Hills Hoist (roost on it and it spins), the low branches of the gums out in the bush, the
  * oval's stands and Big Kev's ride-on mower, at Manly, the beach chairs and, in Hyde Park, the fountain.
+ * And at home on Blues Point, a seesaw, and a beach ball to kick about.
  *
  * A ride has seats [{ rider }] and:
  *   seatPose               'swing' | 'perch' | 'roost' | 'lounge' | 'bathe' (how the rider sits)
@@ -228,6 +229,174 @@ class SwingSet {
       s.pivot.rotation.x = -s.amp * Math.sin(s.phase);
     }
     this.group.updateMatrixWorld(true);
+  }
+}
+
+/* A seesaw: one on each end, and up and down they go (on your own, you just sit there, down at your end) */
+const SEESAW = { len: 1.8, y: 0.55, tilt: 0.28, end: 1.55 }; // m: half the plank's length, how high its pivot is, how far it tips (radians), and where the seats are along it
+
+class Seesaw {
+  constructor(game, x, z, rotY = 0) {
+    this.game = game;
+    this.rotY = rotY;
+    this.seatPose = 'perch';
+    this.group = new THREE.Group();
+    this.group.position.set(x, game.world.groundHeight(x, z), z);
+    this.group.rotation.y = rotY;
+    const { len, y } = SEESAW;
+    this.group.add(vcMesh(merge([
+      part(G.cyl(0.05, 0.05, 0.7, 8), 0x8f969c, [0, y, 0], [Math.PI / 2, 0, 0]),
+      ...[-1, 1].flatMap((s) => [
+        part(G.box(0.1, y + 0.1, 0.1), 0xd9453b, [0, y / 2, s * 0.3], [s * 0.25, 0, 0]),
+        part(G.box(0.1, y + 0.1, 0.1), 0xd9453b, [0, y / 2, s * 0.3], [s * -0.25, 0, 0]),
+      ]),
+    ]), { cast: true, receive: true }));
+    this.plank = new THREE.Group();
+    this.plank.position.y = y;
+    this.plank.add(vcMesh(merge([
+      part(G.box(len * 2, 0.08, 0.32), 0xffd21f, [0, 0.06, 0]),
+      ...[-1, 1].flatMap((s) => [
+        part(G.cyl(0.03, 0.03, 0.42, 6), 0x2f6fb0, [s * (len - 0.55), 0.31, 0]),
+        part(G.cyl(0.025, 0.025, 0.36, 6), 0x2f6fb0, [s * (len - 0.55), 0.5, 0], [Math.PI / 2, 0, 0]),
+      ]),
+    ]), { cast: true }));
+    this.group.add(this.plank);
+    this.tilt = SEESAW.tilt;
+    this.phase = 0;
+    this.seats = [{ rider: null }, { rider: null }];
+    game.scene.add(this.group);
+    game.world.colliders.push({ x, z, r: 0.45 });
+  }
+
+  /** where along the plank seat i is (-1: the near end, 1: the far one) */
+  side(i) { return i ? 1 : -1; }
+  seatPos(i, out) { return this.plank.localToWorld(out.set(this.side(i) * SEESAW.end, 0.1, 0)); }
+  /** (facing in, along it: the other one's in front of you) */
+  seatHeading(i) { return this.rotY - this.side(i) * Math.PI / 2; }
+
+  /** the spot on the ground beside seat i, to hop on from */
+  seatGround(i, out) {
+    this.group.localToWorld(out.set(this.side(i) * (SEESAW.end + 0.5), 0, 0));
+    out.y = 0;
+    return out;
+  }
+
+  nearestSeat(p) {
+    let best = null;
+    this.seats.forEach((s, i) => {
+      if (s.rider) return;
+      this.seatGround(i, _v);
+      const d = Math.hypot(_v.x - p.x, _v.z - p.z);
+      if (!best || d < best.d) best = { i, d };
+    });
+    return best;
+  }
+
+  approach(i, from, out) { return this.seatGround(i, out); }
+  rideTime() { return rand(8, 15); }
+  canLeave() { return true; }
+  hop() { return { T: 0.35, h: 0.5 }; }
+
+  dismount(t, i) {
+    const from = this.seatPos(i, new THREE.Vector3()), to = this.seatGround(i, _v);
+    t.leaveSeat();
+    t.pos.copy(from);
+    t.hopTo(to.x, to.z, 0.4, 0.6);
+    this.game.audio.peep(t.stage);
+  }
+
+  update(dt) {
+    // (both ends taken, and they're away: up and down, a bump at the bottom each time; one on it, and down its end goes)
+    const on = this.seats.map((s) => s.rider?.state === S.SWING), was = Math.sin(this.phase);
+    let to;
+    if (on[0] && on[1]) {
+      this.phase += dt * 2.1;
+      to = SEESAW.tilt * clamp(Math.sin(this.phase) * 1.25, -1, 1);
+      if (Math.abs(Math.sin(this.phase)) > 0.8 && Math.abs(was) <= 0.8) this.game.audio.thunk();
+    } else to = on[1] ? -SEESAW.tilt : on[0] ? SEESAW.tilt : this.tilt > 0 ? SEESAW.tilt : -SEESAW.tilt;
+    this.tilt = damp(this.tilt, to, 9, dt);
+    this.plank.rotation.z = this.tilt;
+    this.group.updateMatrixWorld(true);
+  }
+}
+
+/*
+ * A beach ball, to kick about: anything that runs into it boots it on, and the turkeys can't leave it alone (every so
+ * often, one that's got nothing better to do trots over to it and gives it a peck)
+ */
+const BALL = { r: 0.38, grip: 1.1, bounce: 0.45, chase: [3, 7] }; // m round, how fast it slows (1/s), how much of a drop it bounces back, and seconds between turkeys going after it
+
+class Ball {
+  constructor(game, x, z) {
+    this.game = game;
+    this.home = new THREE.Vector3(x, 0, z);
+    this.pos = new THREE.Vector3(x, game.world.groundHeight(x, z), z);
+    this.vel = new THREE.Vector3();
+    this.vy = 0;
+    this.lift = 0; // (how far up off the ground it's bounced)
+    this.chaseT = rand(...BALL.chase);
+    const g = G.sphere(BALL.r, 24, 14), pos = g.attributes.position, col = [], c = new THREE.Color();
+    const gores = [0xe8403a, 0xffffff, 0x2f6fd0, 0xffffff, 0xffd21f, 0xffffff];
+    for (let i = 0; i < pos.count; i++) {
+      const y = pos.getY(i) / BALL.r;
+      c.set(Math.abs(y) > 0.93 ? 0xffffff : gores[Math.floor(((Math.atan2(pos.getZ(i), pos.getX(i)) + Math.PI) / TAU) * 6) % 6]);
+      col.push(c.r, c.g, c.b);
+    }
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    this.mesh = vcMesh(g.toNonIndexed());
+    game.scene.add(this.mesh);
+  }
+
+  /** booted along (x, z) at `speed`, and up into the air a bit */
+  kick(x, z, speed, up) {
+    const d = Math.hypot(x, z) || 1;
+    this.vel.set((x / d) * speed, 0, (z / d) * speed);
+    this.vy = Math.max(this.vy, up);
+    this.game.audio.boing(2);
+  }
+
+  update(dt) {
+    const g = this.game, p = this.pos, pl = g.player;
+    // (you, running into it, and any turkey on its feet)
+    if (pl.grounded && Math.hypot(pl.pos.x - p.x, pl.pos.z - p.z) < BALL.r + pl.radius && this.lift < 0.5) {
+      this.kick(p.x - pl.pos.x, p.z - pl.pos.z, 4 + pl.speed * 0.9, 3.5);
+    }
+    for (const t of g.turkeys.list) {
+      if (!t.grounded || t.state === S.SWING || Math.hypot(t.pos.x - p.x, t.pos.z - p.z) > BALL.r + t.radius || this.lift > 0.4) continue;
+      this.kick(p.x - t.pos.x + rand(-0.2, 0.2), p.z - t.pos.z + rand(-0.2, 0.2), 2.4 + t.stage * 0.8, 2 + t.stage);
+      if (t.state === S.GOTO) t.setState(S.IDLE);
+    }
+    // rolling along, slowing, bouncing; off anything it runs into (and kept out on the lawn)
+    this.vy -= 18 * dt;
+    this.lift += this.vy * dt;
+    if (this.lift < 0) {
+      this.lift = 0;
+      this.vy = this.vy < -2 ? -this.vy * BALL.bounce : 0;
+    }
+    const k = Math.exp(-BALL.grip * dt * (this.lift > 0 ? 0.3 : 1));
+    this.vel.multiplyScalar(k);
+    const ox = p.x, oz = p.z;
+    p.x += this.vel.x * dt;
+    p.z += this.vel.z * dt;
+    if (g.world.resolve(p, BALL.r)) {
+      // (off whatever it hit, at about the angle it hit it)
+      const nx = p.x - (ox + this.vel.x * dt), nz = p.z - (oz + this.vel.z * dt), n = Math.hypot(nx, nz);
+      if (n > 1e-4) {
+        const dot = (this.vel.x * nx + this.vel.z * nz) / n;
+        if (dot < 0) { this.vel.x -= (1.7 * dot * nx) / n; this.vel.z -= (1.7 * dot * nz) / n; }
+      }
+    }
+    p.y = g.world.groundHeight(p.x, p.z);
+    this.mesh.position.set(p.x, p.y + BALL.r + this.lift, p.z);
+    // (rolling as it goes)
+    const sp = Math.hypot(this.vel.x, this.vel.z);
+    if (sp > 0.01 && this.lift === 0) this.mesh.rotateOnWorldAxis(_v.set(this.vel.z / sp, 0, -this.vel.x / sp), (sp * dt) / BALL.r);
+    // and a turkey that's got nothing better to do goes over to it, every so often
+    if ((this.chaseT -= dt) <= 0) {
+      this.chaseT = rand(...BALL.chase);
+      const idle = g.turkeys.list.filter((t) => t.state === S.IDLE && !t.sunT && t.playCool <= 0 && Math.hypot(t.pos.x - p.x, t.pos.z - p.z) < 10);
+      if (idle.length) pick(idle).dismissTo(p.x, p.z);
+    }
   }
 }
 
@@ -586,6 +755,7 @@ export class Toys {
     this.trampolines = [];
     this.umbrellas = [];
     this.rides = []; // swing sets, hoists, beach chairs
+    this.balls = [];
   }
 
   addTrampoline(x, z) {
@@ -623,6 +793,13 @@ export class Toys {
   /** seats to sit in (see Perches): a stand's, say */
   addPerches(obj, perches, opts) { return this.addRide(new Perches(this.game, obj, perches, opts)); }
   addMower(x, z, rotY) { return this.addRide(new RideOnMower(this.game, x, z, rotY)); }
+  addSeesaw(x, z, rotY) { return this.addRide(new Seesaw(this.game, x, z, rotY)); }
+  /** a beach ball, to kick about (it's not a ride: see Ball) */
+  addBall(x, z) {
+    const b = new Ball(this.game, x, z);
+    this.balls.push(b);
+    return b;
+  }
   /** a fountain's water, to wash in (see Bath) */
   addBath(obj, perches, opts) { return this.addRide(new Bath(this.game, obj, perches, opts)); }
   addRide(r) { this.rides.push(r); return r; }
@@ -678,5 +855,6 @@ export class Toys {
     }
     for (const u of this.umbrellas) u.update(dt);
     for (const r of this.rides) r.update?.(dt);
+    for (const b of this.balls) b.update(dt);
   }
 }

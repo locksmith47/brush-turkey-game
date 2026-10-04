@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Foe } from './foe.js';
 import { part, merge, vcMesh, G, limb, rand, damp, dampAngle, TAU } from './util.js';
+import { spiralEyes } from './hypno.js';
 
 /*
  * Masked lapwings: plovers, to any Aussie. They've thrown in with the ibis: some of the ibises have a pair of them,
@@ -126,9 +127,11 @@ function createPloverRig(scale) {
   const head = new THREE.Group();
   head.position.set(0, 0.12, 0.035);
   head.add(vcMesh(geos.head));
-  const eyes = vcMesh(geos.eyes, { cast: false }), deadEyes = vcMesh(geos.dead, { cast: false });
+  const eyes = new THREE.Group(), own = vcMesh(geos.eyes, { cast: false }), deadEyes = vcMesh(geos.dead, { cast: false });
+  eyes.add(own);
   deadEyes.visible = false;
   head.add(eyes, deadEyes);
+  spiralEyes(eyes, [0.052, 0.012, 0.037], [1, 0.05, 0.45], 0.016, own); // (in place of its own: they go when it does)
   neck.add(head);
   const legL = new THREE.Group(), legR = new THREE.Group();
   legL.position.set(0.045, 0.34, 0);

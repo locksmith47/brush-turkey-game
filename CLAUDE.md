@@ -19,6 +19,13 @@ it next to the rest. Past the station is Luna Park, and walking into the face's 
 continued" (`ending.js`). Off the way on, through a gap in the railing at the end of the Quay, is The Opera House
 (`props/opera.js`), looked at down the first leg again: Benny the seal (`seal.js`) lazes on the steps out the back.
 
+A new game starts before all that, at home on Blues Point (`props/blues.js`, out past Luna Park in Milsons Point's frame,
+on a leg of its own looking east at the Bridge): the flock at play round the Tower, till the Emperor Ibis lands on its roof,
+switches on the dish he's put up there, and has his ibis back the lot of you into a pile of leaves over the pit their
+catapult's waiting in, to fling you north into the bush (`opening.js`). From then on the Tower and its signal are on the
+horizon everywhere (`beacon.js`), and everything that's turned on the turkeys, bar the ibis, has spiral eyes (`hypno.js`).
+There's no getting back to Blues Point, for now.
+
 ## Commands
 
 - **See a change working:** `node tools/playtest.cjs [scenario.cjs] [outDir]`. It serves the repo, plays it in
@@ -76,6 +83,12 @@ continued" (`ending.js`). Off the way on, through a gap in the railing at the en
   gives the next waypoint anywhere, through open gates and round each zone's track, or null if the way's fenced
   off. `canSee()` and `throwClear()` stop seeing and throwing through scrub, fences and buildings. The camera
   swings round to look down whichever leg you're on (`cam.leg` in main.js), and the sun comes round with it.
+- **The opening** (`opening.js`, `game.opening`) runs on a new game only: `begin()` swaps the bush's sprouts for the
+  flock at Blues Point, and after `PLAY_T` of play it's a scene (`BEAT` times it): `active` takes your hands off, `cine`
+  is its camera (main.js blends to it), and `blocksSave` holds off saving till you've come down in the bush and got up.
+  A loaded save, or the dev menu's goto, calls `skip()`. The signal's `world.blues.power`; `game.beacon` sends out its
+  pulses (`pulses` counts them) and draws the far Tower, `BEARING` round from the way on, wherever the real one's not in
+  sight. Spiral eyes are `spiralEyes()` on a rig (`swirlIn()` to bring them in); `spin()` turns them all, every frame.
 - **The ferry** (`ferry.js`) is a zone that moves: its bounds are its deck (`world.boundsOf(FERRY)`), and
   `shift()` carries everything on it along. It saves where it's got to. She goes nowhere till a lever's pulled
   (`lever.js`): one at either end of her deck sets her off, and one on each wharf calls her over. F pulls the one
