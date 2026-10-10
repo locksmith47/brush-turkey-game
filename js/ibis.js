@@ -2,13 +2,15 @@ import * as THREE from 'three';
 import { Foe } from './foe.js';
 import { createIbisRig } from './ibisModel.js';
 import { keyGeo } from './key.js';
+import { ammoMesh, junk } from './rubbish.js';
+import { WHARF, OPERA, LUNA } from './world.js';
 import { part, merge, vcMesh, G, rand, damp, dampAngle, angleDiff, clamp, canvasTexture, pinLabel } from './util.js';
 
 const COMMON = { bodyY: 0.8, labelY: 1.35, carcassLabelY: 0.7 };
 export const IBIS_KINDS = {
-  ibis: { ...COMMON, name: 'Ibis', scale: 1.0, hp: 14, speed: 2.4, aggro: 7, leash: 7, reach: 0.8, peckR: 0.6, kills: 1, hurt: 10, stompR: 0, radius: 0.35, maxLatch: 6, shakeAt: 4, shakeEvery: 5, value: 12, weight: 3, carryR: 0.75, slots: 8, cooldown: 1.6 },
-  big: { ...COMMON, name: 'Big Ibis', scale: 1.8, hp: 50, speed: 2.3, aggro: 8, leash: 7, reach: 1.35, peckR: 0.75, kills: 1, hurt: 14, stompR: 1.1, radius: 0.62, maxLatch: 10, shakeAt: 6, shakeEvery: 5.5, value: 22, weight: 6, carryR: 1.3, slots: 12, cooldown: 1.7 },
-  giant: { ...COMMON, name: 'Giant Ibis', scale: 2.7, hp: 140, speed: 2.2, aggro: 10, leash: 9, reach: 2.0, peckR: 0.95, kills: 1, hurt: 18, stompR: 1.8, radius: 0.95, maxLatch: 14, shakeAt: 8, shakeEvery: 6, value: 38, weight: 10, carryR: 1.9, slots: 16, cooldown: 1.9 },
+  ibis: { ...COMMON, name: 'Ibis', scale: 1.0, hp: 14, speed: 2.4, aggro: 7, leash: 7, reach: 0.8, peckR: 0.6, kills: 1, hurt: 10, stompR: 0, lob: 0.9, radius: 0.35, maxLatch: 6, shakeAt: 4, shakeEvery: 5, value: 12, weight: 3, carryR: 0.75, slots: 8, cooldown: 1.6 },
+  big: { ...COMMON, name: 'Big Ibis', scale: 1.8, hp: 50, speed: 2.3, aggro: 8, leash: 7, reach: 1.35, peckR: 0.75, kills: 1, hurt: 14, stompR: 1.1, lob: 1.2, radius: 0.62, maxLatch: 10, shakeAt: 6, shakeEvery: 5.5, value: 22, weight: 6, carryR: 1.3, slots: 12, cooldown: 1.7 },
+  giant: { ...COMMON, name: 'Giant Ibis', scale: 2.7, hp: 140, speed: 2.2, aggro: 10, leash: 9, reach: 2.0, peckR: 0.95, kills: 1, hurt: 18, stompR: 1.8, lob: 1.5, radius: 0.95, maxLatch: 14, shakeAt: 8, shakeEvery: 6, value: 38, weight: 10, carryR: 1.9, slots: 16, cooldown: 1.9 },
   king: {
     ...COMMON, name: 'King Ibis', boss: true, scale: 4.2, hp: 520, speed: 2.0, aggro: 15, leash: 10, reach: 3.1, peckR: 1.3, kills: 2, hurt: 24, stompR: 2.7, radius: 1.45,
     maxLatch: 24, shakeAt: 10, shakeEvery: 4.5, value: 90, weight: 20, carryR: 2.8, slots: 28, cooldown: 1.5,
@@ -21,6 +23,12 @@ export const IBIS_KINDS = {
 const BODY = new THREE.Vector3(0, 0.8, -0.02);
 // wind-ups: a red circle marks the spot and fills in, then the attack lands there
 const PECK_T = 0.5, GRAB_T = 0.9, STOMP_T = 0.95, HONK_T = 0.8;
+// throwing things (see Rubbish; `lob` is how far round where it lands it hits): with something in its beak, an ibis
+// lets fly at anyone too far off to peck and no more than LOB_FAR off (m, at 1x), winding up for LOB_T, and it spots
+// them LOB_SPOT further off than it otherwise would. With nothing, it goes up to FETCH_R for something (having a look
+// round every FETCH_EVERY seconds), and it takes FETCH_T to get it in its beak. Out of the bush, they're all carrying
+// something already
+const LOB_FAR = 10, LOB_SPOT = 3, LOB_T = 0.55, FETCH_R = 7, FETCH_EVERY = 0.6, FETCH_T = 0.45, FETCH_QUIT = 4;
 // the King getting up off his throne (he stands, honks, then hops down), and back onto it (turns round, hops
 // up, sits down); sat down, his belly's this far up off his feet (at 1x), and his legs stick out in front
 const RISE_HONK = 0.55, RISE_HOP = 0.85, RISE_T = 1.45, MOUNT_TURN = 0.35, MOUNT_HOP = 0.45, MOUNT_SIT = 0.4;
@@ -50,6 +58,10 @@ export class Ibis extends Foe {
     this.perch = 0; // (how high his feet are off the ground)
     this.look = 0;
     this.honkCool = 0;
+    this.ammo = this.ammoObj = this.lobbing = null;
+    this.fetchAt = new THREE.Vector3();
+    this.fetchT = 0;
+    if (this.def.lob && this.zone !== 0) this.hold([WHARF, OPERA, LUNA].includes(this.zone) ? { chips: true } : junk());
     if (kind === 'king') {
       this.wearKey();
       this.makeAura();
@@ -196,7 +208,7 @@ export class Ibis extends Foe {
   }
 
   onDamage(amount) {
-    if (this.state === 'wander' || this.state === 'return') { this.state = 'chase'; this.t = 0; }
+    if (this.state === 'wander' || this.state === 'return' || (this.state === 'fetch' && this.fetchCalm)) { this.state = 'chase'; this.t = 0; }
     if (this.state === 'throne' || this.state === 'mount') this.roused = true;
     if (this.state === 'hold') {
       this.gripDmg += amount;
@@ -217,6 +229,10 @@ export class Ibis extends Foe {
   onDeath() {
     const g = this.game;
     this.releaseHeld(false);
+    // (whatever it was about to throw, it drops)
+    if (this.lobbing) g.rubbish.cancel(this.lobbing);
+    if (this.ammo) g.rubbish.drop(this.ammoObj, this.ammo, this.rig.billTip.getWorldPosition(new THREE.Vector3()));
+    this.ammo = this.ammoObj = this.lobbing = null;
     this.rig.eyes.visible = false;
     this.rig.deadEyes.visible = true;
     g.audio.squawk(this.s, true);
@@ -272,21 +288,27 @@ export class Ibis extends Foe {
         this.wanderT -= dt;
         if (this.wanderT <= 0) {
           this.wanderT = rand(2.5, 6);
+          // (empty-beaked, it'll often go and see what there is to pick up round about)
+          if (d.lob && !this.ammo && Math.random() < 0.5 && this.goFetch(true)) break;
           this.wanderPoint(0, this.roam, this.wanderTo);
         }
         this.walk(this.wanderTo.x, this.wanderTo.z, d.speed * 0.45, dt, 0.4);
         if (this.latched.length) { this.state = 'chase'; break; }
-        const tg = this.findTarget();
-        if (tg) {
-          this.target = tg;
-          this.state = 'chase';
-          this.t = 0;
-          this.engaged = true;
-          g.audio.squawk(this.s);
-          if (this.kind === 'king') { g.audio.roar(); g.shake(0.6); }
-        }
+        this.lookOut();
         break;
       }
+      case 'fetch': this.fetching(dt); break;
+      case 'lob':
+        this.speedNow = damp(this.speedNow, 0, 10, dt);
+        this.heading = dampAngle(this.heading, Math.atan2(this.aimAt.x - this.pos.x, this.aimAt.z - this.pos.z), 10, dt);
+        if (this.t >= LOB_T && !this.struck) {
+          this.struck = true;
+          g.rubbish.release(this.lobbing, this.ammoObj, this.ammo);
+          this.ammo = this.ammoObj = this.lobbing = null;
+          g.audio.throw();
+        }
+        if (this.t >= LOB_T + 0.35) this.backToChase(d.cooldown);
+        break;
       case 'chase': {
         // the King honks every so often: with a crowd round him (or on him), a big one that blows the lot
         // away; otherwise, just letting them all know he's there
@@ -306,8 +328,8 @@ export class Ibis extends Foe {
           break;
         }
         const tg = this.target;
-        if (!tg || tg.dead || !tg.grounded || Math.hypot(tg.pos.x - this.pos.x, tg.pos.z - this.pos.z) > d.aggro * 1.6 || !this.sees(tg)) {
-          this.target = this.findTarget();
+        if (!tg || tg.dead || !tg.grounded || Math.hypot(tg.pos.x - this.pos.x, tg.pos.z - this.pos.z) > this.spotR() * 1.6 || !this.sees(tg)) {
+          this.target = this.findTarget(this.spotR());
           if (!this.target) {
             this.walk(this.home.x, this.home.z, d.speed * 0.6, dt, 0.5);
             if (!this.latched.length && this.t > 1) { this.state = this.throne ? 'return' : 'wander'; this.t = 0; this.engaged = false; }
@@ -315,6 +337,15 @@ export class Ibis extends Foe {
           break;
         }
         const dx = tg.pos.x - this.pos.x, dz = tg.pos.z - this.pos.z, dist = Math.hypot(dx, dz) || 1;
+        // something in its beak, and they're too far off to peck: they get it thrown at them. Nothing in it, and
+        // nobody in its face: off for something to throw, if there's anything handy
+        if (d.lob && this.cool <= 0 && dist > d.reach + d.peckR + 0.8) {
+          if (this.ammo && dist < LOB_FAR * Math.sqrt(this.s) && g.world.throwClear(this.pos.x, this.pos.z, tg.pos.x, tg.pos.z) >= 1) { this.startLob(tg); break; }
+          if (!this.ammo && !this.latched.length && (this.fetchT -= dt) <= 0) {
+            this.fetchT = FETCH_EVERY;
+            if (this.goFetch(false)) break;
+          }
+        }
         const leashed = Math.hypot(this.home.x - this.pos.x, this.home.z - this.pos.z) > d.leash * 2;
         if (leashed) this.walk(this.home.x, this.home.z, d.speed, dt, 0.5);
         else this.walk(tg.pos.x - (dx / dist) * d.reach * 0.9, tg.pos.z - (dz / dist) * d.reach * 0.9, d.speed, dt, 0.15);
@@ -486,6 +517,76 @@ export class Ibis extends Foe {
     this.honk(false);
   }
 
+  /* ---------------------------------------------------------------- throwing things */
+  /** how far off it spots turkeys (and you): further, with something to throw */
+  spotR() { return this.def.aggro + (this.ammo ? LOB_SPOT : 0); }
+
+  /** anyone about? Off after them */
+  lookOut() {
+    const tg = this.findTarget(this.spotR());
+    if (!tg) return false;
+    this.target = tg;
+    this.state = 'chase';
+    this.t = 0;
+    this.engaged = true;
+    this.game.audio.squawk(this.s);
+    if (this.kind === 'king') { this.game.audio.roar(); this.game.shake(0.6); }
+    return true;
+  }
+
+  /** `what` (see Rubbish), in its beak */
+  hold(what) {
+    this.ammo = what;
+    this.ammoObj = ammoMesh(what);
+    this.ammoObj.position.set(0, -0.02, -0.07);
+    this.ammoObj.rotation.set(0.2, 0, rand(-0.3, 0.3));
+    this.rig.billTip.add(this.ammoObj);
+  }
+
+  /** off to pick something up to throw, if there's anything handy (`calm`: just pottering about, not mid-fight) */
+  goFetch(calm) {
+    const src = this.game.rubbish.find(this.pos, calm ? this.roam + 3 : FETCH_R, this.home, this.def.leash * 2 - 1, this.fetchAt);
+    if (!src) return false;
+    this.fetchSrc = src;
+    this.fetchCalm = calm;
+    this.dipT = 0;
+    this.state = 'fetch';
+    this.t = 0;
+    return true;
+  }
+
+  /** over to it, head down, and up it comes in its beak (unless something comes up first) */
+  fetching(dt) {
+    const g = this.game, d = this.def, f = this.fetchAt;
+    if (this.fetchCalm) {
+      if (this.latched.length) { this.state = 'chase'; this.t = 0; return; }
+      if (this.lookOut()) return;
+      if (this.t > FETCH_QUIT * 2) { this.state = 'wander'; this.t = 0; this.wanderT = 0; return; }
+    } else if (this.latched.length || this.t > FETCH_QUIT) { this.backToChase(0.2); return; }
+    const tg = this.target;
+    if (!this.fetchCalm && tg && !tg.dead && tg.grounded && Math.hypot(tg.pos.x - this.pos.x, tg.pos.z - this.pos.z) < d.reach + d.peckR + 0.4) { this.backToChase(0); return; }
+    const reach = g.rubbish.reach(this.fetchSrc, this);
+    if (!this.dipT && this.walk(f.x, f.z, d.speed * (this.fetchCalm ? 0.5 : 1), dt, reach) > reach + 0.2) return;
+    this.speedNow = damp(this.speedNow, 0, 10, dt);
+    this.heading = dampAngle(this.heading, Math.atan2(f.x - this.pos.x, f.z - this.pos.z), 8, dt);
+    if ((this.dipT += dt) < FETCH_T) return;
+    const what = g.rubbish.take(this.fetchSrc);
+    if (what) this.hold(what);
+    this.fetchSrc = null;
+    if (!this.fetchCalm) this.backToChase(0.15);
+    else { this.state = 'wander'; this.t = 0; this.wanderT = rand(1.5, 4); }
+  }
+
+  /** wind up a throw at wherever tg is now (marked in red straight away, till it lands) */
+  startLob(tg) {
+    this.state = 'lob';
+    this.t = 0;
+    this.struck = false;
+    this.aimAt = tg.pos.clone();
+    this.aimAt.y = this.game.world.groundHeight(this.aimAt.x, this.aimAt.z);
+    this.lobbing = this.game.rubbish.aim(this, this.aimAt, this.def.lob, LOB_T);
+  }
+
   /** wind up a peck, stomp or grab: the spot is fixed now (and marked in red) so there's time to dodge */
   startAttack(kind) {
     const d = this.def;
@@ -558,6 +659,16 @@ export class Ibis extends Foe {
         break;
       case 'gulp':
         neckX = -0.6 + Math.sin(t * 14) * 0.25; headX = -0.3;
+        break;
+      case 'lob': {
+        // head right back, bill up, then a flick of the neck sends it
+        const back = t < LOB_T ? Math.sin((t / LOB_T) * Math.PI * 0.5) : Math.max(0, 1 - (t - LOB_T) / 0.3);
+        const flick = t < LOB_T ? 0 : Math.sin(Math.min(1, (t - LOB_T) / 0.3) * Math.PI);
+        neckX = -0.75 * back + 0.75 * flick; headX = -0.6 * back + 0.4 * flick;
+        break;
+      }
+      case 'fetch':
+        if (this.dipT) { neckX = 1.15 * Math.min(1, this.dipT / 0.2); headX = 0.35; } // (beak in)
         break;
       case 'stagger':
         neckX = 0.9 + Math.sin(t * 22) * 0.12; rollZ = Math.sin(t * 13) * 0.15; bodyY -= 0.03;

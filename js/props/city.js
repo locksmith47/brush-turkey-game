@@ -203,6 +203,7 @@ export const CITY_BAGS = [
 ].map(([x, z]) => toWorld(x, z));
 // ...and the ones the ibises have been into already
 const TORN_BAGS = [[-22.6, -176.4], [-17.8, -180.2], [-21.4, -186.8], [-18.3, -193.8], [-23.8, -197.1], [-2.8, -216.1]];
+export const TORN_BAG_SPOTS = TORN_BAGS.map(([x, z]) => toWorld(x, z));
 // ...and the ibises loitering round them, picking them over: [kind, x, z, with a pair of plovers?]
 export const ALLEY_IBISES = [
   ['ibis', -23.2, -176.2], ['big', -17.2, -179.2, true], ['ibis', -22.8, -183.2],

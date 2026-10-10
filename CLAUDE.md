@@ -115,6 +115,10 @@ There's no getting back to Blues Point, for now.
   2. A red `fx.warnCircle()` telegraphs the attack.
   3. The strike hits turkeys (`killNear`, `blastAway`, `grabbedBy`) and the player
      (`hurtPlayer(point, radius, damage, { knock, stun })`).
+
+  Ibis also throw things (`rubbish.js`, `game.rubbish`): one with something in its beak lobs it at anyone too far
+  off to peck, under a red circle that fills till it lands. They pick up chips, torn bags' and bins' rubbish, and
+  junk lying about (`find()`/`take()`), and out of the bush they start out with something.
 - **Player** (`player.js`) has health (`hurt()`, regen, i-frames) and life states `ok`/`down`/`buried`/`rising`,
   each with its own pose. `dead`/`grounded` getters let foes target him like a turkey. `wasted.js` runs going
   down: WASTED, respawn at `mounds.refuge()`, the turkeys digging him out, popping out.

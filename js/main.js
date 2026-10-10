@@ -28,7 +28,7 @@ import { BUILD_CREW } from './mound.js';
 import { UMBRELLAS, FLAGS } from './props/beach.js';
 import { SUBURB_BINS, SIDE_GATE } from './props/suburb.js';
 import { HOME, START, TRACK, ARENAS, BUSH_BINS, BUSH_LITTER } from './props/bush.js';
-import { CITY_BINS, CITY_BAGS, ALLEY_IBISES, CITY_IBISES, QUAY_GULLS, QUAY_MOUND, LANE_GATE, onKingsWay } from './props/city.js';
+import { CITY_BINS, CITY_BAGS, TORN_BAG_SPOTS, ALLEY_IBISES, CITY_IBISES, QUAY_GULLS, QUAY_MOUND, LANE_GATE, onKingsWay } from './props/city.js';
 import { OVAL_BINS, FIELD_GATE, STUMPS, CRICKET_KIT, OVAL_IBISES, OVAL_MOUND, OVAL_SNAKES, OVAL_SPIDER, MOWER } from './props/oval.js';
 import { GULL_PATCHES, CAPTAIN_POST, WHARF_BINS, WHARF_MOUND } from './props/wharf.js';
 import { LANE } from './props/harbour.js';
@@ -45,6 +45,7 @@ import { Ending } from './ending.js';
 import { Opening, SPROUTS } from './opening.js';
 import { Beacon } from './beacon.js';
 import { spin } from './hypno.js';
+import { Rubbish } from './rubbish.js';
 import { BLUES_SPOTS } from './props/blues.js';
 import { clamp, damp, rand, smoothstep, lerp, angleDiff, TAU } from './util.js';
 
@@ -90,6 +91,7 @@ game.mounds = new Mounds(game);
 game.player = new Player(game);
 game.turkeys = new Turkeys(game);
 game.enemies = new Enemies(game);
+game.rubbish = new Rubbish(game); // (what the ibis throw at you)
 game.toys = new Toys(game);
 game.ferry = new Ferry(game); // (tied up at Manly Wharf, going nowhere till the keys are got back off Captain Gull)
 game.cuttle = new Cuttle(game); // (and halfway over, the first time you cross, the giant cuttlefish)
@@ -213,6 +215,10 @@ for (const [x, z, n, ibis] of [...GULL_PATCHES.map((p) => [...p, true]), ...QUAY
   for (const e of crew) e.crew = crew;
   if (mount) crew[0].ride(mount);
 }
+// (and there's always more where that came from, for an ibis after something to throw: the chips, and the torn bags
+// down the bin alley)
+for (const [x, z] of [...GULL_PATCHES, ...QUAY_GULLS, ...OPERA_GULLS, ...LUNA_GULLS]) game.rubbish.addSpot(x, z, true);
+for (const [x, z] of TORN_BAG_SPOTS) game.rubbish.addSpot(x, z, false);
 // a mound among the pines on the wharf's forecourt, to grow your flock again (if the cuttlefish has had the lot)
 mounds.add(...WHARF_MOUND).startWith(3, 'pine');
 // and over the harbour, a mound on the Quay (with a fish or two in it already), for the fish the giant cuttlefish
@@ -700,6 +706,7 @@ function step(real) {
   game.storm.update(dt); // (after the camera: it closes in the haze the camera's just set)
   mounds.update(dt, camera);
   enemies.update(dt, camera);
+  game.rubbish.update(dt); // (anything they've thrown, on its way down)
   game.barriers.update(dt, camera);
   game.benny.update(dt);
   game.ride.update(dt); // (the train, and anyone getting on or off it)
