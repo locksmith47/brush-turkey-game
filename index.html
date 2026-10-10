@@ -43,7 +43,7 @@
     <div id="throw-type" class="hidden">
       <div class="lbl">Next throw</div>
       <div id="throw-name">—</div>
-      <div id="throw-kind" class="hidden"><span id="tk-normal" class="on">Normal</span><span id="tk-padded" class="hidden">Padded</span><span id="tk-beach" class="hidden">Beach</span><kbd>Tab</kbd></div>
+      <div id="throw-kind" class="hidden"><span id="tk-normal" class="on">Normal</span><span id="tk-padded" class="hidden">Padded</span><span id="tk-beach" class="hidden">Beach</span><kbd class="kb">Tab</kbd><kbd data-pad="dpad"></kbd></div>
     </div>
 
     <div id="corner">
@@ -55,19 +55,19 @@
   <div id="help" class="hidden">
     <h3>Controls</h3>
     <table>
-      <tr><td><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></td><td>Walk</td></tr>
-      <tr><td>Mouse</td><td>Aim</td></tr>
-      <tr><td>Left click</td><td>Throw a turkey (hold for more)</td></tr>
-      <tr><td>Right click<br>or <kbd>Space</kbd></td><td>Whistle turkeys back (hold)</td></tr>
-      <tr><td><kbd>E</kbd></td><td>Pluck a turkey (hold to go from one to the next)</td></tr>
-      <tr><td><kbd>X</kbd></td><td>Dismiss your squad</td></tr>
-      <tr id="help-tab" class="hidden"><td><kbd>Tab</kbd></td><td>Pick which kind to throw</td></tr>
-      <tr><td><kbd>M</kbd></td><td>Scratch up a mound (10 turkeys)</td></tr>
-      <tr><td><kbd>F</kbd></td><td>Dive into a mound, or pull a lever</td></tr>
-      <tr><td><kbd>Z</kbd><kbd>C</kbd><br>or middle-drag</td><td>Turn the camera</td></tr>
-      <tr><td>Wheel</td><td>Zoom (right in to see his face)</td></tr>
-      <tr><td><kbd>H</kbd></td><td>Show or hide the controls</td></tr>
-      <tr><td><kbd>Esc</kbd></td><td>Pause</td></tr>
+      <tr><td><span class="kb"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><kbd data-pad="ls"></kbd></td><td>Walk</td></tr>
+      <tr><td><span class="kb">Mouse</span><kbd data-pad="rs"></kbd></td><td>Aim</td></tr>
+      <tr><td><span class="kb">Left click</span><kbd data-pad="rt"></kbd></td><td>Throw a turkey (hold for more)</td></tr>
+      <tr><td><span class="kb">Right click<br>or <kbd>Space</kbd></span><kbd data-pad="lt"></kbd></td><td>Whistle turkeys back (hold)</td></tr>
+      <tr><td><kbd class="kb">E</kbd><kbd data-pad="a"></kbd></td><td>Pluck a turkey (hold to go from one to the next)</td></tr>
+      <tr><td><kbd class="kb">X</kbd><kbd data-pad="b"></kbd></td><td>Dismiss your squad</td></tr>
+      <tr id="help-tab" class="hidden"><td><kbd class="kb">Tab</kbd><kbd data-pad="dpad"></kbd></td><td>Pick which kind to throw</td></tr>
+      <tr><td><kbd class="kb">M</kbd><kbd data-pad="y"></kbd></td><td>Scratch up a mound (10 turkeys)</td></tr>
+      <tr><td><kbd class="kb">F</kbd><kbd data-pad="x"></kbd></td><td>Dive into a mound, or pull a lever</td></tr>
+      <tr><td><span class="kb"><kbd>Z</kbd><kbd>C</kbd><br>or middle-drag</span><kbd data-pad="lb"></kbd><kbd data-pad="rb"></kbd></td><td>Turn the camera</td></tr>
+      <tr><td><span class="kb">Wheel</span><kbd data-pad="dpad-ud"></kbd></td><td>Zoom (right in to see his face)</td></tr>
+      <tr><td><kbd class="kb">H</kbd><kbd data-pad="view"></kbd></td><td>Show or hide the controls</td></tr>
+      <tr><td><kbd class="kb">Esc</kbd><kbd data-pad="menu"></kbd></td><td>Pause</td></tr>
       <tr><td><kbd>N</kbd></td><td>Sound on or off</td></tr>
     </table>
     <p>Foes can hurt you too: keep out of the red circles, and get clear of trouble to heal. Go down, and your turkeys will dig you out of the nearest mound.</p>
@@ -91,7 +91,7 @@
   <div id="blackout"></div>
   <div id="letterbox"><div></div><div></div></div>
   <div id="whiteout" class="hidden"></div>
-  <div id="ending" class="hidden"><div class="words">To be continued</div><div class="hint">Press any key</div></div>
+  <div id="ending" class="hidden"><div class="words">To be continued</div><div class="hint"><span class="kb">Press any key</span><span class="pd">Press any button</span></div></div>
   <div id="travel" class="hidden">
     <div id="travel-map">
       <canvas></canvas>
@@ -99,18 +99,19 @@
       <div class="names"></div>
       <div class="pins"></div>
       <div class="head"><div class="word">Where to?</div><div id="travel-crew"></div></div>
-      <div class="foot"><span>Click one of your mounds to come out of it</span><span><kbd>Esc</kbd> Back out where you went in</span></div>
+      <div class="foot"><span class="kb">Click one of your mounds to come out of it</span><span class="pd">Pick one of your mounds, and <kbd data-pad="a"></kbd> to come out of it</span><span><kbd class="kb">Esc</kbd><kbd data-pad="b"></kbd> Back out where you went in</span></div>
     </div>
   </div>
   <div id="zone-title"><div class="line"></div><span id="zone-name"></span><div class="line"></div></div>
   <div id="paused" class="hidden">
     <div class="word">Paused</div>
-    <p>Press <kbd>Esc</kbd> to carry on</p>
+    <p>Press <kbd class="kb">Esc</kbd><kbd data-pad="menu"></kbd> to carry on</p>
     <div class="tally">
       <div><b id="t-hatched">0</b><span>chicks hatched</span></div>
       <div><b id="t-mounds">0</b><span>mounds</span></div>
       <div><b id="t-lost">0</b><span>turkeys lost</span></div>
     </div>
+    <div id="pad-map"></div>
     <button id="credits-btn">Credits</button>
     <div id="credits" class="hidden">
       <h4>Bird calls</h4>
@@ -129,23 +130,24 @@
       <h1>RAKE IT BACK</h1>
       <p class="sub">The bin chickens have had Sydney long enough</p>
       <table class="keys">
-        <tr><td><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></td><td>Walk</td></tr>
-        <tr><td>Mouse</td><td>Aim</td></tr>
-        <tr><td>Left click</td><td>Throw a turkey (hold to keep throwing)</td></tr>
-        <tr><td>Right click / <kbd>Space</kbd></td><td>Whistle your turkeys back (hold)</td></tr>
-        <tr><td><kbd>E</kbd></td><td>Pluck a turkey out of the ground (hold to go from one to the next)</td></tr>
-        <tr><td><kbd>X</kbd></td><td>Dismiss the squad</td></tr>
-        <tr><td><kbd>M</kbd></td><td>Scratch up a new mound (takes 10 turkeys)</td></tr>
-        <tr><td><kbd>F</kbd></td><td>Dive into a mound, or pull a lever</td></tr>
-        <tr><td><kbd>Z</kbd> <kbd>C</kbd> / middle-drag</td><td>Rotate the camera</td></tr>
-        <tr><td>Wheel</td><td>Zoom</td></tr>
+        <tr><td><span class="kb"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><kbd data-pad="ls"></kbd></td><td>Walk</td></tr>
+        <tr><td><span class="kb">Mouse</span><kbd data-pad="rs"></kbd></td><td>Aim</td></tr>
+        <tr><td><span class="kb">Left click</span><kbd data-pad="rt"></kbd></td><td>Throw a turkey (hold to keep throwing)</td></tr>
+        <tr><td><span class="kb">Right click / <kbd>Space</kbd></span><kbd data-pad="lt"></kbd></td><td>Whistle your turkeys back (hold)</td></tr>
+        <tr><td><kbd class="kb">E</kbd><kbd data-pad="a"></kbd></td><td>Pluck a turkey out of the ground (hold to go from one to the next)</td></tr>
+        <tr><td><kbd class="kb">X</kbd><kbd data-pad="b"></kbd></td><td>Dismiss the squad</td></tr>
+        <tr><td><kbd class="kb">M</kbd><kbd data-pad="y"></kbd></td><td>Scratch up a new mound (takes 10 turkeys)</td></tr>
+        <tr><td><kbd class="kb">F</kbd><kbd data-pad="x"></kbd></td><td>Dive into a mound, or pull a lever</td></tr>
+        <tr><td><span class="kb"><kbd>Z</kbd> <kbd>C</kbd> / middle-drag</span><kbd data-pad="lb"></kbd><kbd data-pad="rb"></kbd></td><td>Rotate the camera</td></tr>
+        <tr><td><span class="kb">Wheel</span><kbd data-pad="dpad-ud"></kbd></td><td>Zoom</td></tr>
       </table>
       <p id="save-note" class="hidden"></p>
       <div class="buttons">
         <button id="play">Play</button>
         <button id="new-game" class="second hidden">New game</button>
       </div>
-      <p class="hint">Press <kbd>H</kbd> any time to see these again, <kbd>Esc</kbd> to pause and <kbd>N</kbd> for the sound. Your progress saves as you play</p>
+      <p class="hint pd">Press <kbd data-pad="view"></kbd> any time to see the controls, and <kbd data-pad="menu"></kbd> to pause. Your progress saves as you play</p>
+      <p class="hint kb">Press <kbd>H</kbd> any time to see these again, <kbd>Esc</kbd> to pause and <kbd>N</kbd> for the sound. Your progress saves as you play</p>
     </div>
   </div>
 

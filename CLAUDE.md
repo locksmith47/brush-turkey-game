@@ -41,7 +41,7 @@ There's no getting back to Blues Point, for now.
   ```
 - **Lint:** there's no config in the repo, so rules and browser globals go on the command line. Expect 0 errors
   and a dozen old unused-variable warnings:
-  `eslint --no-config-lookup --rule '{"no-undef": "error", "no-unused-vars": "warn"}' --global window,document,innerWidth,innerHeight,devicePixelRatio,addEventListener,requestAnimationFrame,localStorage,location,performance,getComputedStyle,console,setTimeout,fetch js/`
+  `eslint --no-config-lookup --rule '{"no-undef": "error", "no-unused-vars": "warn"}' --global window,document,innerWidth,innerHeight,devicePixelRatio,addEventListener,requestAnimationFrame,localStorage,location,performance,getComputedStyle,console,setTimeout,fetch,navigator js/`
 - **Play it yourself:** any static server at the repo root, e.g. `python3 -m http.server`.
 - **Deploys:** GitHub Pages. master is at https://locksmith47.github.io/brush-turkey-game/ and every other branch
   at `.../branches/<branch>/`; a push to any branch redeploys the lot. Each copy keeps its own save (the
@@ -129,6 +129,11 @@ There's no getting back to Blues Point, for now.
 - **Models** are merged primitives with vertex colours, sharing one toon material (`util.js`: `part`, `merge`,
   `vcMesh`). So one thing can't be tinted through its material; a part that has to move or swell on its own (a male's
   wattle) is a mesh of its own in the rig.
+- **Input** (`input.js`) is the keys, the mouse and a controller (an Xbox pad, in the browser's standard layout).
+  `poll()` reads the pad each frame, and its buttons go in `down`/`hits` as codes like keys (`PadA`, `PadRT`, `PadUp`),
+  with the sticks in `ls`/`rs`. `input.pad` (and the page's `pad` class) is whichever you touched last: on screen,
+  `.kb` things show for the keys and `.pd` ones for the pad, `{pluck}` and the like in a toast become the right key or
+  button (`say()`), and `padmap.js` draws the buttons (`cap()`, `<kbd data-pad="a">`) and the pause screen's picture.
 - **Sounds** are synthesized in `audio.js` (and the places' beds and calls in `ambience.js`), bar the birds: real
   recordings, one call per file in `sounds/`, all at the same loudness, with `LEVEL` in `audio.js` setting each lot
   against the synthesized sound it stands in for. `audio.bird()` plays one, and returns false till they're in (the

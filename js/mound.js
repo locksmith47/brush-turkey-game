@@ -4,6 +4,7 @@ import { PALETTES, JUNK, LEAF_SPLIT, litterGeo } from './leaves.js';
 import { flagMesh } from './items.js';
 import { stumpsMesh, kitTrophy } from './cricket.js';
 import { FERRY } from './world.js';
+import { cap } from './padmap.js';
 
 // the heap: how finely it's made (round it, and out from the middle to its foot), how tall it stands (of its
 // radius), how far out the rim of the caldera on top is (of the way to its foot) and how deep that is (of its
@@ -760,7 +761,7 @@ export class Mound {
     this.dial.pin(v, camera, labelFade(Math.hypot(p.x - this.pos.x, p.z - this.pos.z), 16, 4));
     // (and right by it, with another mound to go to: how to dive in and get there)
     if (this.building) return;
-    if (g.travel.canDiveAt(this)) this.dial.note('Travel', 'F');
+    if (g.travel.canDiveAt(this)) this.dial.note('Travel', 'F', cap('x'));
     else this.dial.note('');
   }
 }

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { part, merge, vcMesh, G, pinLabel } from './util.js';
+import { cap } from './padmap.js';
 
 /*
  * A lever for getting the ferry going: a big red-knobbed handle on a green cast-iron post, standing in a yellow
@@ -65,7 +66,7 @@ export class Lever {
     this.el = document.createElement('div');
     this.el.className = 'prompt';
     this.el.style.display = 'none';
-    this.el.innerHTML = '<kbd>F</kbd><span></span>';
+    this.el.innerHTML = `<kbd class="kb">F</kbd>${cap('x')}<span></span>`;
     this.words = this.el.querySelector('span');
     document.getElementById('labels').appendChild(this.el);
     this.shown = null;

@@ -401,3 +401,57 @@ body.paused #help { z-index: 12; opacity: 1 !important; }
   color: #fff8e6; opacity: 0;
 }
 #ending .hint { font-size: 16px; letter-spacing: 1px; color: rgba(255, 248, 230, .7); opacity: 0; }
+
+/* ---------------------------------------------------------------- on a controller (see Input.usePad, and padmap.js) */
+/* (what's said for the keyboard and mouse, and what's said for a controller: only the one you're playing with shows) */
+body:not(.pad) .pd, body.pad .kb { display: none !important; }
+/* a controller's button, where a key would be: dark and round, the face buttons' letters in their colours */
+kbd.pad {
+  min-width: 1.75em; height: 1.75em; padding: 0 5px; border-radius: 999px; background: #1f2322; color: #fff;
+  font: bold 11px/1.75em "Trebuchet MS", "Segoe UI", system-ui, sans-serif; box-shadow: 0 2px 0 #000, inset 0 0 0 1.5px rgba(255, 255, 255, .35);
+  vertical-align: middle; text-shadow: none;
+}
+kbd.pad-a, kbd.pad-b, kbd.pad-x, kbd.pad-y { width: 1.75em; padding: 0; font-size: 12px; }
+kbd.pad-a { color: #6ccf2c; }
+kbd.pad-b { color: #f0453f; }
+kbd.pad-x { color: #3b8cf0; }
+kbd.pad-y { color: #f5c531; }
+kbd.pad svg { width: 1.2em; height: 1.2em; vertical-align: -0.2em; }
+kbd.pad .ico, .pad-diagram .ico { fill: none; stroke: #fff; stroke-width: 1.4; stroke-linecap: round; }
+kbd.pad .dpad rect, .pad-diagram .g-dpad rect { fill: rgba(255, 255, 255, .35); }
+kbd.pad .dpad rect.lit, .pad-diagram .g-dpad rect.lit { fill: #fff; }
+.dial .d-note kbd.pad { min-width: 1.5em; height: 1.5em; padding: 0 3px; font-size: 9px; line-height: 1.5em; box-shadow: 0 1px 0 #000, inset 0 0 0 1px rgba(255, 255, 255, .35); }
+.dial .d-note kbd.pad-a, .dial .d-note kbd.pad-b, .dial .d-note kbd.pad-x, .dial .d-note kbd.pad-y { width: 1.5em; padding: 0; font-size: 10px; }
+/* (Play and New game, on the front screen: A and Y) */
+body.pad #play::before, body.pad #new-game:not(.hidden)::before {
+  display: inline-block; width: 1.4em; height: 1.4em; margin-right: 10px; border-radius: 50%; vertical-align: 0.05em;
+  font-size: .8em; line-height: 1.4em; background: #1f2322; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .35);
+}
+body.pad #play::before { content: 'A'; color: #6ccf2c; }
+body.pad #new-game::before { content: 'Y'; color: #f5c531; }
+
+/* the controller, drawn on the pause screen, with what each button does */
+#pad-map { width: min(880px, calc(100% - 36px)); margin-top: 22px; padding: 14px 18px 10px; background: rgba(25, 34, 20, .6); border-radius: 22px; }
+#paused.credits-open #pad-map { display: none; }
+.pad-diagram { display: block; width: 100%; height: auto; overflow: visible; }
+.pad-diagram .body { fill: #2a2e2d; stroke: rgba(255, 255, 255, .45); stroke-width: 2; }
+.pad-diagram .trigger { fill: #3a3f3e; stroke: rgba(255, 255, 255, .3); stroke-width: 1.5; }
+.pad-diagram .bumper { fill: none; stroke: #464c4a; stroke-width: 15; stroke-linecap: round; }
+.pad-diagram .well { fill: #181a1a; }
+.pad-diagram .stick { fill: #3a3f3e; stroke: rgba(255, 255, 255, .25); stroke-width: 1.5; }
+.pad-diagram .stick-top { fill: none; stroke: rgba(255, 255, 255, .14); stroke-width: 2; }
+.pad-diagram .dpad-big rect { fill: #3a3f3e; }
+.pad-diagram .face circle, .pad-diagram .g-face circle, .pad-diagram .g-stick circle, .pad-diagram .g-small circle, .pad-diagram .g-pill rect, .pad-diagram .small {
+  fill: #1c1f1e; stroke: rgba(255, 255, 255, .35); stroke-width: 1.5;
+}
+.pad-diagram .face text, .pad-diagram .g-face text { font: bold 13px "Trebuchet MS", "Segoe UI", system-ui, sans-serif; text-anchor: middle; }
+.pad-diagram .g-stick text, .pad-diagram .g-pill text { font: bold 10px "Trebuchet MS", "Segoe UI", system-ui, sans-serif; text-anchor: middle; fill: #fff; }
+.pad-diagram .guide { fill: #3a3f3e; stroke: rgba(255, 255, 255, .3); stroke-width: 1.5; }
+.pad-diagram .guide-in { fill: #d9ddd8; opacity: .75; }
+.pad-diagram .lines path { fill: none; stroke: rgba(255, 224, 102, .7); stroke-width: 1.5; }
+.pad-diagram .lines .dot { fill: #ffe066; }
+.pad-diagram .group { fill: none; stroke: rgba(255, 224, 102, .7); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.pad-diagram .words > text { font: bold 15px "Trebuchet MS", "Segoe UI", system-ui, sans-serif; fill: #fff8e6; }
+/* (playing on a controller, the pause screen's all its picture: no keys down the side) */
+body.paused.pad #help { display: none; }
+body.pad #paused { padding-right: 0; }
