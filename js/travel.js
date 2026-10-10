@@ -124,7 +124,7 @@ export class Travel {
       if (t >= DARK_T) this.openMap();
     } else if (this.stage === 'map') {
       this.look(1, smoothstep(0, MAP_T, t));
-      if (g.input.pressed('Escape')) this.pick(this.from);
+      if (g.input.pressed('Escape', 'PadB')) this.pick(this.from);
       else this.map.keys(g.input);
     } else if (this.stage === 'back') {
       this.look(1, 1 - smoothstep(0, BACK_T, t));
@@ -212,7 +212,7 @@ export class Travel {
     const m = this.nearest();
     if (!m || !this.canDiveAt(m)) return;
     this.told = true;
-    this.game.hud.toast('Press F to dive into the mound, squad and all, and come out of any of your other mounds', 6);
+    this.game.hud.toast('Press {use} to dive into the mound, squad and all, and come out of any of your other mounds', 6);
   }
 
   /** the window's changed size: the map, drawn again to fit (if it's up) */

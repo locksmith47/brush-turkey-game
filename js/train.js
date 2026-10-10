@@ -361,6 +361,6 @@ export class Ride {
   /** the first time you're on the platform by her open doors: how it's done */
   tell() {
     if (this.game.hud.told.has('train') || !this.canBoard()) return;
-    this.game.hud.toastOnce('train', 'Press F to hop on the train, squad and all', 5);
+    this.game.hud.toastOnce('train', 'Press {use} to hop on the train, squad and all', 5);
   }
 }

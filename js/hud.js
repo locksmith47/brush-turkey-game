@@ -1,4 +1,5 @@
 import { MAX_HP } from './player.js';
+import { diagram, fillCaps } from './padmap.js';
 
 export class HUD {
   constructor(game) {
@@ -16,6 +17,9 @@ export class HUD {
     this.cache = {};
     this.hurtK = 0; // (the red round the edges of the screen, flashing up when you're hurt)
     this.el['credits-btn'].addEventListener('click', (e) => { this.credits(); e.currentTarget.blur(); }); // (not Space's to press after)
+    // (a controller, drawn on the pause screen; and the buttons' pictures wherever there's a key to press)
+    document.getElementById('pad-map').innerHTML = diagram();
+    fillCaps();
   }
 
   show() { this.el.hud.classList.remove('hidden'); }
@@ -35,6 +39,7 @@ export class HUD {
   credits(on = this.el.credits.classList.contains('hidden')) {
     this.el.credits.classList.toggle('hidden', !on);
     this.el['credits-btn'].classList.toggle('on', on);
+    this.el.paused.classList.toggle('credits-open', on); // (they take the controller's place: there's not the room for both)
   }
 
   /** how you're going, on the pause screen */
@@ -54,7 +59,7 @@ export class HUD {
 
   toast(msg, secs = 2) {
     if (this.game.loading) return; // (a save being put back: nothing to announce)
-    this.el.toast.textContent = msg;
+    this.el.toast.textContent = this.game.input?.say(msg) ?? msg; // (with whatever's to press, on what you're playing with)
     this.el.toast.classList.add('show');
     this.toastT = secs;
   }

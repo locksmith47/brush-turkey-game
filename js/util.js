@@ -217,15 +217,17 @@ export class Dial {
     this.base += ` ${cls}`;
     this.el.className = this.state ? `${this.base} ${this.state}` : this.base;
   }
-  /** the note under it (`key`: a key to press for it, shown in front of it) */
-  note(text, key = '') {
+  /** the note under it (`key`: a key to press for it, shown in front of it; and `pad`, the button's picture for it on a controller: see padmap.js) */
+  note(text, key = '', pad = '') {
     const s = `${key}|${text}`;
     if (s === this.noteText) return;
     this.noteText = s;
     if (!key) { this.noteEl.textContent = text; return; }
     const k = document.createElement('kbd');
     k.textContent = key;
+    if (pad) k.className = 'kb';
     this.noteEl.replaceChildren(k, ` ${text}`);
+    if (pad) k.insertAdjacentHTML('afterend', pad);
   }
   pin(v, camera, fade = 1) { return pinLabel(this.el, v, camera, fade); }
   hide() { if (this.el.style.display !== 'none') this.el.style.display = 'none'; }

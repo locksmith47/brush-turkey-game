@@ -294,17 +294,17 @@ export class TravelMap {
     this.onPick(m);
   }
 
-  /** the keys, while it's up: the arrows (or WASD) pick out the next mound over that way, Tab the next of them, and Enter (or Space, or F) goes */
+  /** the keys, while it's up: the arrows (or WASD) pick out the next mound over that way, Tab the next of them, and Enter (or Space, or F) goes. On a controller, it's the D-pad or the left stick, the bumpers, and A */
   keys(input) {
     if (!this.up || this.picked) return;
-    if (input.pressed('Enter', 'NumpadEnter', 'Space', 'KeyF')) { this.go(this.sel ?? this.from); return; }
-    if (input.pressed('Tab')) {
+    if (input.pressed('Enter', 'NumpadEnter', 'Space', 'KeyF', 'PadA')) { this.go(this.sel ?? this.from); return; }
+    if (input.pressed('Tab', 'PadRB', 'PadLB')) {
       const i = this.mounds.indexOf(this.sel);
       this.select(this.mounds[(i + 1) % this.mounds.length]);
       return;
     }
-    const dx = (input.pressed('ArrowRight', 'KeyD') ? 1 : 0) - (input.pressed('ArrowLeft', 'KeyA') ? 1 : 0);
-    const dy = (input.pressed('ArrowDown', 'KeyS') ? 1 : 0) - (input.pressed('ArrowUp', 'KeyW') ? 1 : 0);
+    const dx = (input.pressed('ArrowRight', 'KeyD', 'PadRight', 'LsRight') ? 1 : 0) - (input.pressed('ArrowLeft', 'KeyA', 'PadLeft', 'LsLeft') ? 1 : 0);
+    const dy = (input.pressed('ArrowDown', 'KeyS', 'PadDown', 'LsDown') ? 1 : 0) - (input.pressed('ArrowUp', 'KeyW', 'PadUp', 'LsUp') ? 1 : 0);
     if (dx || dy) this.toward(dx, dy);
   }
 

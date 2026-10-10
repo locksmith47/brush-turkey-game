@@ -51,6 +51,8 @@ import { clamp, damp, rand, smoothstep, lerp, angleDiff, TAU } from './util.js';
 const THROW_RANGE = 11;
 const WHISTLE_RANGE = 15;
 const WHISTLE_MAX_R = 5.5;
+const STICK_AIM = { near: 2, ahead: 5, ease: 14 }; // on a controller: m the right stick aims from, just nudged; m out in front of you it drifts to as you walk, left alone; and how quick the reticle gets there
+const PAD_TURN = 2.2, PAD_ZOOM = 1.6; // on a controller: radians/s LB and RB turn the camera, and how quick the D-pad zooms
 const PLUCK = { reach: 2.3, near: 1.2, every: 0.3, far: 14, stuck: 0.8 }; // holding E: m he plucks from, m he walks up to, s between plucks, m he'll go for the next one, and s he'll keep at one he can't get to
 
 /* ------------------------------------------------------------------ setup */
@@ -98,7 +100,7 @@ game.cursor = new Cursor(game);
 game.beacon = new Beacon(game); // (the Emperor's signal, going out from Blues Point Tower, and the Tower itself, off on the horizon)
 window.game = game; // handy for poking around in devtools
 
-const input = new Input();
+const input = game.input = new Input();
 const { world, player, turkeys, mounds, leaves, audio, hud, fx, enemies } = game;
 
 /* ------------------------------------------------------------------ starting layout */
@@ -350,14 +352,41 @@ const aim = new THREE.Vector3();
 const target = new THREE.Vector3();
 const whistle = { active: false, center: new THREE.Vector3(), radius: 0, t: 0 };
 
-function updateAim() {
-  raycaster.setFromCamera(input.mouse, camera);
-  let h = player.pos.y;
-  for (let i = 0; i < 3; i++) {
-    plane.constant = -h;
-    if (!raycaster.ray.intersectPlane(plane, aim)) { aim.copy(player.pos); break; }
-    h = world.groundHeight(aim.x, aim.z);
+// (on a controller, where the right stick's put the reticle, from you)
+const stickAim = new THREE.Vector3(), stickWant = new THREE.Vector3();
+let stickWas = false;
+
+/**
+ * The right stick aims: push it the way you want to throw, further for further. Let go and the reticle stays put
+ * where it was, bar while you're walking: then it drifts round to out in front of you
+ */
+function aimStick(dt) {
+  if (!stickWas) stickAim.set(target.x - player.pos.x, 0, target.z - player.pos.z); // (picking up from wherever the mouse had it)
+  const { x: sx, y: sy } = input.rs, m = Math.hypot(sx, sy);
+  const fx_ = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw);
+  if (m > 0) {
+    const d = (STICK_AIM.near + (THROW_RANGE - STICK_AIM.near) * m) / m;
+    stickWant.set((fx_ * sy - fz * sx) * d, 0, (fz * sy + fx_ * sx) * d);
+  } else if (move.x || move.z) {
+    const l = Math.hypot(move.x, move.z);
+    stickWant.set(move.x / l * STICK_AIM.ahead, 0, move.z / l * STICK_AIM.ahead);
+  } else stickWant.copy(stickAim);
+  stickAim.lerp(stickWant, 1 - Math.exp(-STICK_AIM.ease * dt));
+  aim.set(player.pos.x + stickAim.x, player.pos.y, player.pos.z + stickAim.z);
+}
+
+function updateAim(dt) {
+  if (input.pad) aimStick(dt);
+  else {
+    raycaster.setFromCamera(input.mouse, camera);
+    let h = player.pos.y;
+    for (let i = 0; i < 3; i++) {
+      plane.constant = -h;
+      if (!raycaster.ray.intersectPlane(plane, aim)) { aim.copy(player.pos); break; }
+      h = world.groundHeight(aim.x, aim.z);
+    }
   }
+  stickWas = input.pad;
   const clampTo = (out, max) => {
     const dx = aim.x - player.pos.x, dz = aim.z - player.pos.z, d = Math.hypot(dx, dz);
     const k = d > max ? max / d : 1;
@@ -463,6 +492,11 @@ function buildMound() {
 function handleInput(dt) {
   if (input.isDown('KeyZ')) cam.yaw += dt * 2.2;
   if (input.isDown('KeyC')) cam.yaw -= dt * 2.2;
+  // (and on a controller: LB and RB turn it, and up and down on the D-pad zoom in and out)
+  if (input.isDown('PadLB')) cam.yaw += dt * PAD_TURN;
+  if (input.isDown('PadRB')) cam.yaw -= dt * PAD_TURN;
+  if (input.isDown('PadUp')) cam.zoom = Math.max(MIN_DIST, cam.zoom * (1 - dt * PAD_ZOOM));
+  if (input.isDown('PadDown')) cam.zoom = Math.min(MAX_DIST, cam.zoom * (1 + dt * PAD_ZOOM));
   // middle-drag orbits the camera (and tilts it up/down)
   if (input.mmb) {
     cam.yaw -= input.dragX * 0.006;
@@ -476,6 +510,7 @@ function handleInput(dt) {
   if (input.isDown('KeyS', 'ArrowDown')) f -= 1;
   if (input.isDown('KeyD', 'ArrowRight')) r += 1;
   if (input.isDown('KeyA', 'ArrowLeft')) r -= 1;
+  f += input.ls.y; r += input.ls.x; // (the left stick: only part way over, and he goes slower)
   const fx_ = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw);
   move.x = fx_ * f + -fz * r;
   move.z = fz * f + fx_ * r;
@@ -483,14 +518,14 @@ function handleInput(dt) {
   if (len > 1) { move.x /= len; move.z /= len; }
 
   // throwing (hold to keep throwing)
-  if (input.lmbPressed) { doThrow(true); throwHold = 0; autoThrow = 0; }
-  else if (input.lmb) {
+  if (input.lmbPressed || input.pressed('PadRT')) { doThrow(true); throwHold = 0; autoThrow = 0; }
+  else if (input.lmb || input.isDown('PadRT')) {
     throwHold += dt;
     if (throwHold > 0.35) { autoThrow -= dt; if (autoThrow <= 0) { autoThrow = 0.15; doThrow(false); } }
   }
 
   // whistle
-  const wantWhistle = input.rmb || input.isDown('Space');
+  const wantWhistle = input.rmb || input.isDown('Space', 'PadLT');
   if (wantWhistle && !whistle.active) { whistle.active = true; whistle.t = 0; audio.whistleStart(); }
   if (!wantWhistle && whistle.active) { whistle.active = false; audio.whistleStop(); }
   player.whistling = whistle.active;
@@ -503,17 +538,17 @@ function handleInput(dt) {
   }
 
   // plucking (hold E to keep plucking, and he goes from one to the next)
-  if (input.pressed('KeyE')) { tryPluck(); pluckHold = 0; pluckSkip.clear(); pluckNext = null; }
-  else if (input.isDown('KeyE')) pluckOn(dt, f || r);
+  if (input.pressed('KeyE', 'PadA')) { tryPluck(); pluckHold = 0; pluckSkip.clear(); pluckNext = null; }
+  else if (input.isDown('KeyE', 'PadA')) pluckOn(dt, f || r);
 
-  if (input.pressed('KeyX') && turkeys.dismiss()) audio.peep(2, true);
-  if (input.pressed('Tab')) {
+  if (input.pressed('KeyX', 'PadB') && turkeys.dismiss()) audio.peep(2, true);
+  if (input.pressed('Tab', 'PadLeft', 'PadRight')) {
     if (turkeys.cyclePreferred()) audio.peep(turkeys.candidate?.stage ?? 0, true);
     else audio.nope(); // (none of the other kind with you)
   }
-  if (input.pressed('KeyM')) buildMound();
-  if (input.pressed('KeyF') && !game.ferry.tryLever() && !game.ride.tryBoard()) game.travel.tryDive(); // (a lever, if you're by one: see Ferry; or the train's doors)
-  if (input.pressed('KeyH')) hud.toggleHelp();
+  if (input.pressed('KeyM', 'PadY')) buildMound();
+  if (input.pressed('KeyF', 'PadX') && !game.ferry.tryLever() && !game.ride.tryBoard()) game.travel.tryDive(); // (a lever, if you're by one: see Ferry; or the train's doors)
+  if (input.pressed('KeyH', 'PadView')) hud.toggleHelp();
 }
 
 /* ------------------------------------------------------------------ tips */
@@ -537,28 +572,28 @@ const byPadded = () => {
 // up, then there's a breather before the next. One you've no need of (you've worked it out, or it's been and gone)
 // is never said at all
 const tips = [
-  { key: 'pluck', when: () => !game.stats.plucked, text: 'Walk up to a turkey poking out of the ground and press E to pluck it. Hold E to go on to the next' },
-  { key: 'throw', when: () => game.stats.plucked >= 2 && !game.stats.thrown, text: 'Aim at leaf litter and left-click to throw a turkey' },
-  { key: 'whistle', when: () => game.stats.thrown >= 2, text: 'Turkeys rake the leaves back to the mound with their feet. Hold right-click to whistle them back' },
+  { key: 'pluck', when: () => !game.stats.plucked, text: 'Walk up to a turkey poking out of the ground and press {pluck} to pluck it. Hold {pluck} to go on to the next' },
+  { key: 'throw', when: () => game.stats.plucked >= 2 && !game.stats.thrown, text: 'Aim at leaf litter and {throw} to throw a turkey' },
+  { key: 'whistle', when: () => game.stats.thrown >= 2, text: 'Turkeys rake the leaves back to the mound with their feet. Hold {whistle} to whistle them back' },
   { key: 'fill', when: () => game.stats.leaves >= 4 && !game.stats.hatched, text: 'Fill the mound to hatch more chicks!' },
   { key: 'grubs', when: () => game.stats.hatched >= 1, text: 'Grubs make turkeys grow. Bins are worth knocking over, too' },
   { key: 'barricade', when: () => nearClearing('ibis') && barricade.ibis.up, text: "A barricade's blocking the way on. Throw turkeys at it to knock it down, and a few on the ibis guarding it" },
   { key: 'gate', when: () => nearClearing('gate') && !world.gates[0].unlocked, text: "The gate's padlocked. Find its giant golden key: look for the beam of light" },
   { key: 'dig', when: () => !barricade.guards.up && game.barriers.keys[0].alive, text: "The key's buried. Throw turkeys at it to dig it up, then enough of them can carry it to the gate" },
   // (building one yourself tells you all you need to know: see buildMound)
-  { key: 'mound', when: () => nearClearing('snake', 0) || zoneNow() === 1, text: `Your mound's a long way back now. Press M and ${BUILD_CREW} of your turkeys will scratch up a new one` },
+  { key: 'mound', when: () => nearClearing('snake', 0) || zoneNow() === 1, text: `Your mound's a long way back now. Press {mound} and ${BUILD_CREW} of your turkeys will scratch up a new one` },
   { key: 'bigger', when: () => world.gates[0].open && zoneNow() === 1, text: "Each key's bigger than the last, so you'll need a bigger flock" },
-  { key: 'tab-padded', when: paddedSquad, text: 'Press Tab to throw your padded turkeys, and again to go back to the others' },
+  { key: 'tab-padded', when: paddedSquad, text: 'Press {kind} to throw your padded turkeys, and again to go back to the others' },
   { key: 'manly', when: () => zoneNow() === BEACH, text: 'Manly! Pinch the beach gear for the beach mound: it hatches beach turkeys' },
   { key: 'swim', when: beachSquad, text: 'Beach turkeys can swim. The others drown in deep water, unless you whistle them out' },
-  { key: 'tab', when: beachSquad, text: 'Press Tab to throw your beach turkeys, and again to go back to the others' },
+  { key: 'tab', when: beachSquad, text: 'Press {kind} to throw your beach turkeys, and again to go back to the others' },
   // (or the beach mound tells you, if you find out for yourself: see Mound.convert)
   { key: 'convert', when: () => zoneNow() === BEACH && turkeys.list.some((t) => t.kind === 'beach'), text: 'Out of beach gear? Throw normal turkeys into a beach mound to turn them into beach turkeys' },
   // (and a word as you first get to each of the places that need one)
   { key: 'oval', when: () => zoneNow() === OVAL, text: "The padded mound's chicks come out in cricket kit, while it's got any. Throw turkeys at the cricket gear lying about and they'll carry it in" },
   { key: 'repad', when: byPadded, text: 'Throw a turkey into the padded mound and out it comes padded up' },
-  { key: 'lever', when: () => zoneNow() === FERRY && game.ferry.state === 'docked' && !game.ferry.call, text: "Pull the lever on her deck with F and she'll set sail" },
-  { key: 'ferry', when: () => zoneNow() === FERRY && game.ferry.state === 'sailing', text: 'Sit back and enjoy the view! Z and C swing the camera round' },
+  { key: 'lever', when: () => zoneNow() === FERRY && game.ferry.state === 'docked' && !game.ferry.call, text: "Pull the lever on her deck with {use} and she'll set sail" },
+  { key: 'ferry', when: () => zoneNow() === FERRY && game.ferry.state === 'sailing', text: 'Sit back and enjoy the view! {camera} swing the camera round' },
   { key: 'quay', when: () => zoneNow() === CITY, text: 'Circular Quay! The King Ibis holds court at the Town Hall, at the end of the bin alley' },
 ];
 /** what you'd been told, going by a save from before the tips had names (it only kept how far down the list you'd got, and a flag or two) */
@@ -679,18 +714,21 @@ function setPaused(on) {
 function step(real) {
   // (Esc pauses, and N turns the sound off or back on: any time, even while you're down. Bar Esc with the map up,
   // down in the tunnels: that's back out of the mound you went in by)
+  input.poll(); // (the controller, if you're playing on one)
+  const was = game.paused;
   if (game.started) {
-    if (input.pressed('Escape') && !game.travel.frozen) setPaused(!game.paused);
+    if (input.pressed('Escape', 'PadMenu') && !game.travel.frozen) setPaused(!game.paused);
+    else if (game.paused && input.pressed('PadB')) setPaused(false);
     if (input.pressed('KeyN')) hud.soundOff(audio.toggleOff(), true);
-  }
-  if (game.paused) { input.endFrame(); return; }
+  } else splashPad();
+  if (game.paused || was) { input.endFrame(); return; } // (and the frame you carry on, B's not dismissing your squad as well)
   // (and with the map up, the world stands still: there's only the map)
   if (game.travel.frozen) { game.travel.update(real); input.endFrame(); return; }
   const dt = real * game.timeScale;
   game.time += dt;
   const down = game.wasted.active || game.travel.active || game.ride.active || game.ending.active || game.opening.active;
-  if (game.started && !down) { updateAim(); handleInput(dt); if (!game.opening.blocksSave) updateTips(dt); }
-  else { letGo(); updateAim(); game.opening.drive(move); }
+  if (game.started && !down) { updateAim(dt); handleInput(dt); if (!game.opening.blocksSave) updateTips(dt); }
+  else { letGo(); updateAim(dt); game.opening.drive(move); }
 
   game.ferry.update(dt); // (she carries everyone aboard before they get moving themselves)
   game.cuttle.update(dt); // (its tentacles come up among the foes)
@@ -725,7 +763,6 @@ function step(real) {
   input.endFrame();
 }
 game.step = step; // lets devtools fast-forward: for (let i = 0; i < 600; i++) game.step(1 / 60)
-game.input = input;
 game.aimTarget = target;
 
 function frame() {
@@ -753,6 +790,14 @@ if (save) {
   const where = ZONES[world.zoneOf(save.player[0], save.player[1])].name, when = new Date(save.at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
   note.textContent = `Carry on in ${where} (saved ${when})`;
   note.classList.remove('hidden');
+}
+
+/** on the front screen, on a controller: A plays (or carries on), and Y's a new game */
+function splashPad() {
+  if (document.getElementById('splash').classList.contains('hidden')) return;
+  const newBtn = document.getElementById('new-game');
+  if (input.pressed('PadA')) document.getElementById('play').click();
+  else if (input.pressed('PadY') && !newBtn.classList.contains('hidden')) newBtn.click();
 }
 
 /** `fresh`: a new game (it starts at home, on Blues Point: see Opening), or carrying on */
@@ -788,6 +833,9 @@ newBtn.addEventListener('click', (e) => {
   Saves.clear();
   start(true);
 });
+
+// (started on a controller, the browser mightn't have let the sound start: it can the first key or click it gets)
+for (const type of ['keydown', 'mousedown']) addEventListener(type, () => { if (audio.ctx?.state === 'suspended' && !game.paused) audio.ctx.resume(); });
 
 // (and whenever you leave the page, or switch away from it)
 addEventListener('visibilitychange', () => { if (document.hidden) saves.write(); });

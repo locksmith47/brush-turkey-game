@@ -109,6 +109,7 @@ export class Player {
     this.quiet = 0;
     this.flinch = 1;
     g.hud.hurt(amount / MAX_HP);
+    g.input.rumble(Math.min(1, 0.35 + amount / MAX_HP * 2), this.hp <= 0 ? 400 : 160); // (and through the controller, if you're on one)
     g.audio.oof(this.hp <= 0);
     g.shake(Math.min(0.6, 0.15 + amount * 0.012));
     g.fx.burst(_v.set(this.pos.x, this.pos.y + this.hop + 1.35, this.pos.z), { glow: true, n: 7, colors: [0xffffff, 0xffe066, 0xff7a3d], speed: [1.5, 3.2], up: [0.3, 2], grav: 3, drag: 2.5, size: [0.04, 0.08], life: [0.25, 0.45] });

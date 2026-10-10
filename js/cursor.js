@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { STAGES } from './turkeyModel.js';
 import { pinLabel } from './util.js';
+import { cap } from './padmap.js';
 
 const DOTS = 18;
 
@@ -42,7 +43,7 @@ export class Cursor {
 
     this.prompt = document.createElement('div');
     this.prompt.className = 'mound-label';
-    this.prompt.innerHTML = '<kbd>E</kbd> Pluck';
+    this.prompt.innerHTML = `<kbd class="kb">E</kbd>${cap('a')} Pluck`;
     this.prompt.style.display = 'none';
     document.getElementById('labels').appendChild(this.prompt);
 
